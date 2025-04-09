@@ -1,0 +1,87 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Usuarios</h2>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th scope="col">Nombre</th>
+          <th scope="col">Apellidos</th>
+          <th scope="col">correo</th>
+          <th scope="col">Rol</th>
+          <th scope="col">Estatus</th>
+          <th scope="col">Opciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.name }}</td>
+          <td>{{ u.lastName }}</td>
+          <td>{{ u.email }}</td>
+          <td>
+            {% if u.roles[0] == 'ROLE_ADMIN' %}
+              Administrador
+            {% elseif u.roles[0] == 'ROLE_EXECUTIVE' %}
+              Ejecutivo
+            {% elseif u.roles[0] == 'ROLE_CLIENT' %}
+              Cliente
+            {% elseif u.roles[0] == 'ROLE_FH' %}
+              Transportista
+            {% endif %}
+          </td>
+          <td id="status-{{ u.id }}">
+            {% if u.status == 'pending' %}
+              <span class="badge bg-warning text-dark">Pendiente</span>
+            {% elseif u.status == 'active' %}
+              <span class="badge bg-success">Activo</span>
+            {% elseif u.status == 'inactive' %}
+              <span class="badge bg-secondary">Inactivo</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.status == 'pending' %}
+              <button class="btn btn-success verify-user-btn" data-id="{{ u.id }}" title="Verificar usuario"><i class="bi bi-check-circle"></i></button>
+              <button class="btn btn-danger deny-user-btn" data-id="{{ u.id }}" title="Rechazar usuario"><i class="bi bi-x-circle"></i></button>
+            {% endif %}
+            {% if u.status == 'active' and u.roles[0] != 'ROLE_ADMIN' %}
+              <button class="btn btn-danger disable-user-btn" data-id="{{ u.id }}" title="Deshabilitar usuario">
+                <i class="bi bi-power"></i>
+              </button>
+            {% elseif u.status == 'inactive' and u.roles[0] != 'ROLE_ADMIN' %}
+              <button class="btn btn-dark reactivate-user-btn" data-id="{{ u.id }}" title="Reactivar usuario">
+                <i class="bi bi-power"></i>
+              </button>
+            {% endif %}
+            <button 
+              class="btn btn-warning edit-user-btn"
+              title="Editar usuario"
+              data-id="{{ u.id }}"
+              data-name="{{ u.name }}"
+              data-lastname="{{ u.lastName }}"
+              data-email="{{ u.email }}">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            <button class="btn btn-primary change-role-btn"
+                    data-id="{{ u.id }}"
+                    data-role="{{ u.roles[0] }}"
+                    title="Cambiar rol">
+              <i class="bi bi-wrench"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      
+    });
+  </script>
+{% endblock %}

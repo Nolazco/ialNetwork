@@ -1,0 +1,307 @@
+{% extends 'base.html.twig' %}
+{% block stylesheets %}
+	{{ encore_entry_link_tags('app') }}
+	<link rel="stylesheet" href="./index/css/bootstrap.min.css">
+	<link rel="stylesheet" href="./index/css/font-awesome.min.css">
+	<link rel="stylesheet" href="./index/css/aos.css">
+	<!-- MAIN CSS -->
+	<link rel="stylesheet" href="./index/css/tooplate-gymso-style.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css">
+{% endblock %}
+{% block body %}
+	<!-- MENU BAR -->
+	<nav class="navbar navbar-expand-lg fixed-top">
+		<div class="container">
+			<a class="navbar-brand" href="/en"><img width="auto" height="50" src="./../index/img/IAL_NETWORK_logo.png" alt="Logo IAL Network"></a>
+			<button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+				aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+				<span class="navbar-toggler-icon"></span>
+			</button>
+			<div class="collapse navbar-collapse" id="navbarNav">
+				<ul class="navbar-nav ml-lg-auto">
+					<li class="nav-item">
+						<a href="#home" class="nav-link smoothScroll">Home</a>
+					</li>
+					<li class="nav-item">
+						<a href="#about" class="nav-link smoothScroll">About</a>
+					</li>
+					<li class="nav-item">
+						<a href="#class" class="nav-link smoothScroll">Services</a>
+					</li>
+					<li class="nav-item">
+						<a href="#contact" class="nav-link smoothScroll">Contact</a>
+					</li>
+				</ul>
+				<ul class="social-icon ml-lg-3">
+					<li>
+						<div class="dropdown">
+							<button class="btn text-white dropdown-toggle" type="button" id="dropdownMenuButton" data-toggle="dropdown"
+								aria-haspopup="true" aria-expanded="false">
+								<span class="flag-icon flag-icon-us"></span>
+							</button>
+							<div class="dropdown-menu bg-dark" aria-labelledby="dropdownMenuButton">
+								<a class="dropdown-item" href="/"><span class="flag-icon flag-icon-mx"></span> ESP</a>
+								<a class="dropdown-item" href="#"><span class="flag-icon flag-icon-us"></span> ENG</a>
+							</div>
+						</div>
+					</li>
+				</ul>
+				{% if loged == 'true' %}
+					<ul class="social-icon ml-lg-3">
+						<li>
+							<div class="dropdown">
+								<button class="btn text-white dropdown-toggle" type="button" id="dropdownMenuButton"
+									data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+									<span><i class="bi bi-gear"></i> Hello {{ name }}</span>
+								</button>
+								<div class="dropdown-menu bg-dark" aria-labelledby="dropdownMenuButton">
+									<a class="dropdown-item" href="/dashboard"><span>Dashboard</span></a>
+									<a class="dropdown-item" href="./logout"><span>Log Out</span></a>
+								</div>
+							</div>
+						</li>
+					</ul>
+				{% else %}
+					<ul class="social-icon ml-lg-3">
+						<li>
+							<div class="dropdown">
+								<button class="btn text-white dropdown-toggle" type="button" id="dropdownMenuButton"
+									data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+									<span><i class="bi bi-person"></i></span>
+								</button>
+								<div class="dropdown-menu bg-dark" aria-labelledby="dropdownMenuButton">
+									<a class="dropdown-item" href="./login"><span>Log In</span></a>
+									<a class="dropdown-item" href="./register"><span>Join us!!!</span></a>
+								</div>
+							</div>
+						</li>
+					</ul>
+				{% endif %}
+			</div>
+		</div>
+	</nav>
+
+	<!-- HERO -->
+	<section class="hero d-flex flex-column justify-content-center align-items-center" id="home">
+		<div class="bg-overlay"></div>
+		<div class="container">
+			<div class="row">
+				<div class="col-lg-8 col-md-10 mx-auto col-12">
+					<div class="hero-text mt-5 text-center">
+						<h6 data-aos="fade-up" data-aos-delay="300">Empty Return Maneuvers and EIR Recovery</h6>
+						<h1 class="text-white" data-aos="fade-up" data-aos-delay="500">Welcome to IAL Network</h1>
+						<a href="#class" class="btn custom-btn mt-3" data-aos="fade-up" data-aos-delay="600">Services</a>
+						<a href="#contact" class="btn custom-btn bordered mt-3" data-aos="fade-up" data-aos-delay="700">More
+							Information</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="feature" id="feature">
+		<div class="container">
+			<div class="row">
+				<div class="d-flex flex-column justify-content-center ml-lg-auto mr-lg-5 col-lg-5 col-md-6 col-12">
+					<h2 class="mb-3 text-white" data-aos="fade-up">Looking for fast and reliable logistics solutions?</h2>
+					<h6 class="mb-4 text-white" data-aos="fade-up">
+						Over 30 companies nationwide trust us.
+					</h6>
+					<p data-aos="fade-up" data-aos-delay="200">
+						With over 15 years of experience, we offer fast and reliable solutions tailored to your business needs.
+					</p>
+					<p data-aos="fade-up" data-aos-delay="300">
+						Trust our experience and take your logistics to the next level!
+					</p>
+					<a href="#contact" class="btn custom-btn bg-color mt-3" data-aos="fade-up" data-aos-delay="300">Contact us
+						now!</a>
+				</div>
+				<div class="mr-lg-auto mt-3 col-lg-4 col-md-6 col-12">
+					<div class="about-working-hours">
+						<div>
+							<h2 class="mb-4 text-white" data-aos="fade-up" data-aos-delay="500">Business Hours</h2>
+							<strong class="mt-3 d-block" data-aos="fade-up" data-aos-delay="700">Monday - Friday</strong>
+							<p data-aos="fade-up" data-aos-delay="800">9:00 AM - 2:00 PM and 4:00 PM - 7:00 PM</p>
+							<strong class="mt-3 d-block" data-aos="fade-up" data-aos-delay="700">Saturday</strong>
+							<p data-aos="fade-up" data-aos-delay="800">9:00 AM - 2:00 PM</p>
+							<strong class="d-block" data-aos="fade-up" data-aos-delay="600">Sunday: Closed</strong>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- ABOUT -->
+	<section class="about section" id="about">
+		<div class="container">
+			<div class="row">
+				<div class="mt-lg-5 mb-lg-0 mb-4 col-lg-5 col-md-10 mx-auto col-12">
+					<h2 class="mb-4" data-aos="fade-up" data-aos-delay="300">About IAL Network</h2>
+					<p data-aos="fade-up" data-aos-delay="400" class="justify-text">
+						At IAL Network, we offer specialized solutions in foreign trade, consulting,
+						maneuvers, and land freight, focusing on the efficiency and professionalization
+						of logistics and commercial processes.
+					</p>
+					<h3 data-aos="fade-up" data-aos-delay="500"><b>Vision</b></h3>
+					<p data-aos="fade-up" data-aos-delay="500" class="justify-text">
+						To be the reference in foreign trade by providing comprehensive services that optimize
+						our clients' logistics and commercial operations, boosting their competitiveness
+						and the sustainable development of the sector.
+					</p>
+					<h3 data-aos="fade-up" data-aos-delay="500"><b>Mission</b></h3>
+					<p data-aos="fade-up" data-aos-delay="500" class="justify-text">
+						To provide specialized services with high-quality standards, combining experience,
+						technology, and a trained team to offer secure, efficient, and tailored solutions
+						to each need.
+					</p>
+				</div>
+				<div class="col-lg-6 col-md-8 col-12 d-flex flex-column align-items-center" data-aos="fade-up"
+					data-aos-delay="800">
+					<div class="team-thumb mb-3">
+						<img src="./../index/img/Puerto.JPG" class="img-fluid large-image" alt="Puerto" title="Puerto de Manzanillo"
+							data-aos="fade-up" data-aos-delay="800">
+					</div>
+					<div class="team-thumb">
+						<img src="./../index/img/Manzanillo.JPG" class="img-fluid large-image" alt="Manzanillo"
+							title="Centro de Manzanillo" data-aos="fade-up" data-aos-delay="800">
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- SERVICES -->
+	<section class="class section" id="class">
+		<div class="container">
+			<div class="row text-center mb-5">
+				<div class="col-12">
+					<h6 data-aos="fade-up">Boost Your Logistics Operations!</h6>
+					<h2 data-aos="fade-up" data-aos-delay="200">Our Logistics Solutions</h2>
+				</div>
+			</div>
+
+			<div class="row">
+				<!-- Logistics Consulting -->
+				<div class="col-lg-3 col-md-6 col-12 mb-4" data-aos="fade-up" data-aos-delay="400">
+					<div class="card h-100">
+						<img src="./../index/img/auditoria-asesoramiento.jpg" class="card-img-top" alt="Logistics Consulting">
+						<div class="card-body">
+							<h5 class="card-title">Logistics Consulting</h5>
+							<p class="card-text">Customized solutions to optimize your supply chain and ensure efficiency.</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Import/Export Maneuvers -->
+				<div class="col-lg-3 col-md-6 col-12 mb-4" data-aos="fade-up" data-aos-delay="400">
+					<div class="card h-100">
+						<img src="./../index/img/Importación-Exportación.jpg" class="card-img-top" alt="Import/Export">
+						<div class="card-body">
+							<h5 class="card-title">Import/Export</h5>
+							<p class="card-text">Efficient management of your import and export operations, ensuring compliance and
+								speed.</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Vacuum Maneuvers -->
+				<div class="col-lg-3 col-md-6 col-12 mb-4" data-aos="fade-up" data-aos-delay="400">
+					<div class="card h-100">
+						<img src="./../index/img/vacuum-handling.jpg" class="card-img-top" alt="Vacuum Maneuvers">
+						<div class="card-body">
+							<h5 class="card-title">Empty Return Maneuvers</h5>
+							<p class="card-text">Specialized service for the safe and efficient handling of delicate loads.</p>
+						</div>
+					</div>
+				</div>
+
+				<!-- Ground Freight -->
+				<div class="col-lg-3 col-md-6 col-12 mb-4" data-aos="fade-up" data-aos-delay="400">
+					<div class="card h-100">
+						<img src="./../index/img/ground-freight.jpg" class="card-img-top" alt="Ground Freight">
+						<div class="card-body">
+							<h5 class="card-title">Ground Freight</h5>
+							<p class="card-text">Land freight services ensuring fast and secure delivery times across the country.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- CONTACT -->
+	<section class="contact section" id="contact">
+		<div class="container">
+			<div class="row">
+				<div class="ml-auto col-lg-5 col-md-6 col-12">
+					<h2 class="mb-4 pb-2" data-aos="fade-up" data-aos-delay="200">Contact Us</h2>
+					<form id="contactForm" method="post" class="contact-form webform" data-aos="fade-up" data-aos-delay="400"
+						role="form">
+						<input type="hidden" id="language" name="language" value="en">
+						<input type="text" id="name" class="form-control" name="cf-name" placeholder="Name">
+						<input type="email" id="email" class="form-control" name="cf-email" placeholder="Email">
+						<textarea class="form-control" id="message" rows="5" name="cf-message" placeholder="Message"></textarea>
+						<button type="submit" class="form-control" id="submit-button" name="submit">
+							Send Message
+						</button>
+					</form>
+				</div>
+
+				<div class="mx-auto mt-4 mt-lg-0 mt-md-0 col-lg-5 col-md-6 col-12">
+					<h2 class="mb-4" data-aos="fade-up" data-aos-delay="600">Here we are!</h2>
+					<p data-aos="fade-up" data-aos-delay="800"><i class="fa fa-map-marker mr-1"></i> Carretera a Minatitlán Lote 16
+						Manzana 2, Lib. Tapeixtles, 28239 Manzanillo, Col. </p>
+					<div class="google-map" data-aos="fade-up" data-aos-delay="900">
+						<iframe
+							src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3770.6065394880243!2d-104.28732872399877!3d19.08102935181317!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8424d5882fffffff%3A0x53db05372f4ea127!2sVillanueva%20Cervantes%20y%20Asociados%20S.C.!5e0!3m2!1ses!2smx!4v1740454335006!5m2!1ses!2smx"
+							width="1920" height="250" frameborder="0" style="border:0;" allowfullscreen=""></iframe>
+					</div>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- FOOTER -->
+	<footer class="site-footer">
+		<div class="container">
+			<div class="row">
+				<div class="col-lg-2 col-md-2 d-flex justify-content-center align-items-center">
+					<img src="./../index/img/IAL NETWORK.png" alt="Logo" class="img-fluid" width="90px" height="auto">
+				</div>
+				<div class="ml-auto col-lg-4 col-md-5">
+					<p class="copyright-text">Copyright &copy; 2025 IAL Network.</p>
+				</div>
+				<div class="d-flex justify-content-center mx-auto col-lg-5 col-md-7 col-12">
+					<p class="mr-4">
+						<i class="fa fa-envelope-o mr-1"></i>
+						<a href="mailto:gerencia@ialnetwork.com?subject=Consulta">gerencia@ialnetwork.com</a>
+					</p>
+					<p><i class="fa fa-phone mr-1"></i> 314-331-3677</p>
+				</div>
+			</div>
+		</div>
+	</footer>
+
+	<button id="scrollToTopBtn" class="btn btn-dark rounded-circle" title="Subir" onclick="scrollToTop()">
+		↑
+	</button>
+
+	<!-- Alert Message -->
+	<div id="alertMessage" class="alert alert-success alert-dismissible fade show" role="alert"
+		style="position: fixed; bottom: 45px; right: 20px; width: 300px; display: none;">
+		<strong>Thank you for contacting us!</strong> We have received your message and will get in touch with you soon.
+		<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+			<span aria-hidden="true">&times;</span>
+		</button>
+	</div>
+{% endblock %}
+
+{% block javascripts %}
+	<script src="./index/js/email.js"></script>
+    <script src="./index/js/jquery.min.js"></script>
+    <script src="./index/js/bootstrap.min.js"></script>
+    <script src="./index/js/aos.js"></script>
+    <script src="./index/js/smoothscroll.js"></script>
+    <script src="./index/js/custom.js"></script>
+{% endblock %}

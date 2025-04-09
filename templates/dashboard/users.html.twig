@@ -1,0 +1,387 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Usuarios</h2>
+    <table class="table table-striped">
+      <thead>
+        <tr>
+          <th scope="col">Nombre</th>
+          <th scope="col">Apellidos</th>
+          <th scope="col">correo</th>
+          <th scope="col">Rol</th>
+          <th scope="col">Estatus</th>
+          <th scope="col">Opciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td>{{ u.name }}</td>
+          <td>{{ u.lastName }}</td>
+          <td>{{ u.email }}</td>
+          <td>
+            {% if u.roles[0] == 'ROLE_ADMIN' %}
+              Administrador
+            {% elseif u.roles[0] == 'ROLE_EXECUTIVE' %}
+              Ejecutivo
+            {% elseif u.roles[0] == 'ROLE_CLIENT' %}
+              Cliente
+            {% elseif u.roles[0] == 'ROLE_FH' %}
+              Transportista
+            {% endif %}
+          </td>
+          <td id="status-{{ u.id }}">
+            {% if u.status == 'pending' %}
+              <span class="badge bg-warning text-dark">Pendiente</span>
+            {% elseif u.status == 'active' %}
+              <span class="badge bg-success">Activo</span>
+            {% elseif u.status == 'inactive' %}
+              <span class="badge bg-secondary">Inactivo</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if u.status == 'pending' %}
+              <button class="btn btn-success verify-user-btn" data-id="{{ u.id }}" title="Verificar usuario"><i class="bi bi-check-circle"></i></button>
+              <button class="btn btn-danger deny-user-btn" data-id="{{ u.id }}" title="Rechazar usuario"><i class="bi bi-x-circle"></i></button>
+            {% endif %}
+            {% if u.status == 'active' and u.roles[0] != 'ROLE_ADMIN' %}
+              <button class="btn btn-danger disable-user-btn" data-id="{{ u.id }}" title="Deshabilitar usuario">
+                <i class="bi bi-power"></i>
+              </button>
+            {% elseif u.status == 'inactive' and u.roles[0] != 'ROLE_ADMIN' %}
+              <button class="btn btn-dark reactivate-user-btn" data-id="{{ u.id }}" title="Reactivar usuario">
+                <i class="bi bi-power"></i>
+              </button>
+            {% endif %}
+            <button 
+              class="btn btn-warning edit-user-btn"
+              title="Editar usuario"
+              data-id="{{ u.id }}"
+              data-name="{{ u.name }}"
+              data-lastname="{{ u.lastName }}"
+              data-email="{{ u.email }}">
+              <i class="bi bi-pencil-square"></i>
+            </button>
+            <button class="btn btn-primary change-role-btn"
+                    data-id="{{ u.id }}"
+                    data-role="{{ u.roles[0] }}"
+                    title="Cambiar rol">
+              <i class="bi bi-wrench"></i>
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+      function showConfirmation({ title, text, icon, confirmButtonText, confirmButtonColor }, onConfirm) {
+        Swal.fire({
+          title,
+          text,
+          icon,
+          showCancelButton: true,
+          confirmButtonColor,
+          cancelButtonColor: "#6c757d",
+          confirmButtonText,
+          cancelButtonText: "Cancelar"
+        }).then((result) => {
+          if (result.isConfirmed) {
+            onConfirm();
+          }
+        });
+      }
+
+      function updateUserStatus(userId, action, newStatusText, newBadgeClass, nextButtonHtml, nextButtonHandler) {
+        fetch(`/dashboard/usuarios/${userId}/${action}`, {
+          method: "POST",
+          headers: {
+            "X-Requested-With": "XMLHttpRequest",
+            "Content-Type": "application/json"
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Cambiar el badge de estatus
+            const statusTd = document.getElementById(`status-${userId}`);
+            statusTd.innerHTML = `<span class="badge bg-${newBadgeClass}">${newStatusText}</span>`;
+
+
+            // Reemplazar el botón de acción
+            const cell = document.querySelector(`button[data-id="${userId}"]`)?.closest("td");
+            if (cell) {
+              cell.querySelectorAll(`.verify-user-btn, .deny-user-btn, .disable-user-btn, .reactivate-user-btn`).forEach(btn => {
+                btn.remove();
+              });
+
+              const nextBtn = document.createElement("button");
+              nextBtn.innerHTML = nextButtonHtml;
+              nextBtn.setAttribute("data-id", userId);
+              nextBtn.className = "btn";
+              nextBtn.title = action === "deshabilitar" ? "Deshabilitar usuario" : "Reactivar usuario";
+              if (nextButtonHandler === handleDisableClick) {
+                nextBtn.classList.add("btn-danger", "disable-user-btn");
+                nextBtn.title = "Deshabilitar usuario";
+              } else {
+                nextBtn.classList.add("btn-dark", "reactivate-user-btn");
+                nextBtn.title = "Reactivar usuario";
+              }
+
+              nextBtn.addEventListener("click", nextButtonHandler);
+              cell.insertBefore(nextBtn, cell.firstChild);
+            }
+
+            Swal.fire("Éxito", data.message, "success");
+          } else {
+            Swal.fire("Error", data.message, "error");
+          }
+        });
+      }
+
+      function handleDisableClick(e) {
+        const userId = e.currentTarget.getAttribute("data-id");
+
+        showConfirmation({
+          title: "¿Estás seguro?",
+          text: "Esta acción deshabilitará al usuario.",
+          icon: "warning",
+          confirmButtonText: "Sí, deshabilitar",
+          confirmButtonColor: "#d33"
+        }, () => {
+          updateUserStatus(
+            userId,
+            "deshabilitar",
+            "Inactivo",
+            "badge bg-secondary",
+            '<i class="bi bi-power"></i>',
+            handleReactivateClick
+          );
+        });
+      }
+
+      function handleReactivateClick(e) {
+        const userId = e.currentTarget.getAttribute("data-id");
+
+        showConfirmation({
+          title: "¿Reactivar usuario?",
+          text: "El usuario volverá a estar activo.",
+          icon: "question",
+          confirmButtonText: "Sí, reactivar",
+          confirmButtonColor: "#198754"
+        }, () => {
+          updateUserStatus(
+            userId,
+            "habilitar",
+            "Activo",
+            "badge bg-success",
+            '<i class="bi bi-power"></i>',
+            handleDisableClick
+          );
+        });
+      }
+
+      function handleVerifyClick(e) {
+        const userId = e.currentTarget.getAttribute("data-id");
+
+        showConfirmation({
+          title: "¿Verificar usuario?",
+          text: "El usuario será activado y podrá iniciar sesión.",
+          icon: "question",
+          confirmButtonText: "Sí, verificar",
+          confirmButtonColor: "#198754"
+        }, () => {
+          updateUserStatus(
+            userId,
+            "verificar",
+            "Activo",
+            "success",
+            '<i class="bi bi-power"></i>',
+            handleDisableClick
+          );
+        });
+      }
+
+      function handleDenyClick(e) {
+        const userId = e.currentTarget.getAttribute("data-id");
+
+        showConfirmation({
+          title: "¿Rechazar usuario?",
+          text: "El usuario será marcado como inactivo y no podrá acceder al sistema.",
+          icon: "warning",
+          confirmButtonText: "Sí, rechazar",
+          confirmButtonColor: "#d33"
+        }, () => {
+          updateUserStatus(
+            userId,
+            "rechazar",
+            "Inactivo",
+            "secondary",
+            '<i class="bi bi-power"></i>',
+            handleReactivateClick
+          );
+        });
+      }
+
+      function handleEditClick(e) {
+        const btn = e.currentTarget;
+        const userId = btn.getAttribute("data-id");
+        const currentName = btn.getAttribute("data-name");
+        const currentLastName = btn.getAttribute("data-lastname");
+        const currentEmail = btn.getAttribute("data-email");
+
+        Swal.fire({
+          title: "Editar usuario",
+          html: `
+            <input id="swal-name" class="swal2-input" placeholder="Nombre" value="${currentName}">
+            <input id="swal-lastname" class="swal2-input" placeholder="Apellido" value="${currentLastName}">
+            <input id="swal-email" class="swal2-input" placeholder="Email" value="${currentEmail}">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          cancelButtonText: "Cancelar",
+          preConfirm: () => {
+            const name = document.getElementById("swal-name").value.trim();
+            const lastName = document.getElementById("swal-lastname").value.trim();
+            const email = document.getElementById("swal-email").value.trim();
+
+            if (!name || !lastName || !email) {
+              Swal.showValidationMessage("Todos los campos son obligatorios");
+              return false;
+            }
+
+            return { name, lastName, email };
+          }
+        }).then(result => {
+          if (result.isConfirmed) {
+            const updatedData = result.value;
+
+            // Aquí haces tu petición al backend para guardar los datos
+            fetch(`/dashboard/usuarios/${userId}/editar`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: JSON.stringify(updatedData)
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire("¡Actualizado!", "El usuario fue editado correctamente.", "success");
+
+                // Opcional: actualiza los valores en la tabla sin recargar
+                btn.setAttribute("data-name", updatedData.name);
+                btn.setAttribute("data-lastname", updatedData.lastName);
+                btn.setAttribute("data-email", updatedData.email);
+
+                const row = btn.closest("tr");
+                row.children[0].textContent = updatedData.name;
+                row.children[1].textContent = updatedData.lastName;
+                row.children[2].textContent = updatedData.email;
+              } else {
+                Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll(".disable-user-btn").forEach(btn => {
+        btn.addEventListener("click", handleDisableClick);
+      });
+
+      document.querySelectorAll(".reactivate-user-btn").forEach(btn => {
+        btn.addEventListener("click", handleReactivateClick);
+      });
+
+      function handleChangeRoleClick(e) {
+        const userId = e.currentTarget.getAttribute("data-id");
+        const currentRole = e.currentTarget.getAttribute("data-role");
+
+        const roles = {
+          'ROLE_ADMIN': 'Administrador',
+          'ROLE_EXECUTIVE': 'Ejecutivo',
+          'ROLE_CLIENT': 'Cliente',
+          'ROLE_FH': 'Transportista'
+        };
+
+        // Excluir el rol actual
+        const availableRoles = Object.entries(roles).filter(([key]) => key !== currentRole);
+
+        Swal.fire({
+          title: "Cambiar rol",
+          text: "Selecciona un nuevo rol para este usuario:",
+          icon: "question",
+          showCancelButton: true,
+          showConfirmButton: false,
+          cancelButtonText: "Cancelar",
+          html: `
+            ${availableRoles.map(([key, label]) => `
+              <button class="swal2-confirm swal2-styled" style="margin: 4px" data-new-role="${key}">
+                ${label}
+              </button>
+            `).join('')}
+          `
+        });
+
+        document.querySelectorAll('[data-new-role]').forEach(btn => {
+          btn.addEventListener('click', function () {
+            const newRole = this.getAttribute('data-new-role');
+
+            fetch(`/dashboard/usuarios/${userId}/cambiarRol`, {
+              method: 'POST',
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: JSON.stringify({ newRole })
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                // Actualizar el rol en la tabla
+                const row = document.querySelector(`button[data-id="${userId}"][data-role]`)?.closest("tr");
+                if (row) {
+                  const rolTd = row.children[3]; // 4ta columna = Rol
+                  rolTd.textContent = roles[newRole] || newRole;
+                  // Actualizar el data-role del botón
+                  row.querySelector('.change-role-btn').setAttribute("data-role", newRole);
+                }
+
+                Swal.fire("Éxito", "El rol ha sido actualizado.", "success");
+              } else {
+                Swal.fire("Error", data.message || "No se pudo cambiar el rol.", "error");
+              }
+            });
+          });
+        });
+      }
+
+
+      document.querySelectorAll(".verify-user-btn").forEach(btn => {
+        btn.addEventListener("click", handleVerifyClick);
+      });
+
+      document.querySelectorAll(".deny-user-btn").forEach(btn => {
+        btn.addEventListener("click", handleDenyClick);
+      });
+
+      document.querySelectorAll(".edit-user-btn").forEach(btn => {
+        btn.addEventListener("click", handleEditClick);
+      });
+
+      document.querySelectorAll(".change-role-btn").forEach(btn => {
+        btn.addEventListener("click", handleChangeRoleClick);
+      });
+    });
+  </script>
+{% endblock %}

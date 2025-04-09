@@ -1,0 +1,42 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+	<!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Resumen</h2>
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="card text-bg-primary shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Usuarios pendientes de validacion</h5>
+            <p class="card-text fs-4">{{ pending }}</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-bg-success shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Empresas pendientes de validacion</h5>
+            <p class="card-text fs-4">1</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="card text-bg-warning shadow-sm">
+          <div class="card-body">
+            <h5 class="card-title">Pedimentos pendientes de apertura</h5>
+            <p class="card-text fs-4">0</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="my-5">
+
+    <h3>Actividad reciente</h3>
+    <ul class="list-group">
+      <li class="list-group-item">Usuario Juan inició sesión</li>
+      <li class="list-group-item">Nuevo reporte generado</li>
+      <li class="list-group-item">Actualización de configuración</li>
+    </ul>
+  </div>
+{% endblock %}
