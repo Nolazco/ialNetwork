@@ -45,14 +45,12 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkToDashboard('Dashboard', 'fa fa-home');
         yield MenuItem::linkToCrud('Usuarios', 'fas fa-user', User::class);
         yield MenuItem::linkToCrud('Clientes-Empresas', 'fas fa-user', Associated::class);
-        yield MenuItem::linkToCrud('Clientes', 'fas fa-user', Client::class);
         yield MenuItem::linkToCrud('Empresas', 'fas fa-user', Company::class);
         yield MenuItem::linkToCrud('Documentos empresas', 'fas fa-user', CompanyDocument::class);
         yield MenuItem::linkToCrud('Contenedores', 'fas fa-user', Container::class);
         yield MenuItem::linkToCrud('Patios de contenedores', 'fas fa-user', ContainerYard::class);
         yield MenuItem::linkToCrud('Despachos', 'fas fa-user', Delivery::class);
         yield MenuItem::linkToCrud('Vacios', 'fas fa-user', EmptyReturn::class);
-        yield MenuItem::linkToCrud('Ejecutivos', 'fas fa-user', Executive::class);
         yield MenuItem::linkToCrud('Transportistas', 'fas fa-user', FreightHauler::class);
         yield MenuItem::linkToCrud('Documentos de importacion', 'fas fa-user', ImportDocument::class);
         yield MenuItem::linkToCrud('Pedimentos', 'fas fa-user', ImportRequest::class);

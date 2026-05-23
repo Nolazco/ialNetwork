@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Company;
+use App\Entity\ImportRequest;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -11,24 +12,35 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
-class Dashboard extends AbstractController {
+class DashboardUsers extends AbstractController {
 	#[Route(name: 'dashboard', path: '/dashboard')]
 	public function dashboard(Request $r, EntityManagerInterface $entityManager): Response {
 		$session = $r->getSession();
-		$userRepo = $entityManager->getRepository(User::class);
-		$pendingUsers = $userRepo->count(['status' => 'pending']);
-		//dd($pendingUsers);
 
 		if($session->get('loged') == 'true'){
-			return $this->render("/dashboard/admin.html.twig", [
-				'name' => $session->get('name'),
-				'role' => $session->get('role'),
-				'loged' => 'true',
-				'pending' => $pendingUsers
-			]);
+			if($session->get('role') == "ROLE_ADMIN" || $session->get('role') == "ROLE_EXECUTIVE"){
+				$userRepo = $entityManager->getRepository(User::class);
+				$pendingUsers = $userRepo->count(['status' => 'pending']);
+
+				return $this->render("/dashboard/admin.html.twig", [
+					'name' => $session->get('name'),
+					'role' => $session->get('role'),
+					'loged' => 'true',
+					'pending' => $pendingUsers
+				]);
+			}elseif($session->get('role') == "ROLE_CLIENT"){
+				$importRepo = $entityManager->getRepository(ImportRequest::class);
+
+				return $this->render("/dashboard/client.html.twig", [
+					'name' => $session->get('name'),
+					'role' => $session->get('role'),
+					'loged' => 'true',
+				]);
+			}
 		}else{
 			return $this->redirectToRoute("login");
 		}
+		return $this->redirectToRoute("login");
 	}
 
 	#[Route(name: 'users', path: '/dashboard/usuarios')]
@@ -170,29 +182,5 @@ class Dashboard extends AbstractController {
     $entityManager->flush();
 
     return new JsonResponse(['success' => true]);
-  }
-
-  #[Route(name: 'companies', path: '/dashboard/empresas')]
-  public function companies(Request $r, EntityManagerInterface $entityManager): Response {
-  	$session = $r->getSession();
-  	$companyRepo = $entityManager->getRepository(Company::class);
-
-  	if($session->get('role' == 'ROLE_ADMIN'))
-	  	$companies = $companyRepo->findAll();
-	  elseif ($session->get('role' == 'ROLE_CLIENT')) {
-	  	$companies = $companyRepo->findAll();
-	  }
-  	//dd($users);
-
-  	if($session->get('loged') == 'true' && $session->get('role') == 'ROLE_ADMIN'){
-  		return $this->render("/dashboard/users.html.twig", [
-  			'name' => $session->get('name'),
-  			'role' => $session->get('role'),
-  			'loged' => 'true',
-  			'users' => $users
-  		]);
-  	}else{
-  		return $this->redirectToRoute("login");
-  	}
   }
 }

@@ -21,14 +21,8 @@ class Company
     #[ORM\Column(length: 255)]
     private ?string $address = null;
 
-    #[ORM\Column(length: 13)]
+    #[ORM\Column(length: 255)]
     private ?string $rfc = null;
-
-    /**
-     * @var Collection<int, Associated>
-     */
-    #[ORM\ManyToMany(targetEntity: Associated::class, mappedBy: 'idCompany')]
-    private Collection $associateds;
 
     /**
      * @var Collection<int, CompanyDocument>
@@ -37,16 +31,15 @@ class Company
     private Collection $companyDocuments;
 
     /**
-     * @var Collection<int, ImportRequest>
+     * @var Collection<int, Associated>
      */
-    #[ORM\OneToMany(targetEntity: ImportRequest::class, mappedBy: 'idCompany')]
-    private Collection $importRequests;
+    #[ORM\OneToMany(targetEntity: Associated::class, mappedBy: 'idCompany')]
+    private Collection $associateds;
 
     public function __construct()
     {
-        $this->associateds = new ArrayCollection();
         $this->companyDocuments = new ArrayCollection();
-        $this->importRequests = new ArrayCollection();
+        $this->associateds = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -91,33 +84,6 @@ class Company
     }
 
     /**
-     * @return Collection<int, Associated>
-     */
-    public function getAssociateds(): Collection
-    {
-        return $this->associateds;
-    }
-
-    public function addAssociated(Associated $associated): static
-    {
-        if (!$this->associateds->contains($associated)) {
-            $this->associateds->add($associated);
-            $associated->addIdCompany($this);
-        }
-
-        return $this;
-    }
-
-    public function removeAssociated(Associated $associated): static
-    {
-        if ($this->associateds->removeElement($associated)) {
-            $associated->removeIdCompany($this);
-        }
-
-        return $this;
-    }
-
-    /**
      * @return Collection<int, CompanyDocument>
      */
     public function getCompanyDocuments(): Collection
@@ -148,30 +114,27 @@ class Company
     }
 
     /**
-     * @return Collection<int, ImportRequest>
+     * @return Collection<int, Associated>
      */
-    public function getImportRequests(): Collection
+    public function getAssociateds(): Collection
     {
-        return $this->importRequests;
+        return $this->associateds;
     }
 
-    public function addImportRequest(ImportRequest $importRequest): static
+    public function addAssociated(Associated $associated): static
     {
-        if (!$this->importRequests->contains($importRequest)) {
-            $this->importRequests->add($importRequest);
-            $importRequest->setIdCompany($this);
+        if (!$this->associateds->contains($associated)) {
+            $this->associateds->add($associated);
+            $associated->addIdCompany($this);
         }
 
         return $this;
     }
 
-    public function removeImportRequest(ImportRequest $importRequest): static
+    public function removeAssociated(Associated $associated): static
     {
-        if ($this->importRequests->removeElement($importRequest)) {
-            // set the owning side to null (unless already changed)
-            if ($importRequest->getIdCompany() === $this) {
-                $importRequest->setIdCompany(null);
-            }
+        if ($this->associateds->removeElement($associated)) {
+            $associated->removeIdCompany($this);
         }
 
         return $this;

@@ -264,7 +264,6 @@
           if (result.isConfirmed) {
             const updatedData = result.value;
 
-            // Aquí haces tu petición al backend para guardar los datos
             fetch(`/dashboard/usuarios/${userId}/editar`, {
               method: "POST",
               headers: {
@@ -278,7 +277,6 @@
               if (data.success) {
                 Swal.fire("¡Actualizado!", "El usuario fue editado correctamente.", "success");
 
-                // Opcional: actualiza los valores en la tabla sin recargar
                 btn.setAttribute("data-name", updatedData.name);
                 btn.setAttribute("data-lastname", updatedData.lastName);
                 btn.setAttribute("data-email", updatedData.email);

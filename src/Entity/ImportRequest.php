@@ -32,8 +32,8 @@ class ImportRequest
     #[ORM\Column(length: 255)]
     private ?string $importNumber = null;
 
-    #[ORM\Column]
-    private ?int $type = null;
+    #[ORM\Column(length: 255)]
+    private ?string $type = null;
 
     #[ORM\Column(length: 255)]
     private ?string $eta = null;
@@ -74,6 +74,9 @@ class ImportRequest
      */
     #[ORM\OneToMany(targetEntity: Operation::class, mappedBy: 'reference')]
     private Collection $operations;
+
+    #[ORM\Column(length: 255)]
+    private ?string $goods = null;
 
     public function __construct()
     {
@@ -149,12 +152,12 @@ class ImportRequest
         return $this;
     }
 
-    public function getType(): ?int
+    public function getType(): ?string
     {
         return $this->type;
     }
 
-    public function setType(int $type): static
+    public function setType(string $type): static
     {
         $this->type = $type;
 
@@ -340,6 +343,18 @@ class ImportRequest
                 $operation->setReference(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getGoods(): ?string
+    {
+        return $this->goods;
+    }
+
+    public function setGoods(string $goods): static
+    {
+        $this->goods = $goods;
 
         return $this;
     }

@@ -51,47 +51,47 @@
 <body>
   <!-- Sidebar -->
   <div class="sidebar d-flex flex-column p-3">
-    <h4 class="text-center">Mi Dashboard</h4>
+    <h4 class="text-center">IAL Network</h4>
     <hr>
     <ul class="nav nav-pills flex-column mb-auto">
       <li class="nav-item">
-        <a href="/dashboard" class="nav-link active">Inicio</a>
+        <a href="/dashboard" class="nav-link {% if app.request.pathinfo == '/dashboard' %}active{% endif %}">Inicio</a>
       </li>
       <li>
-        <a href="/dashboard/usuarios" class="nav-link">Usuarios</a>
+        <a href="/dashboard/usuarios" class="nav-link {% if app.request.pathinfo starts with '/dashboard/usuarios' %}active{% endif %}">Usuarios</a>
       </li>
       <li>
-        <a href="/dashboard/empresas" class="nav-link">Empresas</a>
+        <a href="/dashboard/empresas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/empresas' %}active{% endif %}">Empresas</a>
       </li>
       <li>
-        <a href="/dashboard/proveedores" class="nav-link">Proveedores</a>
+        <a href="/dashboard/proveedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/proveedores' %}active{% endif %}">Proveedores</a>
       </li>
       <li>
-        <a href="/dashboard/pedimentos" class="nav-link">Pedimentos</a>
+        <a href="/dashboard/pedimentos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/pedimentos' %}active{% endif %}">Pedimentos</a>
       </li>
       <li>
-        <a href="/dashboard/contenedores" class="nav-link">Contenedores</a>
+        <a href="/dashboard/contenedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/contenedores' %}active{% endif %}">Contenedores</a>
       </li>
       <li>
-        <a href="/dashboard/despachos" class="nav-link">Despachos</a>
+        <a href="/dashboard/recintos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/recintos' %}active{% endif %}">Recintos</a>
       </li>
       <li>
-        <a href="/dashboard/vacios" class="nav-link">Vacios</a>
+        <a href="/dashboard/despachos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/despachos' %}active{% endif %}">Despachos</a>
       </li>
       <li>
-        <a href="/dashboard/transportistas" class="nav-link">Transportistas</a>
+        <a href="/dashboard/vacios" class="nav-link {% if app.request.pathinfo starts with '/dashboard/vacios' %}active{% endif %}">Vacios</a>
       </li>
       <li>
-        <a href="/dashboard/maniobras" class="nav-link">Maniobras</a>
+        <a href="/dashboard/transportistas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/transportistas' %}active{% endif %}">Transportistas</a>
       </li>
       <li>
-        <a href="/dashboard/facturas" class="nav-link">Facturas</a>
+        <a href="/dashboard/maniobras" class="nav-link {% if app.request.pathinfo starts with '/dashboard/maniobras' %}active{% endif %}">Maniobras</a>
       </li>
-      <hr>
       <li>
-        <a href="/logout" class="nav-link"><i class="bi bi-power"></i> Cerrar sesión</a>
+        <a href="/dashboard/facturas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/facturas' %}active{% endif %}">Facturas</a>
       </li>
     </ul>
+
     <hr>
     <div>
       <span>Usuario: {{ name }}</span>

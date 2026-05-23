@@ -27,6 +27,9 @@ class Provider
     #[ORM\OneToMany(targetEntity: ImportRequest::class, mappedBy: 'idProvider')]
     private Collection $importRequests;
 
+    #[ORM\Column(length: 255)]
+    private ?string $address = null;
+
     public function __construct()
     {
         $this->importRequests = new ArrayCollection();
@@ -87,6 +90,18 @@ class Provider
                 $importRequest->setIdProvider(null);
             }
         }
+
+        return $this;
+    }
+
+    public function getAddress(): ?string
+    {
+        return $this->address;
+    }
+
+    public function setAddress(string $address): static
+    {
+        $this->address = $address;
 
         return $this;
     }

@@ -1,0 +1,29 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+	<!-- Contenido principal -->
+  <div class="content">
+    <form action="/dashboard/proveedores/new" method="POST">
+      <div class="row">
+        <div class="col">
+          <label for="name" class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Razon social">
+        </div>
+        <div class="col">
+          <label for="taxId" class="form-label">Tax ID</label>
+          <input type="text" class="form-control" name="taxId" id="taxId" placeholder="Tax Id">
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="address" class="form-label">Domicilio</label>
+          <input type="text" class="form-control" id="address" name="address" placeholder="Domicilio">
+        </div>
+      </div>
+      <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+{% endblock %}
+

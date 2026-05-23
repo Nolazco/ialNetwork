@@ -1,0 +1,157 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+	<!-- Contenido principal -->
+  <div class="content">
+    <form action="/dashboard/pedimentos/{{ rfc }}/new" method="POST" enctype="multipart/form-data">
+      <div class="row">
+        <div class="col">
+          <label for="ref" class="form-label">Referencia</label>
+          <input type="text" class="form-control" id="ref" name="ref" placeholder="Referencia" required>
+        </div>
+        <div class="col">
+          <label for="goods" class="form-label">Mercancía</label>
+          <input type="text" class="form-control" name="goods" id="goods" placeholder="Mercancía" required>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="ref" class="form-label">Proveedor</label>
+          <select class="form-select" name="provider" id="provider" required>
+            <option selected disabled>Seleccione un proveedor</option>
+            {% for p in providers %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <label for="eta" class="form-label">Fecha de arribo</label>
+          <input type="date" class="form-control" name="eta" id="eta" required>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="ref" class="form-label">Tipo de carga</label>
+          <select class="form-select" name="type" id="type" required>
+            <option selected disabled>Seleccione el tipo de carga</option>
+            <option value="container">Contenedor</option>
+            <option value="lcl">Carga suelta</option>
+          </select>
+        </div>
+      </div>
+      <div id="container-fields-wrapper" style="display: none;">
+        <label class="form-label mt-3">Contenedores</label>
+        <div id="container-fields">
+          <div class="row container-row align-items-end mb-2">
+            <div class="col">
+              <input type="text" class="form-control" name="containers[]" placeholder="Numero de contenedor">
+            </div>
+            <div class="col">
+              <select class="form-select" name="contTypes[]">
+                <option selected disabled>Seleccione el tipo de contenedor</option>
+                <option value="20DC">20 pies estandar</option>
+                <option value="20HC">20 pies cubo alto</option>
+                <option value="40DC">40 pies estandar</option>
+                <option value="40HC">40 pies cubo alto</option>
+                <option value="40RH">40 pies refrigerado</option>
+              </select>
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-outline-danger delete-container-btn" title="Eliminar">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline-primary mt-2" id="add-container-btn">
+          <i class="bi bi-plus"></i> Agregar contenedor
+        </button>
+      </div>
+
+      <div id="documents-container">
+        <div class="row mt-2 document-row align-items-end">
+          <div class="col">
+            <label class="form-label">Documento</label>
+            <input class="form-control file-input" type="file" name="documents[]">
+          </div>
+          <div class="col">
+            <label class="form-label">Tipo de documento</label>
+            <input type="text" class="form-control" name="documentTypes[]" required placeholder="Ej. Factura">
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-danger delete-row-btn" title="Eliminar">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const container = document.getElementById("documents-container");
+
+      // Delegar eventos dentro del contenedor
+      container.addEventListener("change", function (e) {
+        if (e.target && e.target.classList.contains("file-input")) {
+          const currentRow = e.target.closest(".document-row");
+          const inputs = container.querySelectorAll(".file-input");
+          if ([...inputs].filter(input => input.value === "").length === 0) {
+            const newRow = currentRow.cloneNode(true);
+            newRow.querySelectorAll("input").forEach(input => input.value = "");
+            container.appendChild(newRow);
+          }
+        }
+      });
+
+      container.addEventListener("click", function (e) {
+        if (e.target.closest(".delete-row-btn")) {
+          const row = e.target.closest(".document-row");
+          if (container.querySelectorAll(".document-row").length > 1) {
+            row.remove();
+          } else {
+            // Limpiar la fila si es la única
+            row.querySelectorAll("input").forEach(input => input.value = "");
+          }
+        }
+      });
+
+      const typeSelect = document.getElementById("type");
+      const containerFieldsWrapper = document.getElementById("container-fields-wrapper");
+      const containerFields = document.getElementById("container-fields");
+      const addContainerBtn = document.getElementById("add-container-btn");
+
+      function toggleContainerFields() {
+        const isContainer = typeSelect.value === "container";
+        containerFieldsWrapper.style.display = isContainer ? "block" : "none";
+            
+        containerFields.querySelectorAll("input, select").forEach(el => el.required = isContainer);
+      }
+
+      typeSelect.addEventListener("change", toggleContainerFields);
+      toggleContainerFields(); // Por si hay valor cargado
+
+      addContainerBtn.addEventListener("click", () => {
+        const lastRow = containerFields.querySelector(".container-row");
+        const newRow = lastRow.cloneNode(true);
+
+        newRow.querySelectorAll("input, select").forEach(el => el.value = "");
+        containerFields.appendChild(newRow);
+      });
+
+      containerFields.addEventListener("click", function (e) {
+        if (e.target.closest(".delete-container-btn")) {
+          const allRows = containerFields.querySelectorAll(".container-row");
+          if (allRows.length > 1) {
+            e.target.closest(".container-row").remove();
+          } else {
+            e.target.closest(".container-row").querySelectorAll("input, select").forEach(el => el.value = "");
+          }
+        }
+      });
+    });
+  </script>
+{% endblock %}

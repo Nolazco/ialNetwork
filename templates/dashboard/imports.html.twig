@@ -1,0 +1,95 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Pedimentos</h2>
+    {% if imports %}
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Referencia del cliente</th>
+            <th scope="col">Referencia interna</th>
+            <th scope="col">No. Pedimento</th>
+            <th scope="col">Mercancía</th>
+            <th scope="col">Tipo</th>
+            <th scope="col">ETA</th>
+            <th scope="col">Estatus</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for i in imports %}
+            <tr>
+              <td>{{ i.clientReference }}</td>
+              <td>{{ i.agencyReference }}</td>
+              <td>{{ i.importNumber }}</td>
+              <td>{{ i.goods }}</td>
+              <td>
+                {% if i.type == 'lcl' %}
+                  Carga suelta
+                {% else %}
+                  Contenedor
+                {% endif %}
+              </td>
+              <td>{{ i.eta }}</td>
+              <td>{{ i.status }}</td>
+              <td>
+                <button 
+                  class="btn btn-warning edit-provider-btn"
+                  title="Editar solicitud">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin registros</h5>
+          <p class="card-text">Espere a que un cliente haga una solicitud.</p>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+
+  {% for tipo, mensajes in app.flashes %}
+    {% for mensaje in mensajes %}
+      <script>
+        Swal.fire({
+          title: "{% if tipo == 'success' %}Éxito{% else %}Error{% endif %}",
+          text: "{{ mensaje }}",
+          icon: "{{ tipo }}"
+        });
+      </script>
+    {% endfor %}
+  {% endfor %}
+{% endblock %}
+
+{% block javascripts %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      function showConfirmation({ title, text, icon, confirmButtonText, confirmButtonColor }, onConfirm) {
+        Swal.fire({
+          title,
+          text,
+          icon,
+          showCancelButton: true,
+          confirmButtonColor,
+          cancelButtonColor: "#6c757d",
+          confirmButtonText,
+          cancelButtonText: "Cancelar"
+        }).then((result) => {
+          if (result.isConfirmed) {
+            onConfirm();
+          }
+        });
+      }
+    });
+  </script>
+{% endblock %}

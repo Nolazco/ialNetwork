@@ -68,6 +68,7 @@ class UserManagement extends AbstractController{
 				return $this->redirectToRoute("login");
 			}else{
 				$session = $r->getSession();
+				$session->set('userId', $users->getId());
 				$session->set('name', $users->getName());
 				$session->set('role', $users->getRoles()[0]);
 				$session->set('loged', 'true');

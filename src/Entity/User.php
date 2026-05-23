@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\UserRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -40,6 +42,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(length: 255)]
     private ?string $status = null;
+
+    /**
+     * @var Collection<int, Associated>
+     */
+    #[ORM\OneToMany(targetEntity: Associated::class, mappedBy: 'idClient')]
+    private Collection $associateds;
+
+    public function __construct()
+    {
+        $this->associateds = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -154,6 +167,33 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Associated>
+     */
+    public function getAssociateds(): Collection
+    {
+        return $this->associateds;
+    }
+
+    public function addAssociated(Associated $associated): static
+    {
+        if (!$this->associateds->contains($associated)) {
+            $this->associateds->add($associated);
+            $associated->addIdClient($this);
+        }
+
+        return $this;
+    }
+
+    public function removeAssociated(Associated $associated): static
+    {
+        if ($this->associateds->removeElement($associated)) {
+            $associated->removeIdClient($this);
+        }
 
         return $this;
     }

@@ -1,0 +1,23 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+	<!-- Contenido principal -->
+  <div class="content">
+    <form action="/dashboard/recintos/new" method="POST">
+      <div class="row">
+        <div class="col">
+          <label for="name" class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Nombre">
+        </div>
+        <div class="col">
+          <label for="cr" class="form-label">CR</label>
+          <input type="text" class="form-control" name="cr" id="cr" placeholder="CR">
+        </div>
+      </div>
+      <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+{% endblock %}
+

@@ -18,10 +18,10 @@ class CompanyDocument
     private ?Company $idCompany = null;
 
     #[ORM\Column(length: 255)]
-    private ?string $name = null;
+    private ?string $type = null;
 
     #[ORM\Column(length: 255)]
-    private ?string $documentRoute = null;
+    private ?string $route = null;
 
     public function getId(): ?int
     {
@@ -40,26 +40,26 @@ class CompanyDocument
         return $this;
     }
 
-    public function getName(): ?string
+    public function getType(): ?string
     {
-        return $this->name;
+        return $this->type;
     }
 
-    public function setName(string $name): static
+    public function setType(string $type): static
     {
-        $this->name = $name;
+        $this->type = $type;
 
         return $this;
     }
 
-    public function getDocumentRoute(): ?string
+    public function getRoute(): ?string
     {
-        return $this->documentRoute;
+        return $this->route;
     }
 
-    public function setDocumentRoute(string $documentRoute): static
+    public function setRoute(string $route): static
     {
-        $this->documentRoute = $documentRoute;
+        $this->route = $route;
 
         return $this;
     }

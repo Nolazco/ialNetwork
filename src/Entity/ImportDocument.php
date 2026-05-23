@@ -23,6 +23,9 @@ class ImportDocument
     #[ORM\Column(length: 255)]
     private ?string $route = null;
 
+    #[ORM\Column(length: 255)]
+    private ?string $type = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -60,6 +63,18 @@ class ImportDocument
     public function setRoute(string $route): static
     {
         $this->route = $route;
+
+        return $this;
+    }
+
+    public function getType(): ?string
+    {
+        return $this->type;
+    }
+
+    public function setType(string $type): static
+    {
+        $this->type = $type;
 
         return $this;
     }

@@ -1,0 +1,146 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Recintos</h2>
+    {% if yards %}
+      <a href="/dashboard/recintos/nuevo" class="btn btn-primary">Nuevo recinto</a>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Nombre</th>
+            <th scope="col">CR</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for y in yards %}
+            <tr>
+              <td>{{ y.name }}</td>
+              <td>{{ y.cr }}</td>
+              <td>
+                <button 
+                  class="btn btn-warning edit-yard-btn"
+                  title="Editar recinto"
+                  data-id="{{ y.id }}"
+                  data-name="{{ y.name }}"
+                  data-cr="{{ y.cr }}">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin registros</h5>
+          <p class="card-text">Da de alta un recinto nuevo.</p>
+          <a href="/dashboard/recintos/nuevo" class="btn btn-primary">Nuevo recinto</a>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+
+  {% for tipo, mensajes in app.flashes %}
+    {% for mensaje in mensajes %}
+      <script>
+        Swal.fire({
+          title: "{% if tipo == 'success' %}Éxito{% else %}Error{% endif %}",
+          text: "{{ mensaje }}",
+          icon: "{{ tipo }}"
+        });
+      </script>
+    {% endfor %}
+  {% endfor %}
+{% endblock %}
+
+{% block javascripts %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      function showConfirmation({ title, text, icon, confirmButtonText, confirmButtonColor }, onConfirm) {
+        Swal.fire({
+          title,
+          text,
+          icon,
+          showCancelButton: true,
+          confirmButtonColor,
+          cancelButtonColor: "#6c757d",
+          confirmButtonText,
+          cancelButtonText: "Cancelar"
+        }).then((result) => {
+          if (result.isConfirmed) {
+            onConfirm();
+          }
+        });
+      }
+
+      function handleEditClick(e) {
+        const btn = e.currentTarget;
+        const yardId = btn.getAttribute("data-id");
+        const currentName = btn.getAttribute("data-name");
+        const currentCr = btn.getAttribute("data-cr");
+
+        Swal.fire({
+          title: "Editar recinto",
+          html: `
+            <input id="swal-name" class="swal2-input" placeholder="Nombre" value="${currentName}">
+            <input id="swal-cr" class="swal2-input" placeholder="CR" value="${currentCr}">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          cancelButtonText: "Cancelar",
+          preConfirm: () => {
+            const name = document.getElementById("swal-name").value.trim();
+            const cr = document.getElementById("swal-cr").value.trim();
+
+            if (!name || !cr) {
+              Swal.showValidationMessage("Todos los campos son obligatorios");
+              return false;
+            }
+
+            return { name, cr };
+          }
+        }).then(result => {
+          if (result.isConfirmed) {
+            const updatedData = result.value;
+
+            fetch(`/dashboard/recintos/${yardId}/editar`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: JSON.stringify(updatedData)
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire("¡Actualizado!", "El recinto fue editado correctamente.", "success");
+
+                btn.setAttribute("data-name", updatedData.name);
+                btn.setAttribute("data-cr", updatedData.cr);
+
+                const row = btn.closest("tr");
+                row.children[0].textContent = updatedData.name;
+                row.children[1].textContent = updatedData.cr;
+              } else {
+                Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll(".edit-yard-btn").forEach(btn => {
+        btn.addEventListener("click", handleEditClick);
+      });
+    });
+  </script>
+{% endblock %}

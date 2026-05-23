@@ -1,0 +1,76 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+	<!-- Contenido principal -->
+  <div class="content">
+    <form action="/dashboard/empresas/new" method="POST" enctype="multipart/form-data">
+      <div class="row">
+        <div class="col">
+          <label for="name" class="form-label">Razon social</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Razon social">
+        </div>
+        <div class="col">
+          <label for="RFC" class="form-label">RFC</label>
+          <input type="text" class="form-control" name="rfc" id="RFC" placeholder="RFC">
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="address" class="form-label">Domicilio</label>
+          <input type="text" class="form-control" id="address" name="address" placeholder="Domicilio">
+        </div>
+      </div>
+      <div id="documents-container">
+        <div class="row mt-2 document-row align-items-end">
+          <div class="col">
+            <label class="form-label">Documento</label>
+            <input class="form-control file-input" type="file" name="documents[]">
+          </div>
+          <div class="col">
+            <label class="form-label">Tipo de documento</label>
+            <input type="text" class="form-control" name="documentTypes[]" required placeholder="Ej. Acta constitutiva">
+          </div>
+          <div class="col-auto">
+            <button type="button" class="btn btn-outline-danger delete-row-btn" title="Eliminar">
+              <i class="bi bi-trash"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const container = document.getElementById("documents-container");
+
+      // Delegar eventos dentro del contenedor
+      container.addEventListener("change", function (e) {
+        if (e.target && e.target.classList.contains("file-input")) {
+          const currentRow = e.target.closest(".document-row");
+          const inputs = container.querySelectorAll(".file-input");
+          if ([...inputs].filter(input => input.value === "").length === 0) {
+            const newRow = currentRow.cloneNode(true);
+            newRow.querySelectorAll("input").forEach(input => input.value = "");
+            container.appendChild(newRow);
+          }
+        }
+      });
+
+      container.addEventListener("click", function (e) {
+        if (e.target.closest(".delete-row-btn")) {
+          const row = e.target.closest(".document-row");
+          if (container.querySelectorAll(".document-row").length > 1) {
+            row.remove();
+          } else {
+            // Limpiar la fila si es la única
+            row.querySelectorAll("input").forEach(input => input.value = "");
+          }
+        }
+      });
+    });
+  </script>
+{% endblock %}
+
