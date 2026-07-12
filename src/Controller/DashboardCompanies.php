@@ -17,47 +17,43 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardCompanies extends AbstractController{
 	#[Route(name: 'companies', path: '/dashboard/empresas')]
-	public function companies(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function companies(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		$companyRepo = $entityManager->getRepository(Company::class);
-    $userRepo = $entityManager->getRepository(User::class);
 
-    if($session->get('loged') != 'true'){
-      return $this->redirectToRoute('login');
-    }
-
-	  if($session->get('role') == 'ROLE_ADMIN' || $session->get('role') == 'ROLE_EXECUTIVE'){
+	  // Staff (admin/executive) see every company; everyone else sees only their own.
+	  if ($this->isGranted('ROLE_EXECUTIVE')) {
 		  $companies = $companyRepo->findAll();
-    }
-		elseif ($session->get('role') == 'ROLE_CLIENT') {
-			$companies = $companyRepo->findAssociatedCompanies($userRepo->find($session->get('userId')));
+    } else {
+			$companies = $companyRepo->findAssociatedCompanies($user);
 		}
 
 		return $this->render("/dashboard/companies.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true',
 			'companies' => $companies
 		]);
 	}
 
 	#[Route(name: 'createCompany', path: '/dashboard/empresas/nueva')]
-	public function createCompany(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function createCompany(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		return $this->render("/dashboard/newcompany.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true'
 		]);
 	}
 
 	#[Route('/dashboard/empresas/new', methods: ['POST'])]
   public function newCompany(Request $r, EntityManagerInterface $entityManager, SluggerInterface $slugger): Response {
-    $session = $r->getSession();
-    $userRepo = $entityManager->getRepository(User::class);
-    $user = $userRepo->find($session->get('userId'));
+    /** @var User $user */
+    $user = $this->getUser();
 
     // 1. Crear empresa
     $company = new Company();
@@ -118,13 +114,9 @@ class DashboardCompanies extends AbstractController{
   }
 
   #[Route('/dashboard/empresas/disponibles', methods: ['GET'])]
-  public function availableCompanies(Request $r, EntityManagerInterface $entityManager): JsonResponse {
-    $session = $r->getSession();
-    $user = $entityManager->getRepository(User::class)->find($session->get('userId'));
-
-    if (!$user) {
-      return new JsonResponse(['error' => 'Usuario no encontrado'], 404);
-    }
+  public function availableCompanies(EntityManagerInterface $entityManager): JsonResponse {
+    /** @var User $user */
+    $user = $this->getUser();
 
     // 1. Obtener IDs de empresas ya asociadas
     $associatedCompanyIds = $entityManager->createQueryBuilder()
@@ -160,9 +152,8 @@ class DashboardCompanies extends AbstractController{
 
   #[Route('/dashboard/empresas/afiliar/{id}', methods: ['POST'])]
   public function associateCompany(int $id, Request $r, EntityManagerInterface $entityManager): JsonResponse {
-    $session = $r->getSession();
-    $userRepo = $entityManager->getRepository(User::class);
-    $usuario = $userRepo->find($session->get('userId'));
+    /** @var User $usuario */
+    $usuario = $this->getUser();
     $companyRepo = $entityManager->getRepository(Company::class);
     $company = $companyRepo->find($id);
 

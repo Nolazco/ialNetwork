@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Provider;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -12,35 +13,35 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class DashboardProviders extends AbstractController {
 	#[Route('/dashboard/proveedores')]
-	public function providers(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function providers(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		$providerRepo = $entityManager->getRepository(Provider::class);
 		$providers = $providerRepo->findAll();
 
 		return $this->render("/dashboard/providers.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true',
 			'providers' => $providers
 		]);
 	}
 
 	#[Route('/dashboard/proveedores/nuevo')]
-	public function createProvider(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function createProvider(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		return $this->render("/dashboard/newprovider.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true'
 		]);
 	}
 
 		#[Route('/dashboard/proveedores/new', methods: ['POST'])]
 	  public function newProvider(Request $r, EntityManagerInterface $entityManager): Response {
-    	$session = $r->getSession();
-
 	    $provider = new Provider();
 	    $provider->setName($r->request->get('name'));
 	    $provider->setTaxId($r->request->get('taxId'));

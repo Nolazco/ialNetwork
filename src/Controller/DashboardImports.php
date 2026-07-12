@@ -8,6 +8,7 @@ use App\Entity\ContainerYard;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\Provider;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
@@ -18,27 +19,29 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardImports extends AbstractController {
 	#[Route('/dashboard/pedimentos/', methods: ['GET'])]
-  public function getImportsGlobal(Request $r, EntityManagerInterface $entityManager): Response {
-  	$session = $r->getSession();
+  public function getImportsGlobal(EntityManagerInterface $entityManager): Response {
+  	/** @var User $user */
+  	$user = $this->getUser();
     $imports = $entityManager->getRepository(ImportRequest::class)->findAll();
 
     return $this->render('/dashboard/imports.html.twig', [
-    	'name' => $session->get('name'),
-    	'role' => $session->get('role'),
+    	'name' => $user->getName(),
+    	'role' => $user->getRoles()[0],
     	'loged' => 'true',
     	'imports' => $imports
     ]);
   }
 
 	#[Route('/dashboard/pedimentos/{rfc}', methods: ['GET'])]
-  public function getImports(string $rfc, Request $r, EntityManagerInterface $entityManager): Response {
-  	$session = $r->getSession();
+  public function getImports(string $rfc, EntityManagerInterface $entityManager): Response {
+  	/** @var User $user */
+  	$user = $this->getUser();
     $company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
     $imports = $entityManager->getRepository(ImportRequest::class)->findBy(['idCompany' => $company]);
 
     return $this->render('/dashboard/companyImports.html.twig', [
-    	'name' => $session->get('name'),
-    	'role' => $session->get('role'),
+    	'name' => $user->getName(),
+    	'role' => $user->getRoles()[0],
     	'loged' => 'true',
     	'company' => $company,
     	'imports' => $imports
@@ -46,13 +49,14 @@ class DashboardImports extends AbstractController {
   }
 
   #[Route('/dashboard/pedimentos/{rfc}/nuevo')]
-  public function createImport(string $rfc, Request $r, EntityManagerInterface $entityManager): Response {
-  	$session = $r->getSession();
+  public function createImport(string $rfc, EntityManagerInterface $entityManager): Response {
+  	/** @var User $user */
+  	$user = $this->getUser();
   	$providers = $entityManager->getRepository(Provider::class)->findAll();
 
   	return $this->render("/dashboard/newimport.html.twig", [
-  		'name' => $session->get('name'),
-  		'role' => $session->get('role'),
+  		'name' => $user->getName(),
+  		'role' => $user->getRoles()[0],
   		'rfc' => $rfc,
   		'providers' => $providers,
   		'loged' => 'true'
@@ -61,7 +65,6 @@ class DashboardImports extends AbstractController {
 
   #[Route('/dashboard/pedimentos/{rfc}/new')]
   public function newImport(string $rfc, Request $r, EntityManagerInterface $entityManager, SluggerInterface $slugger): Response {
-  	$session = $r->getSession();
   	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
   	$yard = $entityManager->getRepository(ContainerYard::class)->findOneBy(['cr' => '39']);
   	//dd($r->request->get('provider'));

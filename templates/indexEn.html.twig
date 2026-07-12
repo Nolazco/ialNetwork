@@ -46,17 +46,17 @@
 						</div>
 					</li>
 				</ul>
-				{% if loged == 'true' %}
+				{% if app.user %}
 					<ul class="social-icon ml-lg-3">
 						<li>
 							<div class="dropdown">
 								<button class="btn text-white dropdown-toggle" type="button" id="dropdownMenuButton"
 									data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-									<span><i class="bi bi-gear"></i> Hello {{ name }}</span>
+									<span><i class="bi bi-gear"></i> Hello {{ app.user.name }}</span>
 								</button>
 								<div class="dropdown-menu bg-dark" aria-labelledby="dropdownMenuButton">
 									<a class="dropdown-item" href="/dashboard"><span>Dashboard</span></a>
-									<a class="dropdown-item" href="./logout"><span>Log Out</span></a>
+									<a class="dropdown-item" href="{{ path('logout') }}"><span>Log Out</span></a>
 								</div>
 							</div>
 						</li>
@@ -70,8 +70,8 @@
 									<span><i class="bi bi-person"></i></span>
 								</button>
 								<div class="dropdown-menu bg-dark" aria-labelledby="dropdownMenuButton">
-									<a class="dropdown-item" href="./login"><span>Log In</span></a>
-									<a class="dropdown-item" href="./register"><span>Join us!!!</span></a>
+									<a class="dropdown-item" href="{{ path('login') }}"><span>Log In</span></a>
+									<a class="dropdown-item" href="{{ path('register') }}"><span>Join us!!!</span></a>
 								</div>
 							</div>
 						</li>

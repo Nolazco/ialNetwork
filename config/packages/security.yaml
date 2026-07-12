@@ -9,6 +9,12 @@ security:
             entity:
                 class: App\Entity\User
                 property: email
+
+    # https://symfony.com/doc/current/security.html#hierarchical-roles
+    role_hierarchy:
+        ROLE_EXECUTIVE: [ROLE_USER]
+        ROLE_ADMIN: [ROLE_EXECUTIVE]
+
     firewalls:
         dev:
             pattern: ^/(_(profiler|wdt)|css|images|js)/
@@ -17,17 +23,35 @@ security:
             lazy: true
             provider: app_user_provider
 
-            # activate different ways to authenticate
-            # https://symfony.com/doc/current/security.html#the-firewall
+            # blocks accounts whose status is not "active" (see App\Security\UserChecker)
+            user_checker: App\Security\UserChecker
 
-            # https://symfony.com/doc/current/security/impersonating_user.html
-            # switch_user: true
+            # https://symfony.com/doc/current/security.html#form-login
+            form_login:
+                login_path: login
+                check_path: login
+                username_parameter: email
+                password_parameter: password
+                enable_csrf: true
+                default_target_path: dashboard
+
+            logout:
+                path: logout
+                target: index
 
     # Easy way to control access for large sections of your site
     # Note: Only the *first* access control that matches will be used
     access_control:
-        # - { path: ^/admin, roles: ROLE_ADMIN }
-        # - { path: ^/profile, roles: ROLE_USER }
+        # public entry points
+        - { path: ^/login$, roles: PUBLIC_ACCESS }
+        - { path: ^/register$, roles: PUBLIC_ACCESS }
+        - { path: ^/user/new$, roles: PUBLIC_ACCESS }
+        # user administration is admin-only (must be listed before the broader /dashboard rule)
+        - { path: ^/dashboard/usuarios, roles: ROLE_ADMIN }
+        # everything else under /dashboard requires an authenticated, active account
+        - { path: ^/dashboard, roles: ROLE_USER }
+        # EasyAdmin backend is staff-only
+        - { path: ^/admin, roles: ROLE_EXECUTIVE }
 
 when@test:
     security:

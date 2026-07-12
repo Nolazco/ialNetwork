@@ -4,10 +4,11 @@
 {% endblock %}
 {% block body %}
 	<div class="container">
-		<form method="POST" action="/user/login">
+		<form method="POST" action="{{ path('login') }}">
+			<input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
 		  <div class="mb-3">
 		    <label for="email" class="form-label">Correo electronico</label>
-		    <input type="email" class="form-control" id="email" name="email" required>
+		    <input type="email" class="form-control" id="email" name="email" value="{{ last_username }}" required autofocus>
 		  </div>
 		  <div class="mb-3">
 		    <label for="password" class="form-label">Contraseña</label>
@@ -16,6 +17,16 @@
 		  <button type="submit" class="btn btn-primary">Submit</button>
 		</form>
 	</div>
+
+	{% if error %}
+		<script>
+			Swal.fire({
+				title: "Error",
+				text: "{{ error.messageKey|trans(error.messageData, 'security') }}",
+				icon: "error"
+			});
+		</script>
+	{% endif %}
 
 	{% for tipo, mensajes in app.flashes %}
 	    {% for mensaje in mensajes %}

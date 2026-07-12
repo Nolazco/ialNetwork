@@ -1,9 +1,7 @@
-<?php 
+<?php
 
 namespace App\Controller;
 
-use App\Entity\Company;
-use App\Entity\ImportRequest;
 use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -11,58 +9,50 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class DashboardUsers extends AbstractController {
 	#[Route(name: 'dashboard', path: '/dashboard')]
-	public function dashboard(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function dashboard(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
-		if($session->get('loged') == 'true'){
-			if($session->get('role') == "ROLE_ADMIN" || $session->get('role') == "ROLE_EXECUTIVE"){
-				$userRepo = $entityManager->getRepository(User::class);
-				$pendingUsers = $userRepo->count(['status' => 'pending']);
+		// ROLE_ADMIN inherits ROLE_EXECUTIVE (see role_hierarchy in security.yaml)
+		if ($this->isGranted('ROLE_EXECUTIVE')) {
+			$pendingUsers = $entityManager->getRepository(User::class)->count(['status' => 'pending']);
 
-				return $this->render("/dashboard/admin.html.twig", [
-					'name' => $session->get('name'),
-					'role' => $session->get('role'),
-					'loged' => 'true',
-					'pending' => $pendingUsers
-				]);
-			}elseif($session->get('role') == "ROLE_CLIENT"){
-				$importRepo = $entityManager->getRepository(ImportRequest::class);
-
-				return $this->render("/dashboard/client.html.twig", [
-					'name' => $session->get('name'),
-					'role' => $session->get('role'),
-					'loged' => 'true',
-				]);
-			}
-		}else{
-			return $this->redirectToRoute("login");
+			return $this->render("/dashboard/admin.html.twig", [
+				'name' => $user->getName(),
+				'role' => $user->getRoles()[0],
+				'loged' => 'true',
+				'pending' => $pendingUsers
+			]);
 		}
-		return $this->redirectToRoute("login");
+
+		return $this->render("/dashboard/client.html.twig", [
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
+			'loged' => 'true',
+		]);
 	}
 
 	#[Route(name: 'users', path: '/dashboard/usuarios')]
-	public function users(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
-		$userRepo = $entityManager->getRepository(User::class);
-		$users = $userRepo->findAll();
-		//dd($users);
+	#[IsGranted('ROLE_ADMIN')]
+	public function users(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
+		$users = $entityManager->getRepository(User::class)->findAll();
 
-		if($session->get('loged') == 'true' && $session->get('role') == 'ROLE_ADMIN'){
-			return $this->render("/dashboard/users.html.twig", [
-				'name' => $session->get('name'),
-				'role' => $session->get('role'),
-				'loged' => 'true',
-				'users' => $users
-			]);
-		}else{
-			return $this->redirectToRoute("login");
-		}
+		return $this->render("/dashboard/users.html.twig", [
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
+			'loged' => 'true',
+			'users' => $users
+		]);
 	}
 
 	#[Route(name: 'verifyUser', path: '/dashboard/usuarios/{id}/verificar', methods: ['POST'])]
+	#[IsGranted('ROLE_ADMIN')]
 	public function verifyUser(int $id, EntityManagerInterface $entityManager, Request $r): JsonResponse {
     if (!$r->isXmlHttpRequest()) {
       return new JsonResponse(['success' => false, 'message' => 'Petición no válida'], 400);
@@ -81,6 +71,7 @@ class DashboardUsers extends AbstractController {
 	}
 
 	#[Route(name: 'denyUser', path: '/dashboard/usuarios/{id}/rechazar', methods: ['POST'])]
+	#[IsGranted('ROLE_ADMIN')]
 	public function denyUser(int $id, EntityManagerInterface $entityManager, Request $r): JsonResponse {
     if (!$r->isXmlHttpRequest()) {
       return new JsonResponse(['success' => false, 'message' => 'Petición no válida'], 400);
@@ -99,6 +90,7 @@ class DashboardUsers extends AbstractController {
 	}
 
 	#[Route(name: 'disableUser', path: '/dashboard/usuarios/{id}/deshabilitar')]
+	#[IsGranted('ROLE_ADMIN')]
 	public function disableUser(int $id, Request $r, EntityManagerInterface $entityManager): Response {
 		$user = $entityManager->getRepository(User::class)->find($id);
 
@@ -113,6 +105,7 @@ class DashboardUsers extends AbstractController {
 	}
 
 	#[Route(name: 'enableUser', path: '/dashboard/usuarios/{id}/habilitar')]
+	#[IsGranted('ROLE_ADMIN')]
 	public function enableUser(int $id, Request $r, EntityManagerInterface $entityManager): Response {
 		$user = $entityManager->getRepository(User::class)->find($id);
 
@@ -128,6 +121,7 @@ class DashboardUsers extends AbstractController {
 	}
 
 	#[Route(name: 'editUser', path: '/dashboard/usuarios/{id}/editar', methods: ['POST'])]
+	#[IsGranted('ROLE_ADMIN')]
   public function editUser(int $id, Request $r, EntityManagerInterface $entityManager ): JsonResponse {
     $user = $entityManager->getRepository(User::class)->find($id);
 
@@ -161,6 +155,7 @@ class DashboardUsers extends AbstractController {
   }
 
   #[Route(name: 'changeRole', path: '/dashboard/usuarios/{id}/cambiarRol', methods: ['POST'])]
+  #[IsGranted('ROLE_ADMIN')]
   public function changeRole(int $id, Request $r, EntityManagerInterface $entityManager): JsonResponse {
     $user = $entityManager->getRepository(User::class)->find($id);
 

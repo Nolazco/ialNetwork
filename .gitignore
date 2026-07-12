@@ -8,6 +8,13 @@
 /vendor/
 ###< symfony/framework-bundle ###
 
+###> secretos y datos que no deben versionarse ###
+# .env.dev contiene un APP_SECRET real; los secretos van en .env.local (no versionado)
+/.env.dev
+# backup.sql es un dump con datos reales (correos y hashes de contraseñas)
+/backup.sql
+###< secretos y datos que no deben versionarse ###
+
 ###> phpunit/phpunit ###
 /phpunit.xml
 .phpunit.result.cache
