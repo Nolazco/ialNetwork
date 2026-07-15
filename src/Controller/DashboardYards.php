@@ -42,6 +42,11 @@ class DashboardYards extends AbstractController {
 
 		#[Route('/dashboard/recintos/new', methods: ['POST'])]
 	  public function newYard(Request $r, EntityManagerInterface $entityManager): Response {
+	    if (!$this->isCsrfTokenValid('create_yard', $r->request->get('_token'))) {
+	      $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+	      return $this->redirect('/dashboard/recintos/nuevo');
+	    }
+
 	    $yard = new ContainerYard();
 	    $yard->setName($r->request->get('name'));
 	    $yard->setCr($r->request->get('cr'));

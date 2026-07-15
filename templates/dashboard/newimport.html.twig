@@ -3,6 +3,7 @@
 	<!-- Contenido principal -->
   <div class="content">
     <form action="/dashboard/pedimentos/{{ rfc }}/new" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="{{ csrf_token('create_import') }}">
       <div class="row">
         <div class="col">
           <label for="ref" class="form-label">Referencia</label>

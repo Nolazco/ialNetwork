@@ -3,6 +3,7 @@
 	<!-- Contenido principal -->
   <div class="content">
     <form action="/dashboard/recintos/new" method="POST">
+      <input type="hidden" name="_token" value="{{ csrf_token('create_yard') }}">
       <div class="row">
         <div class="col">
           <label for="name" class="form-label">Nombre</label>

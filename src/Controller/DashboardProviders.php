@@ -42,6 +42,11 @@ class DashboardProviders extends AbstractController {
 
 		#[Route('/dashboard/proveedores/new', methods: ['POST'])]
 	  public function newProvider(Request $r, EntityManagerInterface $entityManager): Response {
+	    if (!$this->isCsrfTokenValid('create_provider', $r->request->get('_token'))) {
+	      $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+	      return $this->redirect('/dashboard/proveedores/nuevo');
+	    }
+
 	    $provider = new Provider();
 	    $provider->setName($r->request->get('name'));
 	    $provider->setTaxId($r->request->get('taxId'));

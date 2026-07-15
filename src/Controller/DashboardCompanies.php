@@ -52,6 +52,11 @@ class DashboardCompanies extends AbstractController{
 
 	#[Route('/dashboard/empresas/new', methods: ['POST'])]
   public function newCompany(Request $r, EntityManagerInterface $entityManager, SluggerInterface $slugger): Response {
+    if (!$this->isCsrfTokenValid('create_company', $r->request->get('_token'))) {
+      $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+      return $this->redirect('/dashboard/empresas/nueva');
+    }
+
     /** @var User $user */
     $user = $this->getUser();
 

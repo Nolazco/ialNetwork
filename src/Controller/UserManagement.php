@@ -14,6 +14,11 @@ class UserManagement extends AbstractController{
 
 	#[Route('/user/new', name: 'user_new', methods: ['POST'])]
 	public function create(Request $r, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher): Response{
+		if (!$this->isCsrfTokenValid('register', $r->request->get('_token'))) {
+			$this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+			return $this->redirectToRoute("register");
+		}
+
 		$userRepo = $entityManager->getRepository(User::class);
 
 		$email = $r->request->get('email');

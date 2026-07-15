@@ -65,6 +65,11 @@ class DashboardImports extends AbstractController {
 
   #[Route('/dashboard/pedimentos/{rfc}/new')]
   public function newImport(string $rfc, Request $r, EntityManagerInterface $entityManager, SluggerInterface $slugger): Response {
+  	if (!$this->isCsrfTokenValid('create_import', $r->request->get('_token'))) {
+  		$this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+  		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  	}
+
   	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
   	$yard = $entityManager->getRepository(ContainerYard::class)->findOneBy(['cr' => '39']);
   	//dd($r->request->get('provider'));

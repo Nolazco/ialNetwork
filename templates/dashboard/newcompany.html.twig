@@ -3,6 +3,7 @@
 	<!-- Contenido principal -->
   <div class="content">
     <form action="/dashboard/empresas/new" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="{{ csrf_token('create_company') }}">
       <div class="row">
         <div class="col">
           <label for="name" class="form-label">Razon social</label>
