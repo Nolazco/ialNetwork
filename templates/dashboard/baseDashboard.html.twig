@@ -51,42 +51,37 @@
     <h4 class="text-center">IAL Network</h4>
     <hr>
     <ul class="nav nav-pills flex-column mb-auto">
+      {# Cada rol solo ve lo que puede abrir: antes el menu era el mismo para
+         todos y la mitad de los enlaces terminaba en un 403 o en un 404. #}
       <li class="nav-item">
         <a href="/dashboard" class="nav-link {% if app.request.pathinfo == '/dashboard' %}active{% endif %}">Inicio</a>
       </li>
-      <li>
-        <a href="/dashboard/usuarios" class="nav-link {% if app.request.pathinfo starts with '/dashboard/usuarios' %}active{% endif %}">Usuarios</a>
-      </li>
-      <li>
-        <a href="/dashboard/empresas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/empresas' %}active{% endif %}">Empresas</a>
-      </li>
-      <li>
-        <a href="/dashboard/proveedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/proveedores' %}active{% endif %}">Proveedores</a>
-      </li>
-      <li>
-        <a href="/dashboard/pedimentos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/pedimentos' %}active{% endif %}">Pedimentos</a>
-      </li>
-      <li>
-        <a href="/dashboard/contenedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/contenedores' %}active{% endif %}">Contenedores</a>
-      </li>
-      <li>
-        <a href="/dashboard/recintos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/recintos' %}active{% endif %}">Recintos</a>
-      </li>
-      <li>
-        <a href="/dashboard/despachos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/despachos' %}active{% endif %}">Despachos</a>
-      </li>
-      <li>
-        <a href="/dashboard/vacios" class="nav-link {% if app.request.pathinfo starts with '/dashboard/vacios' %}active{% endif %}">Vacios</a>
-      </li>
-      <li>
-        <a href="/dashboard/transportistas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/transportistas' %}active{% endif %}">Transportistas</a>
-      </li>
-      <li>
-        <a href="/dashboard/maniobras" class="nav-link {% if app.request.pathinfo starts with '/dashboard/maniobras' %}active{% endif %}">Maniobras</a>
-      </li>
-      <li>
-        <a href="/dashboard/facturas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/facturas' %}active{% endif %}">Facturas</a>
-      </li>
+      {% if is_granted('ROLE_ADMIN') %}
+        <li>
+          <a href="/dashboard/usuarios" class="nav-link {% if app.request.pathinfo starts with '/dashboard/usuarios' %}active{% endif %}">Usuarios</a>
+        </li>
+      {% endif %}
+      {% if is_granted('ROLE_EXECUTIVE') or is_granted('ROLE_CLIENT') %}
+        <li>
+          <a href="/dashboard/empresas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/empresas' %}active{% endif %}">Empresas</a>
+        </li>
+      {% endif %}
+      {% if is_granted('ROLE_EXECUTIVE') %}
+        <li>
+          <a href="/dashboard/proveedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/proveedores' %}active{% endif %}">Proveedores</a>
+        </li>
+        <li>
+          <a href="/dashboard/pedimentos/" class="nav-link {% if app.request.pathinfo starts with '/dashboard/pedimentos' %}active{% endif %}">Pedimentos</a>
+        </li>
+        <li>
+          <a href="/dashboard/recintos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/recintos' %}active{% endif %}">Recintos</a>
+        </li>
+      {% endif %}
+      {% if is_granted('ROLE_EXECUTIVE') or is_granted('ROLE_FH') %}
+        <li>
+          <a href="/dashboard/despachos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/despachos' %}active{% endif %}">Despachos</a>
+        </li>
+      {% endif %}
     </ul>
 
     <hr>
