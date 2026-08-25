@@ -43,6 +43,7 @@
 {% endblock %}
 
 {% block javascripts %}
+  {{ parent() }}
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       const container = document.getElementById("documents-container");

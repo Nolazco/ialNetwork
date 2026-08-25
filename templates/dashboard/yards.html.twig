@@ -61,6 +61,7 @@
 {% endblock %}
 
 {% block javascripts %}
+  {{ parent() }}
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       function showConfirmation({ title, text, icon, confirmButtonText, confirmButtonColor }, onConfirm) {
