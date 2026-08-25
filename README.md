@@ -110,6 +110,28 @@ con la que no esta asociado.
 es una lista cerrada**: el formulario deja capturar una maniobra propia para los
 casos fuera de lo común.
 
+## Afiliaciones
+
+Un cliente ve los expedientes, documentos y cuentas de gastos de las empresas a
+las que está afiliado, así que la afiliación **la autoriza la agencia**. El
+cliente la solicita desde «Empresas»; queda pendiente y no concede nada hasta
+que un ejecutivo la aprueba en `/dashboard/afiliaciones`.
+
+La excepción es registrar una empresa nueva: quien la da de alta queda afiliado
+de inmediato, porque no hay datos ajenos que proteger.
+
+## CSRF
+
+Los formularios tradicionales llevan su `_token` en el cuerpo. Los endpoints que
+se llaman con `fetch()` lo reciben en la cabecera `X-CSRF-Token`:
+`baseDashboard.html.twig` imprime el token en un `<meta>` y `assets/app.js`
+envuelve `fetch` una sola vez para adjuntarlo a **toda petición mutante del
+mismo origen**. Las peticiones a otros dominios no lo llevan.
+
+Si añades un endpoint JSON nuevo, valídalo con
+[`AjaxCsrfTrait`](src/Controller/AjaxCsrfTrait.php); el lado del navegador ya
+está cubierto.
+
 ## Roles
 
 | Rol | Alcance |
@@ -266,9 +288,6 @@ docker compose exec database psql -U app -d app
 
 ## Deuda técnica conocida
 
-- Los endpoints AJAX (`editUser`, `changeRole`, `editCompany`,
-  `associateCompany`, alta y borrado de documentos) **no validan CSRF**. Los
-  formularios POST tradicionales sí.
 - `APP_SECRET` y `backup.sql` siguen presentes en el historial de git aunque ya
   no estén en el árbol de trabajo. Las credenciales deben rotarse.
 - Las rutas de subida (`uploads/...`) son relativas al directorio de trabajo de
