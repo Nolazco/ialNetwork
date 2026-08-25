@@ -75,6 +75,27 @@ docker compose logs -f app
 | Mailpit (correo de prueba) | http://localhost:8025 | |
 | PostgreSQL | `localhost:5432` | usuario `app`, base `app` |
 
+### Por qué vendor/ y var/ están en volúmenes
+
+Docker Desktop corre sobre WSL2, así que el bind mount hacia el sistema de
+archivos de Windows es unas **60 veces más lento** que el disco del contenedor
+(6541 ms contra 103 ms para leer 1500 archivos PHP). Una petición de Symfony en
+modo dev abre más de mil archivos de `vendor/` y reescribe `var/cache`, de modo
+que cada página tardaba ~6 s; con la petición extra de la barra del profiler,
+el navegador veía 15-20 s por click.
+
+Por eso **solo el código que se edita a mano vive en el bind mount**. `vendor/`,
+`var/`, `node_modules` y las cachés de descarga están en volúmenes nombrados. No
+los muevas de vuelta al bind mount.
+
+La copia de `vendor/` que queda en el host queda ensombrecida por el volumen,
+pero sigue sirviendo para el autocompletado del editor. Después de un
+`composer require` hay que resincronizarla si se quiere que el IDE la vea:
+
+```bash
+docker compose cp app:/app/vendor ./vendor
+```
+
 ### Semilla de la base
 
 Si existe `backup.sql` en la raíz, Postgres lo restaura automáticamente **la
