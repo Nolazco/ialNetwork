@@ -24,6 +24,10 @@ services:
       - node_modules:/app/node_modules
       # Conserva las descargas de Composer y npm entre recreaciones del contenedor.
       - package_cache:/root/.cache
+      # La configuracion de Apache y PHP tambien va horneada en la imagen; aqui se
+      # monta encima para poder ajustarla sin reconstruir.
+      - ./docker/apache/vhost.conf:/etc/apache2/sites-available/000-default.conf:ro
+      - ./docker/php/php.ini:/usr/local/etc/php/conf.d/99-app.ini:ro
     ports:
       - "8000:80"
 
