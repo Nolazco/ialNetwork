@@ -10,7 +10,7 @@ con su cuenta de gastos.
 |---|-------|-------|-----------|--------|
 | 1 | Alerta de importación/exportación y carga de documentos | Cliente | `ImportRequest`, `ImportDocument`, `Container` | Implementado |
 | 2 | Alta del pedimento y fases de la operación | Ejecutivo | `Operation` | Implementado |
-| 3 | Aviso al transporte | Ejecutivo → Transportista | `Delivery`, `FreightHauler` | Solo modelo + EasyAdmin |
+| 3 | Aviso al transporte | Ejecutivo → Transportista | `Delivery`, `FreightHauler` | Implementado |
 | 4 | Entrega de mercancía y devolución de vacío | Transportista | `EmptyReturn`, `ContainerYard` | Solo modelo + EasyAdmin |
 | 5 | Cierre del expediente y cuenta de gastos | Ejecutivo | `InternInvoice` | Solo modelo + EasyAdmin |
 
@@ -45,6 +45,28 @@ ofrece las dos salidas y el ejecutivo elige.
 
 El expediente solo puede saltar al estado que su secuencia permite; el
 controlador rechaza cualquier otro valor que llegue del formulario.
+
+## Transporte
+
+El ejecutivo avisa al transporte desde el expediente; el transportista confirma
+salida y entrega desde `/dashboard/despachos`, y **son esas confirmaciones las
+que mueven el estatus**, no un botón del ejecutivo.
+
+Cuándo se puede avisar, y a qué estado lleva cada confirmación:
+
+| | Se avisa estando en | Salida → | Entrega → |
+|---|---|---|---|
+| **Importación** | Modulado o Inspección | En tránsito | Entregado |
+| **Exportación** | Capturado | *(no aplica)* | Ingresado |
+
+En exportación el camión recoge en planta del cliente y lo lleva al recinto, así
+que no hay trayecto propio que registrar: solo su llegada.
+
+Un expediente puede llevar **varios despachos**. La carga suelta lleva uno; la
+contenerizada, uno por camión, con un máximo de
+`Delivery::MAX_CONTAINERS` (dos) contenedores cada uno. De ahí que el
+expediente pase a «En tránsito» en cuanto **sale el primer** camión, pero solo
+llegue a «Entregado» cuando **han llegado todos**.
 
 ## Maniobras
 
@@ -219,9 +241,6 @@ docker compose exec database psql -U app -d app
   moverlas a un parámetro del contenedor de servicios.
 - `Delivery` guarda fecha y hora en dos columnas separadas; un solo
   `datetime_immutable` sería más simple.
-- `ROLE_FH` no tiene panel propio: `DashboardUsers::dashboard()` manda a
-  cualquier rol que no sea staff a la vista de cliente. Hace falta resolverlo
-  al implementar el aviso al transporte.
 - `templates/dashboard/client.html.twig` muestra cifras fijas escritas a mano
   (incluida una tarjeta titulada «Otra cosa que ahorita no sé»), no datos
   reales.
