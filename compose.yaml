@@ -1,5 +1,25 @@
 
 services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-dev}
+      # Dentro de la red de compose la base se resuelve por el nombre del servicio.
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-16}&charset=utf8"
+      MAILER_DSN: "smtp://mailer:1025"
+    volumes:
+      - .:/app
+      # node_modules vive en un volumen para no arrastrar decenas de miles de
+      # archivos por el bind mount de Windows (seria lentisimo).
+      - node_modules:/app/node_modules
+    ports:
+      - "8000:80"
+
 ###> doctrine/doctrine-bundle ###
   database:
     image: postgres:${POSTGRES_VERSION:-16}-alpine
@@ -15,11 +35,14 @@ services:
       start_period: 60s
     volumes:
       - database_data:/var/lib/postgresql/data:rw
+      # Se ejecuta UNA sola vez, cuando el volumen database_data esta vacio.
+      - ./backup.sql:/docker-entrypoint-initdb.d/10-backup.sql:ro
       # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
       # - ./docker/db/data:/var/lib/postgresql/data:rw
 ###< doctrine/doctrine-bundle ###
 
 volumes:
+  node_modules:
 ###> doctrine/doctrine-bundle ###
   database_data:
 ###< doctrine/doctrine-bundle ###

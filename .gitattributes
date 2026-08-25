@@ -1,0 +1,6 @@
+* text=auto
+
+# Los scripts que corren dentro de los contenedores Linux deben conservar LF,
+# aunque se clonen desde Windows.
+*.sh text eol=lf
+docker/** text eol=lf
