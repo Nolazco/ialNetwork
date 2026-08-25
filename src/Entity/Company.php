@@ -36,10 +36,17 @@ class Company
     #[ORM\OneToMany(targetEntity: Associated::class, mappedBy: 'idCompany')]
     private Collection $associateds;
 
+    /**
+     * @var Collection<int, ImportRequest>
+     */
+    #[ORM\OneToMany(targetEntity: ImportRequest::class, mappedBy: 'idCompany')]
+    private Collection $importRequests;
+
     public function __construct()
     {
         $this->companyDocuments = new ArrayCollection();
         $this->associateds = new ArrayCollection();
+        $this->importRequests = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -135,6 +142,36 @@ class Company
     {
         if ($this->associateds->removeElement($associated)) {
             $associated->removeIdCompany($this);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, ImportRequest>
+     */
+    public function getImportRequests(): Collection
+    {
+        return $this->importRequests;
+    }
+
+    public function addImportRequest(ImportRequest $importRequest): static
+    {
+        if (!$this->importRequests->contains($importRequest)) {
+            $this->importRequests->add($importRequest);
+            $importRequest->setIdCompany($this);
+        }
+
+        return $this;
+    }
+
+    public function removeImportRequest(ImportRequest $importRequest): static
+    {
+        if ($this->importRequests->removeElement($importRequest)) {
+            // set the owning side to null (unless already changed)
+            if ($importRequest->getIdCompany() === $this) {
+                $importRequest->setIdCompany(null);
+            }
         }
 
         return $this;
