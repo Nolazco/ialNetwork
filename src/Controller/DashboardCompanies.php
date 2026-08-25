@@ -17,6 +17,8 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardCompanies extends AbstractController{
+  use AjaxCsrfTrait;
+
 	public function __construct(private readonly CompanyAccess $companyAccess) {
 	}
 
@@ -75,9 +77,12 @@ class DashboardCompanies extends AbstractController{
     // 2. Asociar con usuario actual
     //$usuario = $security->getUser();
 
+    // La empresa la esta dando de alta el propio cliente, asi que su afiliacion
+    // no necesita autorizacion: no hay nada de nadie mas que proteger.
     $asociacion = new Associated();
     $asociacion->setIdClient($user);
     $asociacion->setIdCompany($company);
+    $asociacion->setStatus(Associated::APPROVED);
     $entityManager->persist($asociacion);
 
     // 3. Manejar documentos
@@ -161,30 +166,48 @@ class DashboardCompanies extends AbstractController{
 
   #[Route('/dashboard/empresas/afiliar/{id}', methods: ['POST'])]
   public function associateCompany(int $id, Request $r, EntityManagerInterface $entityManager): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     /** @var User $usuario */
     $usuario = $this->getUser();
     $companyRepo = $entityManager->getRepository(Company::class);
     $company = $companyRepo->find($id);
 
-    //Buscar si ya existe una asociación previa
     foreach ($company->getAssociateds() as $asoc) {
       if ($asoc->getIdClient() === $usuario) {
-        return new JsonResponse(['status' => 'Ya afiliado']);
+        return new JsonResponse([
+          'status' => 'duplicada',
+          'message' => $asoc->isPending()
+            ? 'Ya tienes una solicitud pendiente para esa empresa.'
+            : 'Ya estás afiliado a esa empresa.',
+        ]);
       }
     }
 
+    // Nace pendiente: afiliarse da acceso a los expedientes y a las cuentas de
+    // gastos de la empresa, asi que lo autoriza la agencia, no el solicitante.
     $asociacion = new Associated();
     $asociacion->setIdClient($usuario);
     $asociacion->setIdCompany($company);
+    $asociacion->setStatus(Associated::PENDING);
 
     $entityManager->persist($asociacion);
     $entityManager->flush();
 
-    return new JsonResponse(['status' => 'afiliado']);
+    return new JsonResponse([
+      'status' => 'pendiente',
+      'message' => 'Tu solicitud quedó pendiente de autorización por la agencia.',
+    ]);
   }
 
   #[Route('/dashboard/empresas/{id}/editar', methods: ['POST'])]
   public function editCompany(int $id, Request $r, EntityManagerInterface $entityManager ): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $company = $entityManager->getRepository(Company::class)->find($id);
 
     if (!$company) {
@@ -242,6 +265,10 @@ class DashboardCompanies extends AbstractController{
 
   #[Route('/dashboard/empresas/{id}/documentos/nuevo', methods: ['POST'])]
   public function addDocument(Request $r, int $id, EntityManagerInterface $entityManager, SluggerInterface $slugger): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $company = $entityManager->getRepository(Company::class)->find($id);
 
     if (!$company) {
@@ -283,7 +310,11 @@ class DashboardCompanies extends AbstractController{
   }
 
   #[Route('/dashboard/empresas/documentos/{id}/eliminar', methods: ['DELETE'])]
-  public function deleteDocument(int $id, EntityManagerInterface $entityManager): JsonResponse {
+  public function deleteDocument(int $id, Request $r, EntityManagerInterface $entityManager): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
       $document = $entityManager->getRepository(CompanyDocument::class)->find($id);
 
       if (!$document) {
@@ -307,6 +338,10 @@ class DashboardCompanies extends AbstractController{
 
   #[Route('/dashboard/empresas/documentos/{id}/editar', methods: ['POST'])]
   public function editDocument(Request $r, int $id, EntityManagerInterface $entityManager, SluggerInterface $slugger): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $document = $entityManager->getRepository(CompanyDocument::class)->find($id);
 
     if (!$document) {

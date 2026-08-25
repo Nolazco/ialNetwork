@@ -182,9 +182,12 @@
                     'X-Requested-With': 'XMLHttpRequest',
                     'Content-Type': 'application/json'
                   }
-                }).then(() => {
-                  Swal.fire('¡Listo!', 'Te has afiliado exitosamente.', 'success')
-                    .then(() => location.reload());
+                }).then(res => res.json()).then(data => {
+                  Swal.fire(
+                    'Solicitud enviada',
+                    data.message || 'Tu solicitud quedó pendiente de autorización por la agencia.',
+                    'info'
+                  ).then(() => location.reload());
                 });
               }
             });
