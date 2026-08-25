@@ -42,8 +42,10 @@ services:
       start_period: 60s
     volumes:
       - database_data:/var/lib/postgresql/data:rw
-      # Se ejecuta UNA sola vez, cuando el volumen database_data esta vacio.
-      - ./backup.sql:/docker-entrypoint-initdb.d/10-backup.sql:ro
+      # El esquema lo construyen las migraciones y los datos de prueba salen de
+      # las fixtures, asi que ya no se siembra desde backup.sql:
+      #   docker compose exec app php bin/console doctrine:migrations:migrate
+      #   docker compose exec app php bin/console doctrine:fixtures:load
       # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
       # - ./docker/db/data:/var/lib/postgresql/data:rw
 ###< doctrine/doctrine-bundle ###
