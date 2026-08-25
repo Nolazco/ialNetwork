@@ -96,14 +96,41 @@ pero sigue sirviendo para el autocompletado del editor. Después de un
 docker compose cp app:/app/vendor ./vendor
 ```
 
-### Semilla de la base
+### Base de datos y datos de prueba
 
-Si existe `backup.sql` en la raíz, Postgres lo restaura automáticamente **la
-primera vez** que se crea el volumen. Ese archivo no está versionado (contiene
-correos y hashes reales). Para partir de cero:
+El esquema lo construyen las migraciones y los datos de prueba salen de las
+fixtures. Para dejar la base como recién instalada:
 
 ```bash
-docker compose down -v
+docker compose exec app php bin/console doctrine:migrations:migrate --no-interaction
+```
+
+```bash
+docker compose exec app php bin/console doctrine:fixtures:load --no-interaction
+```
+
+Las fixtures **borran todo** antes de cargar. Dejan una cuenta activa por rol,
+todas con la contraseña `Qa123456!`:
+
+| Correo | Rol |
+|--------|-----|
+| `admin@qa.com` | `ROLE_ADMIN` |
+| `ejecutivo@qa.com` | `ROLE_EXECUTIVE` |
+| `cliente@qa.com` | `ROLE_CLIENT` |
+| `transportista@qa.com` | `ROLE_FH` |
+
+Más los catálogos mínimos para poder recorrer el flujo: un recinto, dos
+proveedores, una empresa asociada a `cliente@qa.com`, y el registro de
+transportista que necesitan los despachos y las devoluciones de vacío.
+
+`DoctrineFixturesBundle` solo está registrado en `dev` y `test`, así que estas
+credenciales no pueden cargarse en producción.
+
+Las cuentas reales se crean con un comando aparte, que pide la contraseña por
+consola para no dejarla escrita en ningún archivo:
+
+```bash
+docker compose exec app php bin/console app:user:create correo@ejemplo.com ROLE_ADMIN --name="Nombre" --last-name="Apellidos"
 ```
 
 ### Secretos
@@ -151,3 +178,11 @@ docker compose exec database psql -U app -d app
   moverlas a un parámetro del contenedor de servicios.
 - `Delivery` guarda fecha y hora en dos columnas separadas; un solo
   `datetime_immutable` sería más simple.
+- `ROLE_FH` no tiene panel propio: `DashboardUsers::dashboard()` manda a
+  cualquier rol que no sea staff a la vista de cliente. Hace falta resolverlo
+  al implementar el aviso al transporte.
+- `templates/dashboard/client.html.twig` muestra cifras fijas escritas a mano
+  (incluida una tarjeta titulada «Otra cosa que ahorita no sé»), no datos
+  reales.
+- `assets/bootstrap.js` nunca se importa desde `assets/app.js`, así que Stimulus
+  no arranca y el controlador `csrf_protection` queda inactivo.
