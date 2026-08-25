@@ -60,17 +60,6 @@
     {% endif %}
   </div>
 
-  {% for tipo, mensajes in app.flashes %}
-    {% for mensaje in mensajes %}
-      <script>
-        Swal.fire({
-          title: "{% if tipo == 'success' %}Éxito{% else %}Error{% endif %}",
-          text: "{{ mensaje }}",
-          icon: "{{ tipo }}"
-        });
-      </script>
-    {% endfor %}
-  {% endfor %}
 {% endblock %}
 
 {% block javascripts %}

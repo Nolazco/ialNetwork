@@ -1,0 +1,20 @@
+{#
+  Los mensajes flash se entregan como datos, no como JavaScript en linea.
+
+  El bundle de Encore se carga con defer (config/packages/webpack_encore.yaml),
+  asi que se ejecuta despues de que el navegador ya parseo cualquier <script>
+  suelto del cuerpo. Llamar a Swal desde ahi fallaria con "Swal is not defined".
+
+  assets/app.js lee este JSON cuando se dispara DOMContentLoaded y muestra los
+  mensajes en secuencia. Pasar por json_encode tambien evita que un mensaje con
+  comillas rompa la pagina, que era el riesgo del enfoque anterior.
+#}
+{% set messages = [] %}
+{% for type, texts in app.flashes %}
+	{% for text in texts %}
+		{% set messages = messages|merge([{ type: type, text: text }]) %}
+	{% endfor %}
+{% endfor %}
+{% if messages is not empty %}
+	<script type="application/json" id="app-flashes">{{ messages|json_encode(constant('JSON_HEX_TAG'))|raw }}</script>
+{% endif %}
