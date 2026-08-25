@@ -132,6 +132,26 @@ Si añades un endpoint JSON nuevo, valídalo con
 [`AjaxCsrfTrait`](src/Controller/AjaxCsrfTrait.php); el lado del navegador ya
 está cubierto.
 
+## Idiomas
+
+La portada es **una sola plantilla** (`templates/index.html.twig`) para español e
+inglés. El texto vive en `translations/messages.es.yaml` y
+`messages.en.yaml`, y el idioma lo fija la ruta:
+
+| Ruta | Idioma |
+|------|--------|
+| `/` | español (`_locale: es`) |
+| `/en` | inglés (`_locale: en`) |
+
+Ambas apuntan a la misma acción de `Home`; `_locale` es un parámetro especial de
+Symfony y con él `|trans` resuelve contra el catálogo que toca.
+
+Para agregar un texto: la clave en los **dos** catálogos y `{{ 'clave'|trans }}`
+en la plantilla. Si falta en uno, Symfony cae al otro en vez de imprimir la
+clave cruda.
+
+`default_locale` es `es`, que es el idioma del resto de la aplicación.
+
 ## Roles
 
 | Rol | Alcance |
