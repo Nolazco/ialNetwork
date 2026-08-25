@@ -29,6 +29,12 @@ class DashboardUsers extends AbstractController {
 			]);
 		}
 
+		// El transportista no tiene nada que hacer en la vista de cliente: su
+		// trabajo son los despachos que le asignaron.
+		if ($this->isGranted('ROLE_FH')) {
+			return $this->redirectToRoute('deliveries');
+		}
+
 		return $this->render("/dashboard/client.html.twig", [
 			'name' => $user->getName(),
 			'role' => $user->getRoles()[0],

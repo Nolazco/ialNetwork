@@ -1,0 +1,102 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Despachos{% endblock %}
+
+{% block body %}
+  <div class="content">
+    <h2 class="mb-4">{{ isHauler ? 'Mis despachos' : 'Despachos' }}</h2>
+
+    {% if isHauler and hauler is null %}
+      <div class="alert alert-warning">
+        Tu cuenta todavía no está ligada a un transportista registrado.
+        Pide a la agencia que la dé de alta para poder recibir despachos.
+      </div>
+    {% elseif deliveries is empty %}
+      <div class="card text-center">
+        <div class="card-header">Aviso</div>
+        <div class="card-body">
+          <h5 class="card-title">Sin despachos</h5>
+          <p class="card-text mb-0">
+            {{ isHauler
+              ? 'No tienes ningún despacho asignado por ahora.'
+              : 'Todavía no se ha avisado al transporte en ningún expediente.' }}
+          </p>
+        </div>
+      </div>
+    {% else %}
+      <table class="table table-striped align-middle">
+        <thead>
+          <tr>
+            <th scope="col">Expediente</th>
+            <th scope="col">Operación</th>
+            <th scope="col">Recinto</th>
+            {% if not isHauler %}<th scope="col">Transportista</th>{% endif %}
+            <th scope="col">Cita</th>
+            <th scope="col">Carga</th>
+            <th scope="col">Avance</th>
+            {% if isHauler %}<th scope="col" class="text-end">Confirmar</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in deliveries %}
+            <tr>
+              <td>
+                <strong>{{ d.reference.clientReference }}</strong>
+                <div class="small text-body-secondary">{{ d.reference.idCompany.name }}</div>
+              </td>
+              <td>
+                {{ directions[d.reference.direction]|default(d.reference.direction) }}
+                <div class="small text-body-secondary">{{ d.reference.goods }}</div>
+              </td>
+              <td>{{ d.reference.cr.name }}</td>
+              {% if not isHauler %}
+                <td>{{ d.transport.companyName }}</td>
+              {% endif %}
+              <td>{{ d.date|date('d/m/Y') }} {{ d.hour|date('H:i') }}</td>
+              <td>
+                {% for c in d.containers %}
+                  <span class="badge text-bg-secondary">{{ c.num }} &middot; {{ c.type }}</span>
+                {% else %}
+                  <span class="text-body-secondary">Carga suelta</span>
+                {% endfor %}
+              </td>
+              <td>
+                <span class="badge {{ d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary') }}">
+                  {{ d.stage }}
+                </span>
+                {% if d.departedAt %}
+                  <div class="small text-body-secondary">Salida {{ d.departedAt|date('d/m/Y H:i') }}</div>
+                {% endif %}
+                {% if d.deliveredAt %}
+                  <div class="small text-body-secondary">Entrega {{ d.deliveredAt|date('d/m/Y H:i') }}</div>
+                {% endif %}
+              </td>
+              {% if isHauler %}
+                <td class="text-end text-nowrap">
+                  {% if not d.departed %}
+                    <form method="POST" class="d-inline" action="{{ path('delivery_departure', { id: d.id }) }}">
+                      <input type="hidden" name="_token" value="{{ csrf_token('delivery_departure') }}">
+                      <button type="submit" class="btn btn-sm btn-outline-primary">
+                        <i class="bi bi-truck"></i> Salida
+                      </button>
+                    </form>
+                  {% endif %}
+                  {% if not d.delivered %}
+                    <form method="POST" class="d-inline" action="{{ path('delivery_arrival', { id: d.id }) }}">
+                      <input type="hidden" name="_token" value="{{ csrf_token('delivery_arrival') }}">
+                      <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-check2"></i> Entrega
+                      </button>
+                    </form>
+                  {% else %}
+                    <span class="text-body-secondary"><i class="bi bi-check2-all"></i></span>
+                  {% endif %}
+                </td>
+              {% endif %}
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+  </div>
+{% endblock %}
