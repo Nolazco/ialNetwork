@@ -1,0 +1,263 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Expediente {{ import.clientReference }}{% endblock %}
+
+{% block body %}
+  <div class="content">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Expediente {{ import.clientReference }}</h2>
+        <p class="text-body-secondary mb-0">
+          {{ import.idCompany.name }}
+          &middot; {{ directions[import.direction]|default(import.direction) }}
+          &middot; {{ types[import.type]|default(import.type) }}
+        </p>
+      </div>
+      <a href="/dashboard/pedimentos/" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+
+    {# ---------- Avance del expediente ---------- #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="card-title mb-0">Avance</h5>
+          <span class="badge text-bg-primary fs-6">{{ import.status }}</span>
+        </div>
+
+        <div class="progress mb-3" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-bar" style="width: {{ progress }}%">{{ progress }}%</div>
+        </div>
+
+        <ol class="list-group list-group-numbered list-group-flush mb-3">
+          {% for step in sequence %}
+            <li class="list-group-item d-flex justify-content-between align-items-center {% if step not in completed %}text-body-secondary{% endif %}">
+              <span>
+                {% if step in completed %}<i class="bi bi-check-circle-fill text-success"></i>{% endif %}
+                {{ step }}
+              </span>
+              {% if step == import.status %}
+                <span class="badge text-bg-primary">Actual</span>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ol>
+
+        {% if nextStatuses is empty %}
+          <p class="mb-0 text-success"><i class="bi bi-flag-fill"></i> El expediente llegó al final de su recorrido.</p>
+        {% elseif import.status == 'Pendiente' %}
+          <p class="mb-0 text-body-secondary">
+            <i class="bi bi-info-circle"></i>
+            Da de alta el pedimento para que el expediente avance.
+          </p>
+        {% else %}
+          <div class="d-flex gap-2 flex-wrap">
+            {% for status in nextStatuses %}
+              <form method="POST" action="{{ path('case_file_advance', { id: import.id }) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('case_file_advance') }}">
+                <input type="hidden" name="status" value="{{ status }}">
+                <button type="submit" class="btn {{ loop.first ? 'btn-primary' : 'btn-outline-primary' }}">
+                  {{ status }} <i class="bi bi-arrow-right"></i>
+                </button>
+              </form>
+            {% endfor %}
+          </div>
+          {% if nextStatuses|length > 1 %}
+            <p class="mt-2 mb-0 small text-body-secondary">
+              «{{ nextStatuses|first }}» es un paso opcional: si esta mercancía no lo requiere, pasa directo al siguiente.
+            </p>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="row g-4">
+
+      {# ---------- Alta del pedimento ---------- #}
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Alta del pedimento</h5>
+            <form method="POST" action="{{ path('case_file_capture', { id: import.id }) }}">
+              <input type="hidden" name="_token" value="{{ csrf_token('case_file_capture') }}">
+
+              <div class="mb-3">
+                <label for="agencyReference" class="form-label">Referencia de la agencia</label>
+                <input type="text" class="form-control" id="agencyReference" name="agencyReference"
+                       value="{{ import.agencyReference == 'Pendiente' ? '' : import.agencyReference }}"
+                       placeholder="Referencia interna" required>
+              </div>
+
+              <div class="mb-3">
+                <label for="importNumber" class="form-label">Número de pedimento</label>
+                <input type="text" class="form-control" id="importNumber" name="importNumber"
+                       value="{{ import.importNumber == 'Pendiente' ? '' : import.importNumber }}"
+                       placeholder="Número de pedimento" required>
+              </div>
+
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-save"></i> Guardar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {# ---------- Datos del aviso ---------- #}
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Datos del aviso</h5>
+            <dl class="row mb-0">
+              <dt class="col-sm-5">Empresa</dt>
+              <dd class="col-sm-7">{{ import.idCompany.name }} ({{ import.idCompany.rfc }})</dd>
+
+              <dt class="col-sm-5">Proveedor</dt>
+              <dd class="col-sm-7">{{ import.idProvider.name }}</dd>
+
+              <dt class="col-sm-5">Mercancía</dt>
+              <dd class="col-sm-7">{{ import.goods }}</dd>
+
+              <dt class="col-sm-5">Fecha de arribo</dt>
+              <dd class="col-sm-7">{{ import.eta|date('d/m/Y') }}</dd>
+
+              <dt class="col-sm-5">Recinto</dt>
+              <dd class="col-sm-7">{{ import.cr.name }} (CR {{ import.cr.cr }})</dd>
+
+              <dt class="col-sm-5">Contenedores</dt>
+              <dd class="col-sm-7">
+                {% for c in import.containers %}
+                  <span class="badge text-bg-secondary">{{ c.num }} &middot; {{ c.type }}</span>
+                {% else %}
+                  <span class="text-body-secondary">Carga suelta</span>
+                {% endfor %}
+              </dd>
+
+              <dt class="col-sm-5">Documentos</dt>
+              <dd class="col-sm-7 mb-0">
+                {% for d in import.importDocuments %}
+                  <div><i class="bi bi-file-earmark-text"></i> {{ d.type }}</div>
+                {% else %}
+                  <span class="text-body-secondary">Sin documentos anexos</span>
+                {% endfor %}
+              </dd>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {# ---------- Maniobras ---------- #}
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Maniobras</h5>
+
+        <form method="POST" action="{{ path('case_file_operation', { id: import.id }) }}" class="row g-2 align-items-end mb-4">
+          <input type="hidden" name="_token" value="{{ csrf_token('case_file_operation') }}">
+
+          <div class="col-md-5">
+            <label for="maniobra" class="form-label">Maniobra</label>
+            <select class="form-select" name="type" id="maniobra" required>
+              <option selected disabled value="">Seleccione una maniobra</option>
+              {% for m in maniobras %}
+                <option value="{{ m }}">{{ m }}</option>
+              {% endfor %}
+              <option value="{{ maniobraOther }}">Otra (especificar)…</option>
+            </select>
+          </div>
+
+          <div class="col-md-4 d-none" id="custom-maniobra-wrapper">
+            <label for="customType" class="form-label">¿Cuál?</label>
+            <input type="text" class="form-control" name="customType" id="customType" placeholder="Describe la maniobra">
+          </div>
+
+          <div class="col-md-3">
+            <label for="maniobraDate" class="form-label">Fecha</label>
+            <input type="date" class="form-control" name="date" id="maniobraDate" value="{{ "now"|date('Y-m-d') }}" required>
+          </div>
+
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-plus-lg"></i> Registrar
+            </button>
+          </div>
+        </form>
+
+        {% if operations %}
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Maniobra</th>
+                <th scope="col" class="text-end">Opciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for o in operations %}
+                <tr>
+                  <td>{{ o.date|date('d/m/Y') }}</td>
+                  <td>{{ o.type }}</td>
+                  <td class="text-end">
+                    <form method="POST" class="d-inline js-confirm-delete"
+                          action="{{ path('case_file_operation_delete', { id: import.id, operation: o.id }) }}">
+                      <input type="hidden" name="_token" value="{{ csrf_token('case_file_operation_delete') }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar maniobra">
+                        <i class="bi bi-trash"></i>
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-body-secondary mb-0">Todavía no se registran maniobras en este expediente.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // El campo libre solo aparece cuando la maniobra no está en el catálogo.
+      const select = document.getElementById("maniobra");
+      const wrapper = document.getElementById("custom-maniobra-wrapper");
+      const custom = document.getElementById("customType");
+
+      select.addEventListener("change", function () {
+        const isOther = select.value === {{ maniobraOther|json_encode|raw }};
+        wrapper.classList.toggle("d-none", !isOther);
+        custom.required = isOther;
+        if (!isOther) {
+          custom.value = "";
+        }
+      });
+
+      document.querySelectorAll(".js-confirm-delete").forEach(function (form) {
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          Swal.fire({
+            title: "¿Eliminar la maniobra?",
+            text: "Esta acción no se puede deshacer.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#dc3545",
+            cancelButtonColor: "#6c757d",
+            confirmButtonText: "Eliminar",
+            cancelButtonText: "Cancelar"
+          }).then(function (result) {
+            if (result.isConfirmed) {
+              form.submit();
+            }
+          });
+        });
+      });
+    });
+  </script>
+{% endblock %}
