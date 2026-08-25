@@ -51,6 +51,7 @@ class CatalogFixtures extends Fixture implements DependentFixtureInterface
         $association = new Associated();
         $association->setIdClient($this->getReference(UserFixtures::CLIENT, User::class));
         $association->setIdCompany($company);
+        $association->setStatus(Associated::APPROVED);
 
         $manager->persist($association);
 

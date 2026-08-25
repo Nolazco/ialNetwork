@@ -38,7 +38,9 @@ final class CompanyAccess
         }
 
         foreach ($company->getAssociateds() as $association) {
-            if ($association->getIdClient() === $user) {
+            // Una afiliacion pendiente o rechazada no concede nada: si bastara
+            // con solicitarla, cualquier cliente se daria acceso solo.
+            if ($association->getIdClient() === $user && $association->isApproved()) {
                 return true;
             }
         }

@@ -2,6 +2,7 @@
 
 namespace App\Repository;
 
+use App\Entity\Associated;
 use App\Entity\Company;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
@@ -17,13 +18,21 @@ class CompanyRepository extends ServiceEntityRepository
         parent::__construct($registry, Company::class);
     }
 
+    /**
+     * Empresas que el cliente ya tiene aprobadas.
+     *
+     * Una afiliacion pendiente de autorizacion no aparece aqui: hasta que la
+     * agencia la aprueba, el cliente no ve nada de esa empresa.
+     */
     public function findAssociatedCompanies(User $usuario): array
     {
         return $this->createQueryBuilder('c')
             ->innerJoin('c.associateds', 'a')
             ->innerJoin('a.idClient', 'u')
             ->where('u = :usuario')
+            ->andWhere('a.status = :aprobada')
             ->setParameter('usuario', $usuario)
+            ->setParameter('aprobada', Associated::APPROVED)
             ->getQuery()
             ->getResult();
     }

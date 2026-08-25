@@ -1,0 +1,91 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Afiliaciones{% endblock %}
+
+{% block body %}
+  <div class="content">
+    <h2 class="mb-4">Afiliaciones</h2>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title mb-0">Pendientes de autorización</h5>
+          {% if pending|length %}
+            <span class="badge text-bg-warning">{{ pending|length }}</span>
+          {% endif %}
+        </div>
+
+        {% if pending is empty %}
+          <p class="mb-0 text-body-secondary">No hay solicitudes pendientes.</p>
+        {% else %}
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Cliente</th>
+                <th scope="col">Empresa</th>
+                <th scope="col" class="text-end">Decisión</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in pending %}
+                <tr>
+                  <td>
+                    {{ a.idClient.name }} {{ a.idClient.lastName }}
+                    <div class="small text-body-secondary">{{ a.idClient.email }}</div>
+                  </td>
+                  <td>{{ a.idCompany.name }} <span class="text-body-secondary">({{ a.idCompany.rfc }})</span></td>
+                  <td class="text-end text-nowrap">
+                    <form method="POST" class="d-inline"
+                          action="{{ path('affiliation_decide', { id: a.id, decision: 'aprobar' }) }}">
+                      <input type="hidden" name="_token" value="{{ csrf_token('affiliation_decide') }}">
+                      <button type="submit" class="btn btn-sm btn-success">
+                        <i class="bi bi-check2"></i> Aprobar
+                      </button>
+                    </form>
+                    <form method="POST" class="d-inline"
+                          action="{{ path('affiliation_decide', { id: a.id, decision: 'rechazar' }) }}">
+                      <input type="hidden" name="_token" value="{{ csrf_token('affiliation_decide') }}">
+                      <button type="submit" class="btn btn-sm btn-outline-danger">
+                        <i class="bi bi-x-lg"></i> Rechazar
+                      </button>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if resolved|length %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Resueltas</h5>
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Cliente</th>
+                <th scope="col">Empresa</th>
+                <th scope="col">Estatus</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for a in resolved %}
+                <tr>
+                  <td>{{ a.idClient.email }}</td>
+                  <td>{{ a.idCompany.name }}</td>
+                  <td>
+                    <span class="badge {{ a.approved ? 'text-bg-success' : 'text-bg-secondary' }}">
+                      {{ a.approved ? 'Aprobada' : 'Rechazada' }}
+                    </span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
