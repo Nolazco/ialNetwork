@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Repository\DeliveryRepository;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: DeliveryRepository::class)]
@@ -21,11 +22,11 @@ class Delivery
     #[ORM\JoinColumn(nullable: false)]
     private ?FreightHauler $transport = null;
 
-    #[ORM\Column(length: 255)]
-    private ?string $date = null;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    private ?\DateTimeImmutable $date = null;
 
-    #[ORM\Column(length: 255)]
-    private ?string $hour = null;
+    #[ORM\Column(type: Types::TIME_IMMUTABLE)]
+    private ?\DateTimeImmutable $hour = null;
 
     public function getId(): ?int
     {
@@ -56,24 +57,24 @@ class Delivery
         return $this;
     }
 
-    public function getDate(): ?string
+    public function getDate(): ?\DateTimeImmutable
     {
         return $this->date;
     }
 
-    public function setDate(string $date): static
+    public function setDate(\DateTimeImmutable $date): static
     {
         $this->date = $date;
 
         return $this;
     }
 
-    public function getHour(): ?string
+    public function getHour(): ?\DateTimeImmutable
     {
         return $this->hour;
     }
 
-    public function setHour(string $hour): static
+    public function setHour(\DateTimeImmutable $hour): static
     {
         $this->hour = $hour;
 

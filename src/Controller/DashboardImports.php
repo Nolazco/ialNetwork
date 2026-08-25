@@ -88,7 +88,7 @@ class DashboardImports extends AbstractController {
   	$import->setIdProvider($provider);
   	$import->setGoods($r->request->get('goods'));
   	$import->setImportNumber('Pendiente');
-  	$import->setEta($r->request->get('eta'));
+  	$import->setEta(new \DateTimeImmutable($r->request->get('eta')));
   	$import->setCr($yard);
   	$import->setType($r->request->get('type'));
   	$import->setStatus('Pendiente');
