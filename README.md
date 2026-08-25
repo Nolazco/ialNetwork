@@ -11,7 +11,7 @@ con su cuenta de gastos.
 | 1 | Alerta de importación/exportación y carga de documentos | Cliente | `ImportRequest`, `ImportDocument`, `Container` | Implementado |
 | 2 | Alta del pedimento y fases de la operación | Ejecutivo | `Operation` | Implementado |
 | 3 | Aviso al transporte | Ejecutivo → Transportista | `Delivery`, `FreightHauler` | Implementado |
-| 4 | Entrega de mercancía y devolución de vacío | Transportista | `EmptyReturn`, `ContainerYard` | Solo modelo + EasyAdmin |
+| 4 | Entrega de mercancía y devolución de vacío | Transportista | `EmptyReturn`, `ContainerYard` | Implementado |
 | 5 | Cierre del expediente y cuenta de gastos | Ejecutivo | `InternInvoice` | Solo modelo + EasyAdmin |
 
 `ImportRequest` es el expediente: todo lo demás cuelga de él.
@@ -67,6 +67,25 @@ contenerizada, uno por camión, con un máximo de
 `Delivery::MAX_CONTAINERS` (dos) contenedores cada uno. De ahí que el
 expediente pase a «En tránsito» en cuanto **sale el primer** camión, pero solo
 llegue a «Entregado» cuando **han llegado todos**.
+
+## Devolución de vacíos
+
+Solo aplica a la **importación contenerizada**, que es la única secuencia con el
+estado «Vacío devuelto».
+
+Lo registra el transportista desde su despacho, una vez confirmada la entrega:
+por cada contenedor captura el patio, el tipo de devolución
+([`EmptyReturnCatalog`](src/Workflow/EmptyReturnCatalog.php): Directa o
+Recolección), la fecha, el folio del EIR y el EIR escaneado. El expediente pasa
+a «Vacío devuelto» cuando **han vuelto todos** los contenedores.
+
+El ejecutivo no puede marcar ese estado a mano: el controlador lo rechaza
+mientras quede algún contenedor sin EIR, para que el expediente no cierre sin el
+respaldo de los patios.
+
+Los EIR se guardan en `public/uploads/eir/{idExpediente}/`. La columna
+`eir_route` es nullable a propósito: el formulario exige el documento, pero el
+esquema no debe impedir registrar la devolución si el escaneo llega después.
 
 ## Maniobras
 
