@@ -1,0 +1,96 @@
+# English copy of the landing page. Mirrors messages.es.yaml key by key: if a key
+# is missing here, Symfony falls back to the other catalog rather than printing
+# the raw key (see fallbacks in config/packages/translation.yaml).
+landing:
+    nav:
+        home: Home
+        about: About
+        services: Services
+        contact: Contact
+
+    account:
+        greeting: 'Hello %name%'
+        dashboard: Dashboard
+        logout: Log Out
+        login: Log In
+        register: Join us!
+
+    hero:
+        tagline: Empty Return Maneuvers and EIR Recovery
+        title: Welcome to IAL Network
+        more: More Information
+
+    feature:
+        question: Looking for fast and reliable logistics solutions?
+        trust: Over 30 companies nationwide trust us.
+        experience: >-
+            With over 15 years of experience, we offer fast and reliable solutions
+            tailored to your business needs.
+        callout: Trust our experience and take your logistics to the next level!
+        contact_now: Contact us now!
+        hours:
+            title: Business Hours
+            weekdays: Monday - Friday
+            weekdays_time: 9:00 AM - 2:00 PM and 4:00 PM - 7:00 PM
+            saturday: Saturday
+            saturday_time: 9:00 AM - 2:00 PM
+            sunday: 'Sunday: Closed'
+
+    about:
+        title: About IAL Network
+        intro: >-
+            At IAL Network, we offer specialized solutions in foreign trade, consulting,
+            maneuvers, and land freight, focusing on the efficiency and
+            professionalization of logistics and commercial processes.
+        vision_title: Vision
+        vision: >-
+            To be the reference in foreign trade by providing comprehensive services that
+            optimize our clients' logistics and commercial operations, boosting their
+            competitiveness and the sustainable development of the sector.
+        mission_title: Mission
+        mission: >-
+            To provide specialized services with high-quality standards, combining
+            experience, technology, and a trained team to offer secure, efficient, and
+            tailored solutions to each need.
+        port_alt: Port
+        port_title: Port of Manzanillo
+        city_alt: Manzanillo
+        city_title: Downtown Manzanillo
+
+    services:
+        tagline: Boost Your Logistics Operations!
+        title: Our Logistics Solutions
+        consulting:
+            title: Logistics Consulting
+            text: Customized solutions to optimize your supply chain and ensure efficiency.
+        trade:
+            title: Import/Export
+            text: >-
+                Efficient management of your import and export operations, ensuring
+                compliance and speed.
+        empty:
+            title: Empty Return Maneuvers
+            text: Specialized service for the safe and efficient handling of delicate loads.
+        freight:
+            title: Ground Freight
+            text: >-
+                Land freight services ensuring fast and secure delivery times across the
+                country.
+
+    contact:
+        title: Contact Us
+        name: Name
+        email: Email
+        message: Message
+        send: Send Message
+        where_title: Here we are!
+        address: >-
+            Carretera a Minatitlán Lote 16 Manzana 2, Lib. Tapeixtles,
+            28239 Manzanillo, Col.
+        sent_title: Thank you for contacting us!
+        sent_body: We have received your message and will get in touch with you soon.
+
+    footer:
+        copyright: Copyright © 2025 IAL Network.
+
+    scroll_top: Back to top

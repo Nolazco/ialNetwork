@@ -1,0 +1,102 @@
+# Textos de la portada. La plantilla es una sola (templates/index.html.twig);
+# lo unico que cambia entre idiomas es este archivo y su gemelo en ingles.
+#
+# Las claves van por seccion para que se encuentren rapido y para que al editar
+# un texto quede obvio donde sale en la pagina.
+landing:
+    nav:
+        home: Inicio
+        about: Acerca De
+        services: Servicios
+        contact: Contacto
+
+    account:
+        greeting: 'Hola %name%'
+        dashboard: Dashboard
+        logout: Cerrar sesión
+        login: Inicia sesión
+        register: '¡Únete a nosotros!'
+
+    hero:
+        tagline: Maniobras de vacíos y recuperación de EIR
+        title: Bienvenidos a IAL Network
+        more: Más información
+
+    feature:
+        question: '¿Buscas soluciones logísticas rápidas y confiables?'
+        trust: Más de 30 empresas en todo el país confían en nosotros.
+        experience: >-
+            Con más de 15 años de experiencia, ofrecemos soluciones rápidas y
+            confiables adaptadas a las necesidades de tu negocio.
+        callout: '¡Confía en nuestra experiencia y lleva tu logística al siguiente nivel!'
+        contact_now: '¡Contáctanos ahora!'
+        hours:
+            title: Horario de atención
+            weekdays: Lunes - Viernes
+            weekdays_time: 9:00 AM - 2:00 PM y 4:00 PM - 7:00 PM
+            saturday: Sábado
+            saturday_time: 9:00 AM - 2:00 PM
+            sunday: 'Domingo: Cerrado'
+
+    about:
+        title: Sobre IAL Network
+        intro: >-
+            En IAL Network, ofrecemos soluciones especializadas en comercio exterior,
+            asesoría, maniobras y fletes terrestres, enfocándonos en la eficiencia y
+            profesionalización de los procesos logísticos y comerciales.
+        vision_title: Visión
+        vision: >-
+            Ser la referencia en comercio exterior, proporcionando servicios integrales
+            que optimicen las operaciones logísticas y comerciales de nuestros clientes,
+            impulsando su competitividad y el desarrollo sostenible del sector.
+        mission_title: Misión
+        mission: >-
+            Brindar servicios especializados con altos estándares de calidad, combinando
+            experiencia, tecnología y un equipo capacitado para ofrecer soluciones
+            seguras, eficientes y adaptadas a cada necesidad.
+        port_alt: Puerto
+        port_title: Puerto de Manzanillo
+        city_alt: Manzanillo
+        city_title: Centro de Manzanillo
+
+    services:
+        tagline: '¡Optimiza tus operaciones logísticas!'
+        title: Nuestras Soluciones Logísticas
+        consulting:
+            title: Asesoramiento Logístico
+            text: >-
+                Soluciones personalizadas para optimizar tu cadena de suministro y
+                garantizar eficiencia.
+        trade:
+            title: Importación/Exportación
+            text: >-
+                Gestión eficiente de tus operaciones de importación y exportación,
+                garantizando cumplimiento y rapidez.
+        empty:
+            title: Maniobras de Vacío
+            text: >-
+                Servicio especializado para la manipulación segura y eficiente de cargas
+                delicadas.
+        freight:
+            title: Flete Terrestre
+            text: >-
+                Transporte terrestre de carga, asegurando tiempos de entrega rápidos y
+                seguros en todo el país.
+
+    contact:
+        title: Contáctanos
+        name: Nombre
+        email: Correo
+        message: Mensaje
+        send: Enviar mensaje
+        where_title: '¡Aquí nos encontramos!'
+        address: >-
+            Carretera a Minatitlán Lote 16 Manzana 2, Lib. Tapeixtles,
+            28239 Manzanillo, Col.
+        sent_title: '¡Gracias por contactarnos!'
+        sent_body: Hemos recibido tu mensaje y nos pondremos en contacto contigo pronto.
+
+    footer:
+        copyright: Copyright © 2025 IAL Network.
+
+    scroll_top: Subir
