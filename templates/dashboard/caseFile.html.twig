@@ -55,13 +55,21 @@
         {% else %}
           <div class="d-flex gap-2 flex-wrap">
             {% for status in nextStatuses %}
-              <form method="POST" action="{{ path('case_file_advance', { id: import.id }) }}">
-                <input type="hidden" name="_token" value="{{ csrf_token('case_file_advance') }}">
-                <input type="hidden" name="status" value="{{ status }}">
-                <button type="submit" class="btn {{ loop.first ? 'btn-primary' : 'btn-outline-primary' }}">
-                  {{ status }} <i class="bi bi-arrow-right"></i>
-                </button>
-              </form>
+              {% if status == 'Vacío devuelto' and containersPendingReturn|length %}
+                {# Lo dispara el transportista al registrar el EIR de cada contenedor. #}
+                <span class="text-body-secondary">
+                  <i class="bi bi-hourglass-split"></i>
+                  Esperando la devolución de {{ containersPendingReturn|length }} vacío(s).
+                </span>
+              {% else %}
+                <form method="POST" action="{{ path('case_file_advance', { id: import.id }) }}">
+                  <input type="hidden" name="_token" value="{{ csrf_token('case_file_advance') }}">
+                  <input type="hidden" name="status" value="{{ status }}">
+                  <button type="submit" class="btn {{ loop.first ? 'btn-primary' : 'btn-outline-primary' }}">
+                    {{ status }} <i class="bi bi-arrow-right"></i>
+                  </button>
+                </form>
+              {% endif %}
             {% endfor %}
           </div>
           {% if nextStatuses|length > 1 %}
@@ -269,6 +277,68 @@
         {% endif %}
       </div>
     </div>
+
+    {# ---------- Devolución de vacíos ---------- #}
+    {% if requiresEmptyReturn %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Devolución de vacíos</h5>
+            {% if containersPendingReturn|length %}
+              <span class="badge text-bg-warning">{{ containersPendingReturn|length }} pendiente(s)</span>
+            {% else %}
+              <span class="badge text-bg-success">Completa</span>
+            {% endif %}
+          </div>
+
+          {% if import.emptyReturns|length %}
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th scope="col">Contenedor</th>
+                  <th scope="col">Patio</th>
+                  <th scope="col">Tipo</th>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Transportista</th>
+                  <th scope="col">EIR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for e in import.emptyReturns %}
+                  <tr>
+                    <td>{{ e.container.num }} <span class="text-body-secondary">&middot; {{ e.container.type }}</span></td>
+                    <td>{{ e.yard.name }}</td>
+                    <td>{{ e.type }}</td>
+                    <td>{{ e.date|date('d/m/Y') }}</td>
+                    <td>{{ e.transport.companyName }}</td>
+                    <td>
+                      {{ e.eir }}
+                      {% if e.eirRoute %}
+                        <a href="/{{ e.eirRoute }}" target="_blank" rel="noopener" title="Ver EIR escaneado">
+                          <i class="bi bi-file-earmark-text"></i>
+                        </a>
+                      {% else %}
+                        <span class="badge text-bg-warning">sin escaneo</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+
+          {% if containersPendingReturn|length %}
+            <p class="mb-0 text-body-secondary">
+              <i class="bi bi-hourglass-split"></i>
+              Falta que el transportista devuelva:
+              {% for c in containersPendingReturn %}
+                <span class="badge text-bg-secondary">{{ c.num }}</span>
+              {% endfor %}
+            </p>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
 
     {# ---------- Maniobras ---------- #}
     <div class="card shadow-sm mt-4">

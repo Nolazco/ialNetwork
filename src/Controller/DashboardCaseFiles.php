@@ -64,6 +64,8 @@ class DashboardCaseFiles extends AbstractController
             'haulers' => $this->entityManager->getRepository(FreightHauler::class)->findBy([], ['companyName' => 'ASC']),
             'unassignedContainers' => $this->transport->unassignedContainers($import),
             'maxContainers' => Delivery::MAX_CONTAINERS,
+            'requiresEmptyReturn' => $this->workflow->requiresEmptyReturn($import),
+            'containersPendingReturn' => $this->transport->containersPendingReturn($import),
         ]);
     }
 
@@ -243,6 +245,22 @@ class DashboardCaseFiles extends AbstractController
             $this->addFlash('error', sprintf('No se puede pasar de "%s" a "%s".', $import->getStatus(), $status));
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        // "Vacío devuelto" lo alcanza el expediente cuando el transportista
+        // registra el EIR de cada contenedor, no marcandolo a mano: de otro modo
+        // el expediente cerraria sin el respaldo de los patios.
+        if ($status === ImportRequestWorkflow::EMPTY_RETURNED) {
+            $pending = $this->transport->containersPendingReturn($import);
+
+            if ($pending !== []) {
+                $this->addFlash('error', sprintf(
+                    'Faltan %d contenedor(es) por devolver. El transportista debe registrar su EIR.',
+                    count($pending)
+                ));
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
         }
 
         $import->setStatus($status);
