@@ -2,11 +2,15 @@
 
 namespace App\Controller;
 
+use App\Entity\Delivery;
+use App\Entity\Container;
+use App\Entity\FreightHauler;
 use App\Entity\ImportRequest;
 use App\Entity\Operation;
 use App\Entity\User;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
+use App\Workflow\TransportCoordinator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -30,6 +34,7 @@ class DashboardCaseFiles extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly ImportRequestWorkflow $workflow,
         private readonly OperationCatalog $catalog,
+        private readonly TransportCoordinator $transport,
     ) {
     }
 
@@ -54,7 +59,129 @@ class DashboardCaseFiles extends AbstractController
             'maniobraOther' => OperationCatalog::OTHER,
             'operations' => $this->entityManager->getRepository(Operation::class)
                 ->findBy(['reference' => $import], ['date' => 'ASC', 'id' => 'ASC']),
+            'canAssignTransport' => $this->workflow->canAssignTransport($import),
+            'awaitsTransport' => $this->workflow->awaitsTransport($import),
+            'haulers' => $this->entityManager->getRepository(FreightHauler::class)->findBy([], ['companyName' => 'ASC']),
+            'unassignedContainers' => $this->transport->unassignedContainers($import),
+            'maxContainers' => Delivery::MAX_CONTAINERS,
         ]);
+    }
+
+    /**
+     * Aviso al transporte: asigna un camion al expediente.
+     *
+     * En importacion el camion recoge en el recinto y lleva la mercancia al
+     * cliente; en exportacion es al reves. En ambos casos un camion carga como
+     * mucho dos contenedores, asi que un expediente contenerizado necesita
+     * varios avisos.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/transporte', name: 'case_file_transport', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function assignTransport(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_transport', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (!$this->workflow->canAssignTransport($import)) {
+            $this->addFlash('error', sprintf('El expediente no admite aviso al transporte estando en "%s".', $import->getStatus()));
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $hauler = $this->entityManager->getRepository(FreightHauler::class)->find($r->request->get('transport'));
+
+        if (!$hauler) {
+            $this->addFlash('error', 'Selecciona un transportista.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('date'));
+        $hour = \DateTimeImmutable::createFromFormat('H:i', (string) $r->request->get('hour'));
+
+        if (!$date || !$hour) {
+            $this->addFlash('error', 'La fecha y la hora del despacho son obligatorias.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $delivery = new Delivery();
+        $delivery->setReference($import);
+        $delivery->setTransport($hauler);
+        $delivery->setDate($date->setTime(0, 0));
+        $delivery->setHour($hour);
+
+        if ($import->getType() === ImportRequestWorkflow::TYPE_CONTAINER) {
+            $available = [];
+
+            foreach ($this->transport->unassignedContainers($import) as $container) {
+                $available[$container->getId()] = $container;
+            }
+
+            $chosen = $r->request->all('containers');
+
+            if (count($chosen) === 0) {
+                $this->addFlash('error', 'Selecciona al menos un contenedor para este camión.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            if (count($chosen) > Delivery::MAX_CONTAINERS) {
+                $this->addFlash('error', sprintf('Un camión no puede cargar más de %d contenedores.', Delivery::MAX_CONTAINERS));
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            foreach ($chosen as $containerId) {
+                // Solo contenedores de este expediente que no viajen ya en otro
+                // camion: la lista llega del formulario y no es de fiar.
+                if (!isset($available[(int) $containerId])) {
+                    $this->addFlash('error', 'Alguno de los contenedores ya está asignado o no pertenece al expediente.');
+
+                    return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+                }
+
+                $delivery->addContainer($available[(int) $containerId]);
+            }
+        }
+
+        $this->entityManager->persist($delivery);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', sprintf('Se avisó a %s para el %s.', $hauler->getCompanyName(), $date->format('d/m/Y')));
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    #[Route('/dashboard/pedimentos/expediente/{id}/transporte/{delivery}/cancelar', name: 'case_file_transport_cancel', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['POST'])]
+    public function cancelTransport(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_transport_cancel', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($delivery->getReference() !== $import) {
+            $this->addFlash('error', 'Ese despacho no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($delivery->isDeparted()) {
+            $this->addFlash('error', 'No se puede cancelar un despacho que ya salió.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $this->entityManager->remove($delivery);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Aviso de transporte cancelado.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
 
     /**
