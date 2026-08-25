@@ -23,12 +23,21 @@ carga suelta. Son cuatro secuencias distintas, definidas en
 [`App\Workflow\ImportRequestWorkflow`](src/Workflow/ImportRequestWorkflow.php).
 No comparten los mismos pasos ni el mismo orden: en exportación, «Liberado en
 terminal» va antes del pago cuando es contenedor y después de la modulación
-cuando es carga suelta.
+cuando es carga suelta. Y **solo la importación contenerizada devuelve vacío**:
+la carga suelta se desconsolida en el recinto, así que la agencia nunca toma
+posesión del contenedor.
 
-| | Contenedor | Carga suelta |
-|---|---|---|
-| **Importación** | Pendiente → Capturado → Revalidado → Pagado → Programado → Modulado → *(Inspección fuera de puerto)* → En tránsito → Entregado → Vacío devuelto → Finalizado | igual, con **Desconsolidado** entre Capturado y Revalidado |
-| **Exportación** | Pendiente → Capturado → Ingresado → Liberado en terminal → Pagado → Modulado → Finalizado | Pendiente → Capturado → Ingresado → Pagado → Modulado → Liberado en terminal → Finalizado |
+**Importación · Contenedor**
+> Pendiente → Capturado → Revalidado → Pagado → Programado → Modulado → *(Inspección fuera de puerto)* → En tránsito → Entregado → **Vacío devuelto** → Finalizado
+
+**Importación · Carga suelta**
+> Pendiente → Capturado → **Desconsolidado** → Revalidado → Pagado → Programado → Modulado → *(Inspección fuera de puerto)* → En tránsito → Entregado → Finalizado
+
+**Exportación · Contenedor**
+> Pendiente → Capturado → Ingresado → Liberado en terminal → Pagado → Modulado → Finalizado
+
+**Exportación · Carga suelta**
+> Pendiente → Capturado → Ingresado → Pagado → Modulado → Liberado en terminal → Finalizado
 
 *Inspección fuera de puerto* es un paso **opcional**: solo aplica a cierta
 mercancía de importación. Cuando el expediente llega a Modulado, la pantalla

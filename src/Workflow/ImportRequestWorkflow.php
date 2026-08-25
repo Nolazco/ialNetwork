@@ -83,7 +83,8 @@ final class ImportRequestWorkflow
             self::OFFSITE_INSPECTION,
             self::IN_TRANSIT,
             self::DELIVERED,
-            self::EMPTY_RETURNED,
+            // Sin devolucion de vacio: la carga suelta se desconsolida en el
+            // recinto, asi que la agencia nunca toma posesion del contenedor.
             self::FINISHED,
         ],
         self::DIRECTION_EXPORT.'.'.self::TYPE_CONTAINER => [
