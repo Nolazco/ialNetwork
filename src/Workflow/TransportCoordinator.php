@@ -2,7 +2,9 @@
 
 namespace App\Workflow;
 
+use App\Entity\Container;
 use App\Entity\Delivery;
+use App\Entity\EmptyReturn;
 use App\Entity\ImportRequest;
 
 /**
@@ -82,9 +84,78 @@ final class TransportCoordinator
     }
 
     /**
+     * El transportista registra la devolucion de un vacio. El expediente solo
+     * avanza cuando ya volvieron todos los contenedores.
+     */
+    public function confirmEmptyReturn(EmptyReturn $return): ?string
+    {
+        $request = $return->getReference();
+
+        if ($this->containersPendingReturn($request) !== []) {
+            return null;
+        }
+
+        $status = ImportRequestWorkflow::EMPTY_RETURNED;
+
+        if (!$this->workflow->canTransitionTo($request, $status)) {
+            return null;
+        }
+
+        $request->setStatus($status);
+
+        return $status;
+    }
+
+    /**
+     * Contenedores del expediente que aun no se devuelven al patio.
+     *
+     * @return list<Container>
+     */
+    public function containersPendingReturn(ImportRequest $request): array
+    {
+        if (!$this->workflow->requiresEmptyReturn($request)) {
+            return [];
+        }
+
+        $returned = [];
+
+        foreach ($request->getEmptyReturns() as $return) {
+            $returned[$return->getContainer()->getId()] = true;
+        }
+
+        $pending = [];
+
+        foreach ($request->getContainers() as $container) {
+            if (!isset($returned[$container->getId()])) {
+                $pending[] = $container;
+            }
+        }
+
+        return $pending;
+    }
+
+    /**
+     * Contenedores de este despacho que el transportista todavia debe devolver.
+     *
+     * @return list<Container>
+     */
+    public function containersPendingReturnFor(Delivery $delivery): array
+    {
+        $pending = [];
+
+        foreach ($this->containersPendingReturn($delivery->getReference()) as $container) {
+            if ($delivery->getContainers()->contains($container)) {
+                $pending[] = $container;
+            }
+        }
+
+        return $pending;
+    }
+
+    /**
      * Contenedores del expediente que todavia no van en ningun camion.
      *
-     * @return list<\App\Entity\Container>
+     * @return list<Container>
      */
     public function unassignedContainers(ImportRequest $request): array
     {

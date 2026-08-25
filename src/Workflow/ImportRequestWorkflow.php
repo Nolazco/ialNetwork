@@ -211,6 +211,18 @@ final class ImportRequestWorkflow
     }
 
     /**
+     * ¿Este expediente termina devolviendo contenedores vacios?
+     *
+     * Solo la importacion contenerizada: en carga suelta la mercancia se
+     * desconsolida en el recinto y la agencia nunca toma el contenedor, y en
+     * exportacion el vacio no le corresponde.
+     */
+    public function requiresEmptyReturn(ImportRequest $request): bool
+    {
+        return in_array(self::EMPTY_RETURNED, $this->sequenceFor($request), true);
+    }
+
+    /**
      * Avance del expediente en porcentaje, para la barra de progreso.
      */
     public function progress(ImportRequest $request): int
