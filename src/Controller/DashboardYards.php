@@ -18,6 +18,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  */
 #[IsGranted('ROLE_EXECUTIVE')]
 class DashboardYards extends AbstractController {
+	use AjaxCsrfTrait;
+
 	#[Route('/dashboard/recintos')]
 	public function yards(EntityManagerInterface $entityManager): Response {
 		/** @var User $user */
@@ -67,6 +69,10 @@ class DashboardYards extends AbstractController {
 
 	  #[Route('/dashboard/recintos/{id}/editar', methods: ['POST'])]
 	  public function editYard(int $id, Request $r, EntityManagerInterface $entityManager ): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
 	    $yard = $entityManager->getRepository(ContainerYard::class)->find($id);
 
 	    if (!$yard) {

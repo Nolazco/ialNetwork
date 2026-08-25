@@ -18,6 +18,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
  */
 #[IsGranted('ROLE_EXECUTIVE')]
 class DashboardProviders extends AbstractController {
+	use AjaxCsrfTrait;
+
 	#[Route('/dashboard/proveedores')]
 	public function providers(EntityManagerInterface $entityManager): Response {
 		/** @var User $user */
@@ -68,6 +70,10 @@ class DashboardProviders extends AbstractController {
 
 	  #[Route('/dashboard/proveedores/{id}/editar', methods: ['POST'])]
 	  public function editProvider(int $id, Request $r, EntityManagerInterface $entityManager ): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
 	    $provider = $entityManager->getRepository(Provider::class)->find($id);
 
 	    if (!$provider) {

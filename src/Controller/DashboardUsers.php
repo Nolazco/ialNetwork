@@ -12,6 +12,8 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 class DashboardUsers extends AbstractController {
+	use AjaxCsrfTrait;
+
 	#[Route(name: 'dashboard', path: '/dashboard')]
 	public function dashboard(EntityManagerInterface $entityManager): Response {
 		/** @var User $user */
@@ -60,6 +62,10 @@ class DashboardUsers extends AbstractController {
 	#[Route(name: 'verifyUser', path: '/dashboard/usuarios/{id}/verificar', methods: ['POST'])]
 	#[IsGranted('ROLE_ADMIN')]
 	public function verifyUser(int $id, EntityManagerInterface $entityManager, Request $r): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     if (!$r->isXmlHttpRequest()) {
       return new JsonResponse(['success' => false, 'message' => 'Petición no válida'], 400);
     }
@@ -79,6 +85,10 @@ class DashboardUsers extends AbstractController {
 	#[Route(name: 'denyUser', path: '/dashboard/usuarios/{id}/rechazar', methods: ['POST'])]
 	#[IsGranted('ROLE_ADMIN')]
 	public function denyUser(int $id, EntityManagerInterface $entityManager, Request $r): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     if (!$r->isXmlHttpRequest()) {
       return new JsonResponse(['success' => false, 'message' => 'Petición no válida'], 400);
     }
@@ -95,9 +105,13 @@ class DashboardUsers extends AbstractController {
     return new JsonResponse(['success' => true, 'message' => 'Usuario rechazado con éxito']);
 	}
 
-	#[Route(name: 'disableUser', path: '/dashboard/usuarios/{id}/deshabilitar')]
+	#[Route(name: 'disableUser', path: '/dashboard/usuarios/{id}/deshabilitar', methods: ['POST'])]
 	#[IsGranted('ROLE_ADMIN')]
 	public function disableUser(int $id, Request $r, EntityManagerInterface $entityManager): Response {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
 		$user = $entityManager->getRepository(User::class)->find($id);
 
 		if (!$user) {
@@ -110,9 +124,13 @@ class DashboardUsers extends AbstractController {
 		return new JsonResponse(['success' => true, 'message' => 'Usuario deshabilitado correctamente']);
 	}
 
-	#[Route(name: 'enableUser', path: '/dashboard/usuarios/{id}/habilitar')]
+	#[Route(name: 'enableUser', path: '/dashboard/usuarios/{id}/habilitar', methods: ['POST'])]
 	#[IsGranted('ROLE_ADMIN')]
 	public function enableUser(int $id, Request $r, EntityManagerInterface $entityManager): Response {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
 		$user = $entityManager->getRepository(User::class)->find($id);
 
 		if (!$user) {
@@ -129,6 +147,10 @@ class DashboardUsers extends AbstractController {
 	#[Route(name: 'editUser', path: '/dashboard/usuarios/{id}/editar', methods: ['POST'])]
 	#[IsGranted('ROLE_ADMIN')]
   public function editUser(int $id, Request $r, EntityManagerInterface $entityManager ): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $user = $entityManager->getRepository(User::class)->find($id);
 
     if (!$user) {
@@ -163,6 +185,10 @@ class DashboardUsers extends AbstractController {
   #[Route(name: 'changeRole', path: '/dashboard/usuarios/{id}/cambiarRol', methods: ['POST'])]
   #[IsGranted('ROLE_ADMIN')]
   public function changeRole(int $id, Request $r, EntityManagerInterface $entityManager): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $user = $entityManager->getRepository(User::class)->find($id);
 
     if (!$user) {
