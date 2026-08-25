@@ -55,11 +55,19 @@
         {% else %}
           <div class="d-flex gap-2 flex-wrap">
             {% for status in nextStatuses %}
-              {% if status == 'Vacío devuelto' and containersPendingReturn|length %}
+              {% if not is_granted('ROLE_EXECUTIVE') %}
+                <span class="text-body-secondary">Siguiente paso: {{ status }}</span>
+              {% elseif status == 'Vacío devuelto' and containersPendingReturn|length %}
                 {# Lo dispara el transportista al registrar el EIR de cada contenedor. #}
                 <span class="text-body-secondary">
                   <i class="bi bi-hourglass-split"></i>
                   Esperando la devolución de {{ containersPendingReturn|length }} vacío(s).
+                </span>
+              {% elseif status == 'Finalizado' and expenses|length == 0 %}
+                {# El expediente no cierra sin su cuenta de gastos. #}
+                <span class="text-body-secondary">
+                  <i class="bi bi-paperclip"></i>
+                  Anexa la cuenta de gastos para poder finalizar.
                 </span>
               {% else %}
                 <form method="POST" action="{{ path('case_file_advance', { id: import.id }) }}">
@@ -84,6 +92,7 @@
     <div class="row g-4">
 
       {# ---------- Alta del pedimento ---------- #}
+      {% if is_granted('ROLE_EXECUTIVE') %}
       <div class="col-lg-6">
         <div class="card shadow-sm h-100">
           <div class="card-body">
@@ -112,6 +121,7 @@
           </div>
         </div>
       </div>
+      {% endif %}
 
       {# ---------- Datos del aviso ---------- #}
       <div class="col-lg-6">
@@ -202,7 +212,7 @@
                     {% endif %}
                   </td>
                   <td class="text-end">
-                    {% if not d.departed %}
+                    {% if not d.departed and is_granted('ROLE_EXECUTIVE') %}
                       <form method="POST" class="d-inline js-confirm-delete"
                             action="{{ path('case_file_transport_cancel', { id: import.id, delivery: d.id }) }}">
                         <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport_cancel') }}">
@@ -218,7 +228,7 @@
           </table>
         {% endif %}
 
-        {% if canAssignTransport %}
+        {% if canAssignTransport and is_granted('ROLE_EXECUTIVE') %}
           {% if import.type == 'container' and unassignedContainers is empty %}
             <p class="mb-0 text-body-secondary">
               <i class="bi bi-check2-all"></i> Todos los contenedores tienen camión asignado.
@@ -340,11 +350,107 @@
       </div>
     {% endif %}
 
+    {# ---------- Cuenta de gastos ---------- #}
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title mb-0">Cuenta de gastos</h5>
+          {% if expenses|length %}
+            <span class="badge text-bg-success">{{ expenses|length }} documento(s)</span>
+          {% else %}
+            <span class="badge text-bg-warning">Pendiente</span>
+          {% endif %}
+        </div>
+
+        {% if expenses|length %}
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th scope="col">Concepto</th>
+                <th scope="col">Archivo</th>
+                {% if is_granted('ROLE_EXECUTIVE') %}<th scope="col" class="text-end">Opciones</th>{% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in expenses %}
+                <tr>
+                  <td>{{ e.concept }}</td>
+                  <td>
+                    <a href="/{{ e.route }}" target="_blank" rel="noopener" download>
+                      <i class="bi bi-download"></i> {{ e.route|split('/')|last }}
+                    </a>
+                  </td>
+                  {% if is_granted('ROLE_EXECUTIVE') %}
+                    <td class="text-end">
+                      {% if import.status != 'Finalizado' %}
+                        <form method="POST" class="d-inline js-confirm-delete"
+                              action="{{ path('case_file_expense_delete', { id: import.id, invoice: e.id }) }}">
+                          <input type="hidden" name="_token" value="{{ csrf_token('case_file_expense_delete') }}">
+                          <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar documento">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </form>
+                      {% endif %}
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% elseif not is_granted('ROLE_EXECUTIVE') %}
+          <p class="mb-0 text-body-secondary">
+            <i class="bi bi-hourglass-split"></i>
+            La agencia todavía no anexa la cuenta de gastos de este expediente.
+          </p>
+        {% endif %}
+
+        {% if is_granted('ROLE_EXECUTIVE') and import.status != 'Finalizado' %}
+          <form method="POST" enctype="multipart/form-data" id="expense-form"
+                action="{{ path('case_file_expense', { id: import.id }) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('case_file_expense') }}">
+
+            <div id="expense-rows">
+              <div class="row g-2 align-items-end mb-2 expense-row">
+                <div class="col-md-5">
+                  <label class="form-label">Concepto</label>
+                  <input type="text" class="form-control" name="concepts[]"
+                         placeholder="Ej. Cuenta de gastos, Factura de flete">
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label">Documento</label>
+                  <input type="file" class="form-control" name="documents[]">
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-outline-danger w-100 expense-remove" title="Quitar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-outline-primary btn-sm mt-1" id="expense-add">
+              <i class="bi bi-plus-lg"></i> Agregar documento
+            </button>
+
+            <div class="mt-3">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-paperclip"></i> Anexar
+              </button>
+              <span class="ms-2 small text-body-secondary">
+                Permitidos: {{ allowedExpenseTypes|join(', ') }}
+              </span>
+            </div>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+
     {# ---------- Maniobras ---------- #}
     <div class="card shadow-sm mt-4">
       <div class="card-body">
         <h5 class="card-title mb-3">Maniobras</h5>
 
+        {% if is_granted('ROLE_EXECUTIVE') %}
         <form method="POST" action="{{ path('case_file_operation', { id: import.id }) }}" class="row g-2 align-items-end mb-4">
           <input type="hidden" name="_token" value="{{ csrf_token('case_file_operation') }}">
 
@@ -375,6 +481,7 @@
             </button>
           </div>
         </form>
+        {% endif %}
 
         {% if operations %}
           <table class="table table-striped align-middle mb-0">
@@ -391,6 +498,7 @@
                   <td>{{ o.date|date('d/m/Y') }}</td>
                   <td>{{ o.type }}</td>
                   <td class="text-end">
+                    {% if is_granted('ROLE_EXECUTIVE') %}
                     <form method="POST" class="d-inline js-confirm-delete"
                           action="{{ path('case_file_operation_delete', { id: import.id, operation: o.id }) }}">
                       <input type="hidden" name="_token" value="{{ csrf_token('case_file_operation_delete') }}">
@@ -398,6 +506,7 @@
                         <i class="bi bi-trash"></i>
                       </button>
                     </form>
+                    {% endif %}
                   </td>
                 </tr>
               {% endfor %}
@@ -429,6 +538,26 @@
           custom.value = "";
         }
       });
+
+      // La cuenta de gastos admite tantas líneas como el contador necesite.
+      const filas = document.getElementById("expense-rows");
+      const agregar = document.getElementById("expense-add");
+      if (filas && agregar) {
+        agregar.addEventListener("click", function () {
+          const nueva = filas.querySelector(".expense-row").cloneNode(true);
+          nueva.querySelectorAll("input").forEach(i => i.value = "");
+          filas.appendChild(nueva);
+        });
+        filas.addEventListener("click", function (e) {
+          if (!e.target.closest(".expense-remove")) return;
+          const fila = e.target.closest(".expense-row");
+          if (filas.querySelectorAll(".expense-row").length > 1) {
+            fila.remove();
+          } else {
+            fila.querySelectorAll("input").forEach(i => i.value = "");
+          }
+        });
+      }
 
       // Un camión no carga más de MAX_CONTAINERS. El servidor lo valida igual;
       // esto solo evita que el usuario descubra el error hasta enviar.

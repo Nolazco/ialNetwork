@@ -6,6 +6,7 @@ use App\Entity\Delivery;
 use App\Entity\Container;
 use App\Entity\FreightHauler;
 use App\Entity\ImportRequest;
+use App\Entity\InternInvoice;
 use App\Entity\Operation;
 use App\Entity\User;
 use App\Workflow\ImportRequestWorkflow;
@@ -13,23 +14,31 @@ use App\Workflow\OperationCatalog;
 use App\Workflow\TransportCoordinator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Symfony\Component\String\Slugger\SluggerInterface;
 
 /**
  * El expediente visto por el ejecutivo: alta del pedimento, avance de estados y
  * registro de maniobras.
  *
- * Es el paso 2 del flujo. El cliente solo puede dar el aviso; a partir de ahi
- * todo lo mueve la agencia, por eso la clase entera exige ROLE_EXECUTIVE
- * (ROLE_ADMIN lo hereda, ver role_hierarchy en security.yaml).
+ * Todo lo que mueve el expediente exige ROLE_EXECUTIVE (ROLE_ADMIN lo hereda,
+ * ver role_hierarchy en security.yaml). La unica excepcion es la consulta: el
+ * cliente puede abrir en solo lectura los expedientes de sus propias empresas,
+ * para seguir el avance y descargar su cuenta de gastos.
  */
-#[IsGranted('ROLE_EXECUTIVE')]
 class DashboardCaseFiles extends AbstractController
 {
+    /**
+     * Lo que acepta la cuenta de gastos: el contador manda el ZIP con el PDF y
+     * su XML, mas los comprobantes que hagan falta. Nada ejecutable.
+     */
+    public const EXPENSE_EXTENSIONS = ['pdf', 'xml', 'zip', 'rar', '7z', 'jpg', 'jpeg', 'png', 'xlsx', 'xls', 'docx', 'csv'];
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly ImportRequestWorkflow $workflow,
@@ -38,11 +47,34 @@ class DashboardCaseFiles extends AbstractController
     ) {
     }
 
+    /**
+     * El ejecutivo ve cualquier expediente; el cliente solo los de las empresas
+     * a las que esta afiliado.
+     */
+    private function canView(ImportRequest $import): bool
+    {
+        if ($this->isGranted('ROLE_EXECUTIVE')) {
+            return true;
+        }
+
+        foreach ($import->getIdCompany()->getAssociateds() as $association) {
+            if ($association->getIdClient() === $this->getUser()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     #[Route('/dashboard/pedimentos/expediente/{id}', name: 'case_file', requirements: ['id' => '\d+'], methods: ['GET'])]
     public function show(#[MapEntity(id: 'id')] ImportRequest $import): Response
     {
         /** @var User $user */
         $user = $this->getUser();
+
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
 
         return $this->render('/dashboard/caseFile.html.twig', [
             'name' => $user->getName(),
@@ -66,6 +98,8 @@ class DashboardCaseFiles extends AbstractController
             'maxContainers' => Delivery::MAX_CONTAINERS,
             'requiresEmptyReturn' => $this->workflow->requiresEmptyReturn($import),
             'containersPendingReturn' => $this->transport->containersPendingReturn($import),
+            'expenses' => $import->getInternInvoices(),
+            'allowedExpenseTypes' => self::EXPENSE_EXTENSIONS,
         ]);
     }
 
@@ -77,6 +111,7 @@ class DashboardCaseFiles extends AbstractController
      * mucho dos contenedores, asi que un expediente contenerizado necesita
      * varios avisos.
      */
+    #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/pedimentos/expediente/{id}/transporte', name: 'case_file_transport', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function assignTransport(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
     {
@@ -157,6 +192,7 @@ class DashboardCaseFiles extends AbstractController
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
 
+    #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/pedimentos/expediente/{id}/transporte/{delivery}/cancelar', name: 'case_file_transport_cancel', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['POST'])]
     public function cancelTransport(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery, Request $r): Response
     {
@@ -190,6 +226,7 @@ class DashboardCaseFiles extends AbstractController
      * Alta del pedimento: captura la referencia interna y el numero de pedimento
      * que el cliente no puede conocer.
      */
+    #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/pedimentos/expediente/{id}/captura', name: 'case_file_capture', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function capture(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
     {
@@ -228,6 +265,7 @@ class DashboardCaseFiles extends AbstractController
     /**
      * Avanza el expediente al siguiente estado de su secuencia.
      */
+    #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/pedimentos/expediente/{id}/estatus', name: 'case_file_advance', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function advance(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
     {
@@ -263,6 +301,14 @@ class DashboardCaseFiles extends AbstractController
             }
         }
 
+        // Un expediente no se cierra sin cuenta de gastos: es lo que el cliente
+        // recibe al final y lo que respalda lo cobrado.
+        if ($status === ImportRequestWorkflow::FINISHED && $import->getInternInvoices()->isEmpty()) {
+            $this->addFlash('error', 'No se puede finalizar el expediente sin su cuenta de gastos.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
         $import->setStatus($status);
         $this->entityManager->flush();
 
@@ -274,6 +320,7 @@ class DashboardCaseFiles extends AbstractController
     /**
      * Registra una maniobra sobre el expediente.
      */
+    #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/pedimentos/expediente/{id}/maniobra', name: 'case_file_operation', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function addOperation(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
     {
@@ -312,6 +359,7 @@ class DashboardCaseFiles extends AbstractController
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
 
+    #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/pedimentos/expediente/{id}/maniobra/{operation}/eliminar', name: 'case_file_operation_delete', requirements: ['id' => '\d+', 'operation' => '\d+'], methods: ['POST'])]
     public function deleteOperation(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'operation')] Operation $operation, Request $r): Response
     {
@@ -332,6 +380,135 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Maniobra eliminada.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Cuenta de gastos: anexa los documentos que manda el contador.
+     *
+     * Suele ser un ZIP con el PDF de la cuenta y su XML, mas los comprobantes y
+     * facturas que correspondan, asi que el formulario acepta tantas lineas como
+     * haga falta y cada una lleva su propio concepto.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/gastos', name: 'case_file_expense', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function addExpenses(#[MapEntity(id: 'id')] ImportRequest $import, Request $r, SluggerInterface $slugger): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_expense', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $concepts = $r->request->all('concepts');
+        $files = $r->files->all('documents');
+
+        $folder = 'uploads/gastos/'.$import->getId();
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            $this->addFlash('error', 'No se pudo preparar la carpeta de la cuenta de gastos.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $stored = 0;
+        $rejected = [];
+
+        foreach ($files as $index => $file) {
+            if (!$file || !$file->isValid()) {
+                continue;
+            }
+
+            $original = $file->getClientOriginalName();
+            $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+
+            // Lista blanca: los archivos caen bajo public/, asi que nada que un
+            // servidor pueda interpretar entra aqui.
+            if (!in_array($extension, self::EXPENSE_EXTENSIONS, true)) {
+                $rejected[] = $original;
+
+                continue;
+            }
+
+            $concept = trim((string) ($concepts[$index] ?? ''));
+
+            if ($concept === '') {
+                $concept = pathinfo($original, PATHINFO_FILENAME);
+            }
+
+            $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
+
+            try {
+                $file->move($folder, $name);
+            } catch (FileException) {
+                $rejected[] = $original;
+
+                continue;
+            }
+
+            $invoice = new InternInvoice();
+            $invoice->setConcept($concept);
+            $invoice->setRoute($folder.'/'.$name);
+            $import->addInternInvoice($invoice);
+
+            $this->entityManager->persist($invoice);
+            ++$stored;
+        }
+
+        if ($stored === 0 && $rejected === []) {
+            $this->addFlash('error', 'Selecciona al menos un documento.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $this->entityManager->flush();
+
+        if ($stored > 0) {
+            $this->addFlash('success', sprintf('%d documento(s) anexados a la cuenta de gastos.', $stored));
+        }
+
+        if ($rejected !== []) {
+            $this->addFlash('error', sprintf(
+                'No se aceptaron: %s. Formatos permitidos: %s.',
+                implode(', ', $rejected),
+                implode(', ', self::EXPENSE_EXTENSIONS)
+            ));
+        }
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/gastos/{invoice}/eliminar', name: 'case_file_expense_delete', requirements: ['id' => '\d+', 'invoice' => '\d+'], methods: ['POST'])]
+    public function deleteExpense(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'invoice')] InternInvoice $invoice, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_expense_delete', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($invoice->getReference() !== $import) {
+            $this->addFlash('error', 'Ese documento no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($import->getStatus() === ImportRequestWorkflow::FINISHED) {
+            $this->addFlash('error', 'El expediente ya está finalizado: su cuenta de gastos no se toca.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (is_file($invoice->getRoute())) {
+            unlink($invoice->getRoute());
+        }
+
+        $this->entityManager->remove($invoice);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Documento eliminado de la cuenta de gastos.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
