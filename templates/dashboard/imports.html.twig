@@ -11,7 +11,7 @@
             <th scope="col">Referencia interna</th>
             <th scope="col">No. Pedimento</th>
             <th scope="col">Mercancía</th>
-            <th scope="col">Tipo</th>
+            <th scope="col">Operación</th>
             <th scope="col">ETA</th>
             <th scope="col">Estatus</th>
             <th scope="col">Opciones</th>
@@ -25,20 +25,21 @@
               <td>{{ i.importNumber }}</td>
               <td>{{ i.goods }}</td>
               <td>
-                {% if i.type == 'lcl' %}
-                  Carga suelta
-                {% else %}
-                  Contenedor
-                {% endif %}
+                {{ directions[i.direction]|default(i.direction) }}
+                <span class="text-body-secondary">&middot; {{ types[i.type]|default(i.type) }}</span>
               </td>
               <td>{{ i.eta|date('d/m/Y') }}</td>
-              <td>{{ i.status }}</td>
               <td>
-                <button 
-                  class="btn btn-warning edit-provider-btn"
-                  title="Editar solicitud">
+                <span class="badge {{ i.status == 'Pendiente' ? 'text-bg-warning' : (i.status == 'Finalizado' ? 'text-bg-success' : 'text-bg-primary') }}">
+                  {{ i.status }}
+                </span>
+              </td>
+              <td>
+                <a href="{{ path('case_file', { id: i.id }) }}"
+                   class="btn btn-warning"
+                   title="Abrir expediente">
                   <i class="bi bi-pencil-square"></i>
-                </button>
+                </a>
               </td>
             </tr>
           {% endfor %}

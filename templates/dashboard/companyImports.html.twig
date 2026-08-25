@@ -2,20 +2,24 @@
 {% block body %}
   <!-- Contenido principal -->
   <div class="content">
-    <h2 class="mb-4">Pedimentos {{ company.name }} </h2>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+      <h2 class="mb-0">Pedimentos {{ company.name }}</h2>
+      <a href="/dashboard/pedimentos/{{ company.rfc }}/nuevo" class="btn btn-primary">
+        <i class="bi bi-plus-lg"></i> Nueva solicitud
+      </a>
+    </div>
     {% if imports %}
-      <a href="/dashboard/pedimentos/nuevo" class="btn btn-primary">Nuevo recinto</a>
-      <table class="table table-striped">
+      <table class="table table-striped align-middle">
         <thead>
           <tr>
             <th scope="col">Referencia del cliente</th>
             <th scope="col">Referencia interna</th>
             <th scope="col">No. Pedimento</th>
             <th scope="col">Mercancía</th>
-            <th scope="col">Tipo</th>
+            <th scope="col">Operación</th>
             <th scope="col">ETA</th>
             <th scope="col">Estatus</th>
-            <th scope="col">Opciones</th>
+            {% if is_granted('ROLE_EXECUTIVE') %}<th scope="col">Opciones</th>{% endif %}
           </tr>
         </thead>
         <tbody>
@@ -25,16 +29,23 @@
               <td>{{ i.agencyReference }}</td>
               <td>{{ i.importNumber }}</td>
               <td>{{ i.goods }}</td>
-              <td>{{ i.type }}</td>
-              <td>{{ i.eta|date('d/m/Y') }}</td>
-              <td>{{ i.status }}</td>
               <td>
-                <button 
-                  class="btn btn-warning edit-provider-btn"
-                  title="Editar solicitud">
-                  <i class="bi bi-pencil-square"></i>
-                </button>
+                {{ directions[i.direction]|default(i.direction) }}
+                <span class="text-body-secondary">&middot; {{ types[i.type]|default(i.type) }}</span>
               </td>
+              <td>{{ i.eta|date('d/m/Y') }}</td>
+              <td>
+                <span class="badge {{ i.status == 'Pendiente' ? 'text-bg-warning' : (i.status == 'Finalizado' ? 'text-bg-success' : 'text-bg-primary') }}">
+                  {{ i.status }}
+                </span>
+              </td>
+              {% if is_granted('ROLE_EXECUTIVE') %}
+                <td>
+                  <a href="{{ path('case_file', { id: i.id }) }}" class="btn btn-warning" title="Abrir expediente">
+                    <i class="bi bi-pencil-square"></i>
+                  </a>
+                </td>
+              {% endif %}
             </tr>
           {% endfor %}
         </tbody>
