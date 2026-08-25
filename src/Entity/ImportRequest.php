@@ -52,6 +52,18 @@ class ImportRequest
     private ?string $status = null;
 
     /**
+     * Pasos opcionales por los que el expediente si paso.
+     *
+     * El estatus solo dice donde esta ahora, no por donde vino, asi que sin esto
+     * no habria forma de distinguir una inspeccion fuera de puerto realizada de
+     * una omitida una vez que el expediente avanza.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(type: Types::JSON)]
+    private array $optionalStepsTaken = [];
+
+    /**
      * @var Collection<int, ImportDocument>
      */
     #[ORM\OneToMany(targetEntity: ImportDocument::class, mappedBy: 'reference')]
@@ -248,6 +260,23 @@ class ImportRequest
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getOptionalStepsTaken(): array
+    {
+        return $this->optionalStepsTaken;
+    }
+
+    public function markOptionalStepTaken(string $status): static
+    {
+        if (!in_array($status, $this->optionalStepsTaken, true)) {
+            $this->optionalStepsTaken[] = $status;
+        }
 
         return $this;
     }

@@ -9,6 +9,7 @@ use App\Entity\ImportRequest;
 use App\Entity\InternInvoice;
 use App\Entity\Operation;
 use App\Entity\User;
+use App\Security\CompanyAccess;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
 use App\Workflow\TransportCoordinator;
@@ -44,6 +45,7 @@ class DashboardCaseFiles extends AbstractController
         private readonly ImportRequestWorkflow $workflow,
         private readonly OperationCatalog $catalog,
         private readonly TransportCoordinator $transport,
+        private readonly CompanyAccess $companyAccess,
     ) {
     }
 
@@ -53,17 +55,7 @@ class DashboardCaseFiles extends AbstractController
      */
     private function canView(ImportRequest $import): bool
     {
-        if ($this->isGranted('ROLE_EXECUTIVE')) {
-            return true;
-        }
-
-        foreach ($import->getIdCompany()->getAssociateds() as $association) {
-            if ($association->getIdClient() === $this->getUser()) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->companyAccess->canAccess($import->getIdCompany());
     }
 
     #[Route('/dashboard/pedimentos/expediente/{id}', name: 'case_file', requirements: ['id' => '\d+'], methods: ['GET'])]
@@ -83,6 +75,7 @@ class DashboardCaseFiles extends AbstractController
             'import' => $import,
             'sequence' => $this->workflow->sequenceFor($import),
             'completed' => $this->workflow->completedStatuses($import),
+            'skipped' => $this->workflow->skippedStatuses($import),
             'nextStatuses' => $this->workflow->nextStatuses($import),
             'progress' => $this->workflow->progress($import),
             'directions' => ImportRequestWorkflow::DIRECTIONS,
@@ -307,6 +300,12 @@ class DashboardCaseFiles extends AbstractController
             $this->addFlash('error', 'No se puede finalizar el expediente sin su cuenta de gastos.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        // Deja constancia de que el paso opcional si se realizo: mas adelante el
+        // estatus por si solo ya no permitiria distinguirlo de uno omitido.
+        if ($this->workflow->isOptional($status)) {
+            $import->markOptionalStepTaken($status);
         }
 
         $import->setStatus($status);

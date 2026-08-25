@@ -252,6 +252,35 @@ final class ImportRequestWorkflow
             return [];
         }
 
-        return array_slice($sequence, 0, $position + 1);
+        $taken = $request->getOptionalStepsTaken();
+
+        // Un paso opcional que se salto queda atras en la secuencia pero no se
+        // recorrio, asi que no puede aparecer como completado.
+        return array_values(array_filter(
+            array_slice($sequence, 0, $position + 1),
+            fn (string $step): bool => !$this->isOptional($step) || in_array($step, $taken, true),
+        ));
+    }
+
+    /**
+     * Pasos opcionales que el expediente ya dejo atras sin realizarlos.
+     *
+     * @return list<string>
+     */
+    public function skippedStatuses(ImportRequest $request): array
+    {
+        $sequence = $this->sequenceFor($request);
+        $position = array_search($request->getStatus(), $sequence, true);
+
+        if ($position === false) {
+            return [];
+        }
+
+        $taken = $request->getOptionalStepsTaken();
+
+        return array_values(array_filter(
+            array_slice($sequence, 0, $position + 1),
+            fn (string $step): bool => $this->isOptional($step) && !in_array($step, $taken, true),
+        ));
     }
 }
