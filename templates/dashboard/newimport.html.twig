@@ -31,11 +31,21 @@
       </div>
       <div class="row mt-3">
         <div class="col">
+          <label for="direction" class="form-label">Operación</label>
+          <select class="form-select" name="direction" id="direction" required>
+            <option selected disabled value="">Seleccione la operación</option>
+            {% for value, label in directions %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
           <label for="type" class="form-label">Tipo de carga</label>
           <select class="form-select" name="type" id="type" required>
-            <option selected disabled>Seleccione el tipo de carga</option>
-            <option value="container">Contenedor</option>
-            <option value="lcl">Carga suelta</option>
+            <option selected disabled value="">Seleccione el tipo de carga</option>
+            {% for value, label in types %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="col">

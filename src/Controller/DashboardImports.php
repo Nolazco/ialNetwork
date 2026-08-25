@@ -9,6 +9,7 @@ use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\Provider;
 use App\Entity\User;
+use App\Workflow\ImportRequestWorkflow;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
@@ -28,6 +29,8 @@ class DashboardImports extends AbstractController {
     	'name' => $user->getName(),
     	'role' => $user->getRoles()[0],
     	'loged' => 'true',
+    	'directions' => ImportRequestWorkflow::DIRECTIONS,
+    	'types' => ImportRequestWorkflow::TYPES,
     	'imports' => $imports
     ]);
   }
@@ -43,6 +46,8 @@ class DashboardImports extends AbstractController {
     	'name' => $user->getName(),
     	'role' => $user->getRoles()[0],
     	'loged' => 'true',
+    	'directions' => ImportRequestWorkflow::DIRECTIONS,
+    	'types' => ImportRequestWorkflow::TYPES,
     	'company' => $company,
     	'imports' => $imports
     ]);
@@ -61,6 +66,8 @@ class DashboardImports extends AbstractController {
   		'rfc' => $rfc,
   		'providers' => $providers,
   		'yards' => $yards,
+  		'directions' => ImportRequestWorkflow::DIRECTIONS,
+  		'types' => ImportRequestWorkflow::TYPES,
   		'loged' => 'true'
   	]);
   }
@@ -76,8 +83,18 @@ class DashboardImports extends AbstractController {
   	$yard = $entityManager->getRepository(ContainerYard::class)->find($r->request->get('yard'));
   	$provider = $entityManager->getRepository(Provider::class)->find($r->request->get('provider'));
 
+  	$direction = $r->request->get('direction');
+  	$type = $r->request->get('type');
+
   	if (!$company || !$yard || !$provider) {
   		$this->addFlash('error', 'Empresa, recinto o proveedor no válido.');
+  		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  	}
+
+  	// El par direccion + tipo decide la secuencia de estados del expediente, asi
+  	// que no puede quedar en cualquier valor.
+  	if (!isset(ImportRequestWorkflow::DIRECTIONS[$direction]) || !isset(ImportRequestWorkflow::TYPES[$type])) {
+  		$this->addFlash('error', 'Operación o tipo de carga no válido.');
   		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
   	}
 
@@ -90,12 +107,13 @@ class DashboardImports extends AbstractController {
   	$import->setImportNumber('Pendiente');
   	$import->setEta(new \DateTimeImmutable($r->request->get('eta')));
   	$import->setCr($yard);
-  	$import->setType($r->request->get('type'));
-  	$import->setStatus('Pendiente');
+  	$import->setDirection($direction);
+  	$import->setType($type);
+  	$import->setStatus(ImportRequestWorkflow::PENDING);
 
   	$entityManager->persist($import);
 
-  	if($r->request->get('type') == 'container'){
+  	if ($type === ImportRequestWorkflow::TYPE_CONTAINER) {
   		$containers = $r->request->all('containers');
   		$contTypes = $r->request->all('contTypes');
 
