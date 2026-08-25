@@ -53,12 +53,14 @@ class DashboardImports extends AbstractController {
   	/** @var User $user */
   	$user = $this->getUser();
   	$providers = $entityManager->getRepository(Provider::class)->findAll();
+  	$yards = $entityManager->getRepository(ContainerYard::class)->findAll();
 
   	return $this->render("/dashboard/newimport.html.twig", [
   		'name' => $user->getName(),
   		'role' => $user->getRoles()[0],
   		'rfc' => $rfc,
   		'providers' => $providers,
+  		'yards' => $yards,
   		'loged' => 'true'
   	]);
   }
@@ -71,9 +73,13 @@ class DashboardImports extends AbstractController {
   	}
 
   	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
-  	$yard = $entityManager->getRepository(ContainerYard::class)->findOneBy(['cr' => '39']);
-  	//dd($r->request->get('provider'));
-  	$provider = $entityManager->getRepository(Provider::class)->find(['id' => $r->request->get('provider')]);
+  	$yard = $entityManager->getRepository(ContainerYard::class)->find($r->request->get('yard'));
+  	$provider = $entityManager->getRepository(Provider::class)->find($r->request->get('provider'));
+
+  	if (!$company || !$yard || !$provider) {
+  		$this->addFlash('error', 'Empresa, recinto o proveedor no válido.');
+  		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  	}
 
   	$import = new ImportRequest();
   	$import->setClientReference($r->request->get('ref'));
