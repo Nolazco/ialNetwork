@@ -10,7 +10,13 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+/**
+ * Catalogo interno de la agencia: ni clientes ni transportistas tienen nada que
+ * hacer aqui, y menos dando de alta o editando registros.
+ */
+#[IsGranted('ROLE_EXECUTIVE')]
 class DashboardYards extends AbstractController {
 	#[Route('/dashboard/recintos')]
 	public function yards(EntityManagerInterface $entityManager): Response {

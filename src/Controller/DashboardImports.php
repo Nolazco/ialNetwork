@@ -9,6 +9,7 @@ use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\Provider;
 use App\Entity\User;
+use App\Security\CompanyAccess;
 use App\Workflow\ImportRequestWorkflow;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -16,9 +17,16 @@ use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardImports extends AbstractController {
+	public function __construct(private readonly CompanyAccess $companyAccess) {
+	}
+
+	// El listado global cruza todas las empresas, asi que es solo de la agencia.
+	// El cliente llega a los suyos desde /dashboard/empresas.
+	#[IsGranted('ROLE_EXECUTIVE')]
 	#[Route('/dashboard/pedimentos/', methods: ['GET'])]
   public function getImportsGlobal(EntityManagerInterface $entityManager): Response {
   	/** @var User $user */
@@ -40,6 +48,13 @@ class DashboardImports extends AbstractController {
   	/** @var User $user */
   	$user = $this->getUser();
     $company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
+
+    // Sin esto bastaba con cambiar el RFC en la URL para leer los expedientes de
+    // cualquier empresa.
+    if (!$this->companyAccess->canAccess($company)) {
+      throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
+    }
+
     $imports = $entityManager->getRepository(ImportRequest::class)->findBy(['idCompany' => $company]);
 
     return $this->render('/dashboard/companyImports.html.twig', [
@@ -57,6 +72,10 @@ class DashboardImports extends AbstractController {
   public function createImport(string $rfc, EntityManagerInterface $entityManager): Response {
   	/** @var User $user */
   	$user = $this->getUser();
+  	if (!$this->companyAccess->canAccess($entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]))) {
+  		throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
+  	}
+
   	$providers = $entityManager->getRepository(Provider::class)->findAll();
   	$yards = $entityManager->getRepository(ContainerYard::class)->findAll();
 
@@ -85,6 +104,10 @@ class DashboardImports extends AbstractController {
 
   	$direction = $r->request->get('direction');
   	$type = $r->request->get('type');
+
+  	if (!$this->companyAccess->canAccess($company)) {
+  		throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
+  	}
 
   	if (!$company || !$yard || !$provider) {
   		$this->addFlash('error', 'Empresa, recinto o proveedor no válido.');

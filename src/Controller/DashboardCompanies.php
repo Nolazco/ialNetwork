@@ -6,6 +6,7 @@ use App\Entity\Associated;
 use App\Entity\Company;
 use App\Entity\CompanyDocument;
 use App\Entity\User;
+use App\Security\CompanyAccess;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
@@ -16,6 +17,9 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardCompanies extends AbstractController{
+	public function __construct(private readonly CompanyAccess $companyAccess) {
+	}
+
 	#[Route(name: 'companies', path: '/dashboard/empresas')]
 	public function companies(EntityManagerInterface $entityManager): Response {
 		/** @var User $user */
@@ -187,6 +191,10 @@ class DashboardCompanies extends AbstractController{
       return new JsonResponse(['success' => false, 'message' => 'Empresa no encontrada.'], 404);
     }
 
+    if (!$this->companyAccess->canAccess($company)) {
+      return new JsonResponse(['error' => 'Esa empresa no está entre las tuyas.'], 403);
+    }
+
     $data = json_decode($r->getContent(), true);
 
     $name = $data['name'] ?? null;
@@ -215,6 +223,10 @@ class DashboardCompanies extends AbstractController{
       return new JsonResponse(['error' => 'Empresa no encontrada'], 404);
     }
 
+    if (!$this->companyAccess->canAccess($company)) {
+      return new JsonResponse(['error' => 'Esa empresa no está entre las tuyas.'], 403);
+    }
+
     $docs = [];
 
     foreach ($company->getCompanyDocuments() as $doc) {
@@ -235,7 +247,11 @@ class DashboardCompanies extends AbstractController{
     if (!$company) {
       return new JsonResponse(['success' => false, 'message' => 'Empresa no encontrada.'], 404);
     }
-    
+
+    if (!$this->companyAccess->canAccess($company)) {
+      return new JsonResponse(['error' => 'Esa empresa no está entre las tuyas.'], 403);
+    }
+
     $file = $r->files->get('document');
     $type = $r->request->get('type');
 
@@ -274,6 +290,10 @@ class DashboardCompanies extends AbstractController{
         return new JsonResponse(['error' => 'Documento no encontrado.'], 404);
       }
 
+      if (!$this->companyAccess->canAccess($document->getIdCompany())) {
+        return new JsonResponse(['error' => 'Ese documento no es de una de tus empresas.'], 403);
+      }
+
       $filePath = $document->getRoute();
       if (file_exists($filePath)) {
         unlink($filePath);
@@ -291,6 +311,10 @@ class DashboardCompanies extends AbstractController{
 
     if (!$document) {
       return new JsonResponse(['error' => 'Documento no encontrado.'], 404);
+    }
+
+    if (!$this->companyAccess->canAccess($document->getIdCompany())) {
+      return new JsonResponse(['error' => 'Ese documento no es de una de tus empresas.'], 403);
     }
 
     $newType = $r->request->get('type');
