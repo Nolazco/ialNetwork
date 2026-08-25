@@ -38,8 +38,18 @@ class EmptyReturn
     #[ORM\JoinColumn(nullable: false)]
     private ?ContainerYard $yard = null;
 
+    /** Folio del EIR que entrega el patio al recibir el vacio. */
     #[ORM\Column(length: 255)]
     private ?string $eir = null;
+
+    /**
+     * Ruta del EIR escaneado.
+     *
+     * Nullable a proposito: el formulario lo pide, pero la columna no debe
+     * impedir registrar la devolucion si el documento llega despues.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $eirRoute = null;
 
     public function getId(): ?int
     {
@@ -126,6 +136,18 @@ class EmptyReturn
     public function setEir(string $eir): static
     {
         $this->eir = $eir;
+
+        return $this;
+    }
+
+    public function getEirRoute(): ?string
+    {
+        return $this->eirRoute;
+    }
+
+    public function setEirRoute(?string $eirRoute): static
+    {
+        $this->eirRoute = $eirRoute;
 
         return $this;
     }
