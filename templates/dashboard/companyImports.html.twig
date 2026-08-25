@@ -19,7 +19,7 @@
             <th scope="col">Operación</th>
             <th scope="col">ETA</th>
             <th scope="col">Estatus</th>
-            {% if is_granted('ROLE_EXECUTIVE') %}<th scope="col">Opciones</th>{% endif %}
+            <th scope="col">Opciones</th>
           </tr>
         </thead>
         <tbody>
@@ -39,13 +39,13 @@
                   {{ i.status }}
                 </span>
               </td>
-              {% if is_granted('ROLE_EXECUTIVE') %}
-                <td>
-                  <a href="{{ path('case_file', { id: i.id }) }}" class="btn btn-warning" title="Abrir expediente">
-                    <i class="bi bi-pencil-square"></i>
-                  </a>
-                </td>
-              {% endif %}
+              <td>
+                <a href="{{ path('case_file', { id: i.id }) }}"
+                   class="btn {{ is_granted('ROLE_EXECUTIVE') ? 'btn-warning' : 'btn-outline-secondary' }}"
+                   title="{{ is_granted('ROLE_EXECUTIVE') ? 'Abrir expediente' : 'Ver expediente y cuenta de gastos' }}">
+                  <i class="bi {{ is_granted('ROLE_EXECUTIVE') ? 'bi-pencil-square' : 'bi-eye' }}"></i>
+                </a>
+              </td>
             </tr>
           {% endfor %}
         </tbody>
