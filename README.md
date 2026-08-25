@@ -12,7 +12,7 @@ con su cuenta de gastos.
 | 2 | Alta del pedimento y fases de la operación | Ejecutivo | `Operation` | Implementado |
 | 3 | Aviso al transporte | Ejecutivo → Transportista | `Delivery`, `FreightHauler` | Implementado |
 | 4 | Entrega de mercancía y devolución de vacío | Transportista | `EmptyReturn`, `ContainerYard` | Implementado |
-| 5 | Cierre del expediente y cuenta de gastos | Ejecutivo | `InternInvoice` | Solo modelo + EasyAdmin |
+| 5 | Cierre del expediente y cuenta de gastos | Ejecutivo | `InternInvoice` | Implementado |
 
 `ImportRequest` es el expediente: todo lo demás cuelga de él.
 
@@ -86,6 +86,22 @@ respaldo de los patios.
 Los EIR se guardan en `public/uploads/eir/{idExpediente}/`. La columna
 `eir_route` es nullable a propósito: el formulario exige el documento, pero el
 esquema no debe impedir registrar la devolución si el escaneo llega después.
+
+## Cuenta de gastos
+
+El contador manda un ZIP con el PDF de la cuenta y su XML, mas los comprobantes
+que correspondan, asi que el formulario acepta **tantos documentos como haga
+falta**, cada uno con su concepto. Se guardan en
+`public/uploads/gastos/{idExpediente}/`.
+
+El expediente **no cierra sin cuenta de gastos**: el boton de «Finalizado» no
+aparece y el servidor lo rechaza mientras no haya nada anexado. Una vez cerrado,
+la cuenta de gastos queda inmutable: no se puede anexar ni eliminar.
+
+El cliente puede abrir en solo lectura los expedientes de sus empresas afiliadas
+para seguir el avance y descargar su cuenta de gastos. La comprobacion es por
+afiliacion, no por rol: un cliente recibe 403 en el expediente de una empresa
+con la que no esta asociado.
 
 ## Maniobras
 
@@ -255,9 +271,12 @@ docker compose exec database psql -U app -d app
   formularios POST tradicionales sí.
 - `APP_SECRET` y `backup.sql` siguen presentes en el historial de git aunque ya
   no estén en el árbol de trabajo. Las credenciales deben rotarse.
-- Las rutas de subida (`uploads/empresas/...`) son relativas al directorio de
-  trabajo de PHP. Funcionan porque Apache sirve desde `public/`, pero conviene
-  moverlas a un parámetro del contenedor de servicios.
+- Las rutas de subida (`uploads/...`) son relativas al directorio de trabajo de
+  PHP. Funcionan porque Apache sirve desde `public/`, pero conviene moverlas a
+  un parámetro del contenedor de servicios.
+- Solo la cuenta de gastos valida la extensión de lo que se sube. Los documentos
+  de empresa y de importación aceptan cualquier archivo; Apache ya impide
+  ejecutarlos, pero les falta la lista blanca.
 - `Delivery` guarda fecha y hora en dos columnas separadas; un solo
   `datetime_immutable` sería más simple.
 - `templates/dashboard/client.html.twig` muestra cifras fijas escritas a mano
