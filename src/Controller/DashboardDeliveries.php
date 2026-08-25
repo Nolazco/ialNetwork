@@ -2,16 +2,22 @@
 
 namespace App\Controller;
 
+use App\Entity\Container;
+use App\Entity\ContainerYard;
 use App\Entity\Delivery;
+use App\Entity\EmptyReturn;
 use App\Entity\FreightHauler;
 use App\Entity\User;
+use App\Workflow\EmptyReturnCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\TransportCoordinator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\String\Slugger\SluggerInterface;
 use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -33,6 +39,7 @@ class DashboardDeliveries extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly TransportCoordinator $coordinator,
         private readonly ImportRequestWorkflow $workflow,
+        private readonly EmptyReturnCatalog $returnCatalog,
     ) {
     }
 
@@ -55,6 +62,14 @@ class DashboardDeliveries extends AbstractController
                 : [];
         }
 
+        // Cuantos vacios le quedan por devolver a cada despacho, para saber si
+        // hay que ofrecer el boton.
+        $pendingReturns = [];
+
+        foreach ($deliveries as $delivery) {
+            $pendingReturns[$delivery->getId()] = count($this->coordinator->containersPendingReturnFor($delivery));
+        }
+
         return $this->render('/dashboard/deliveries.html.twig', [
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
@@ -63,7 +78,156 @@ class DashboardDeliveries extends AbstractController
             'hauler' => $hauler,
             'isHauler' => !$this->isGranted('ROLE_EXECUTIVE'),
             'directions' => ImportRequestWorkflow::DIRECTIONS,
+            'pendingReturns' => $pendingReturns,
         ]);
+    }
+
+    /**
+     * Formulario de devolucion de vacios de un despacho.
+     */
+    #[Route('/dashboard/despachos/{id}/vacios', name: 'delivery_empty_returns', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function emptyReturns(#[MapEntity(id: 'id')] Delivery $delivery): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->ownsDelivery($delivery)) {
+            throw $this->createAccessDeniedException('Ese despacho no está asignado a tu cuenta.');
+        }
+
+        return $this->render('/dashboard/emptyReturns.html.twig', [
+            'name' => $user->getName(),
+            'role' => $user->getRoles()[0],
+            'loged' => 'true',
+            'delivery' => $delivery,
+            'pending' => $this->coordinator->containersPendingReturnFor($delivery),
+            'returned' => $this->returnsFor($delivery),
+            'yards' => $this->entityManager->getRepository(ContainerYard::class)->findBy([], ['name' => 'ASC']),
+            'returnTypes' => EmptyReturnCatalog::TYPES,
+        ]);
+    }
+
+    /**
+     * Registra la devolucion de un contenedor al patio.
+     */
+    #[Route('/dashboard/despachos/{id}/vacios/{container}', name: 'delivery_empty_return', requirements: ['id' => '\d+', 'container' => '\d+'], methods: ['POST'])]
+    public function registerEmptyReturn(
+        #[MapEntity(id: 'id')] Delivery $delivery,
+        #[MapEntity(id: 'container')] Container $container,
+        Request $r,
+        SluggerInterface $slugger,
+    ): Response {
+        if (!$this->isCsrfTokenValid('delivery_empty_return', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
+        }
+
+        if (!$this->ownsDelivery($delivery)) {
+            $this->addFlash('error', 'Ese despacho no está asignado a tu cuenta.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        // El contenedor tiene que ser uno de los que este camion todavia debe.
+        if (!in_array($container, $this->coordinator->containersPendingReturnFor($delivery), true)) {
+            $this->addFlash('error', 'Ese contenedor no está pendiente de devolución en este despacho.');
+
+            return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
+        }
+
+        $type = $r->request->get('type');
+
+        if (!$this->returnCatalog->isValid($type)) {
+            $this->addFlash('error', 'Selecciona el tipo de devolución.');
+
+            return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
+        }
+
+        $yard = $this->entityManager->getRepository(ContainerYard::class)->find($r->request->get('yard'));
+        $eir = trim((string) $r->request->get('eir'));
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('date'));
+
+        if (!$yard || $eir === '' || !$date) {
+            $this->addFlash('error', 'Patio, folio del EIR y fecha son obligatorios.');
+
+            return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
+        }
+
+        $return = new EmptyReturn();
+        // addEmptyReturn en vez de setReference: hay que meterlo tambien en la
+        // coleccion del expediente, porque confirmEmptyReturn la recorre para
+        // saber si ya volvieron todos los contenedores y todavia no hubo flush.
+        $delivery->getReference()->addEmptyReturn($return);
+        $return->setTransport($delivery->getTransport());
+        $return->setContainer($container);
+        $return->setYard($yard);
+        $return->setType($type);
+        $return->setEir($eir);
+        $return->setDate($date->setTime(0, 0));
+
+        if ($route = $this->storeEir($r, $delivery, $container, $slugger)) {
+            $return->setEirRoute($route);
+        }
+
+        $this->entityManager->persist($return);
+
+        $newStatus = $this->coordinator->confirmEmptyReturn($return);
+        $this->entityManager->flush();
+
+        if ($newStatus) {
+            $this->addFlash('success', sprintf('Vacío %s devuelto. El expediente pasó a "%s".', $container->getNum(), $newStatus));
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        $this->addFlash('success', sprintf('Vacío %s devuelto.', $container->getNum()));
+
+        return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
+    }
+
+    /**
+     * Guarda el EIR escaneado y devuelve su ruta, o null si no venia archivo.
+     */
+    private function storeEir(Request $r, Delivery $delivery, Container $container, SluggerInterface $slugger): ?string
+    {
+        $file = $r->files->get('eirFile');
+
+        if (!$file || !$file->isValid()) {
+            return null;
+        }
+
+        $folder = 'uploads/eir/'.$delivery->getReference()->getId();
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            return null;
+        }
+
+        $name = $slugger->slug($container->getNum()).'-'.uniqid().'.'.$file->guessExtension();
+
+        try {
+            $file->move($folder, $name);
+        } catch (FileException) {
+            return null;
+        }
+
+        return $folder.'/'.$name;
+    }
+
+    /**
+     * @return list<EmptyReturn>
+     */
+    private function returnsFor(Delivery $delivery): array
+    {
+        $returns = [];
+
+        foreach ($delivery->getReference()->getEmptyReturns() as $return) {
+            if ($delivery->getContainers()->contains($return->getContainer())) {
+                $returns[] = $return;
+            }
+        }
+
+        return $returns;
     }
 
     #[Route('/dashboard/despachos/{id}/salida', name: 'delivery_departure', requirements: ['id' => '\d+'], methods: ['POST'])]

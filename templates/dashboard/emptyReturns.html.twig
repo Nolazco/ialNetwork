@@ -1,0 +1,131 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Devolución de vacíos{% endblock %}
+
+{% block body %}
+  <div class="content">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Devolución de vacíos</h2>
+        <p class="text-body-secondary mb-0">
+          Expediente {{ delivery.reference.clientReference }}
+          &middot; {{ delivery.reference.idCompany.name }}
+          &middot; cita {{ delivery.date|date('d/m/Y') }} {{ delivery.hour|date('H:i') }}
+        </p>
+      </div>
+      <a href="{{ path('deliveries') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+
+    {% if returned %}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Ya devueltos</h5>
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Contenedor</th>
+                <th scope="col">Patio</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">EIR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in returned %}
+                <tr>
+                  <td>{{ e.container.num }} <span class="text-body-secondary">&middot; {{ e.container.type }}</span></td>
+                  <td>{{ e.yard.name }}</td>
+                  <td>{{ e.type }}</td>
+                  <td>{{ e.date|date('d/m/Y') }}</td>
+                  <td>
+                    {{ e.eir }}
+                    {% if e.eirRoute %}
+                      <a href="/{{ e.eirRoute }}" target="_blank" rel="noopener" title="Ver EIR escaneado">
+                        <i class="bi bi-file-earmark-text"></i>
+                      </a>
+                    {% else %}
+                      <span class="badge text-bg-warning">sin escaneo</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if pending is empty %}
+      <div class="card text-center">
+        <div class="card-header">Aviso</div>
+        <div class="card-body">
+          <h5 class="card-title">Nada pendiente</h5>
+          <p class="card-text mb-0">Este despacho ya no tiene contenedores por devolver.</p>
+        </div>
+      </div>
+    {% else %}
+      {% for c in pending %}
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h5 class="card-title mb-3">
+              <i class="bi bi-box-seam"></i> {{ c.num }}
+              <span class="text-body-secondary fs-6">{{ c.type }}</span>
+            </h5>
+
+            <form method="POST" enctype="multipart/form-data" class="row g-2 align-items-end"
+                  action="{{ path('delivery_empty_return', { id: delivery.id, container: c.id }) }}">
+              <input type="hidden" name="_token" value="{{ csrf_token('delivery_empty_return') }}">
+
+              <div class="col-md-3">
+                <label for="yard-{{ c.id }}" class="form-label">Patio</label>
+                <select class="form-select" name="yard" id="yard-{{ c.id }}" required>
+                  <option selected disabled value="">Seleccione el patio</option>
+                  {% for y in yards %}
+                    <option value="{{ y.id }}">{{ y.name }} (CR {{ y.cr }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-2">
+                <label for="type-{{ c.id }}" class="form-label">Tipo</label>
+                <select class="form-select" name="type" id="type-{{ c.id }}" required>
+                  <option selected disabled value="">Seleccione</option>
+                  {% for t in returnTypes %}
+                    <option value="{{ t }}">{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-2">
+                <label for="date-{{ c.id }}" class="form-label">Fecha</label>
+                <input type="date" class="form-control" name="date" id="date-{{ c.id }}"
+                       value="{{ "now"|date('Y-m-d') }}" required>
+              </div>
+
+              <div class="col-md-2">
+                <label for="eir-{{ c.id }}" class="form-label">Folio EIR</label>
+                <input type="text" class="form-control" name="eir" id="eir-{{ c.id }}"
+                       placeholder="Folio" required>
+              </div>
+
+              <div class="col-md-3">
+                <label for="eirFile-{{ c.id }}" class="form-label">EIR escaneado</label>
+                <input type="file" class="form-control" name="eirFile" id="eirFile-{{ c.id }}" required>
+              </div>
+
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-box-arrow-in-left"></i> Registrar devolución
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+  </div>
+{% endblock %}
