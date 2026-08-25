@@ -163,6 +163,54 @@ final class ImportRequestWorkflow
     }
 
     /**
+     * Estado que alcanza el expediente cuando el transportista confirma la
+     * salida del recinto.
+     *
+     * Solo la importacion tiene trayecto propio: en exportacion el camion
+     * recoge en planta y lo unico que se registra es su llegada al recinto.
+     */
+    public function departureStatus(ImportRequest $request): ?string
+    {
+        return $request->getDirection() === self::DIRECTION_IMPORT ? self::IN_TRANSIT : null;
+    }
+
+    /**
+     * Estado que alcanza el expediente cuando el transportista confirma que
+     * dejo la mercancia donde tocaba.
+     */
+    public function arrivalStatus(ImportRequest $request): string
+    {
+        return $request->getDirection() === self::DIRECTION_IMPORT ? self::DELIVERED : self::ENTERED;
+    }
+
+    /**
+     * ¿El expediente esta justo en el punto de avisar al transporte?
+     */
+    public function awaitsTransport(ImportRequest $request): bool
+    {
+        $target = $this->departureStatus($request) ?? $this->arrivalStatus($request);
+
+        return in_array($target, $this->nextStatuses($request), true);
+    }
+
+    /**
+     * ¿Se le puede asignar transporte ahora?
+     *
+     * Tambien cuando ya va en transito: con varios contenedores el primer
+     * camion puede haber salido mientras faltan otros por asignar.
+     */
+    public function canAssignTransport(ImportRequest $request): bool
+    {
+        if ($this->awaitsTransport($request)) {
+            return true;
+        }
+
+        $departure = $this->departureStatus($request);
+
+        return $departure !== null && $request->getStatus() === $departure;
+    }
+
+    /**
      * Avance del expediente en porcentaje, para la barra de progreso.
      */
     public function progress(ImportRequest $request): int
