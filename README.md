@@ -9,12 +9,40 @@ con su cuenta de gastos.
 | # | Etapa | Quién | Entidades | Estado |
 |---|-------|-------|-----------|--------|
 | 1 | Alerta de importación/exportación y carga de documentos | Cliente | `ImportRequest`, `ImportDocument`, `Container` | Implementado |
-| 2 | Alta del pedimento y fases de la operación | Ejecutivo | `Operation` | Solo modelo + EasyAdmin |
+| 2 | Alta del pedimento y fases de la operación | Ejecutivo | `Operation` | Implementado |
 | 3 | Aviso al transporte | Ejecutivo → Transportista | `Delivery`, `FreightHauler` | Solo modelo + EasyAdmin |
 | 4 | Entrega de mercancía y devolución de vacío | Transportista | `EmptyReturn`, `ContainerYard` | Solo modelo + EasyAdmin |
 | 5 | Cierre del expediente y cuenta de gastos | Ejecutivo | `InternInvoice` | Solo modelo + EasyAdmin |
 
 `ImportRequest` es el expediente: todo lo demás cuelga de él.
+
+## Estados del expediente
+
+El recorrido depende de **dos** ejes: importación o exportación, y contenedor o
+carga suelta. Son cuatro secuencias distintas, definidas en
+[`App\Workflow\ImportRequestWorkflow`](src/Workflow/ImportRequestWorkflow.php).
+No comparten los mismos pasos ni el mismo orden: en exportación, «Liberado en
+terminal» va antes del pago cuando es contenedor y después de la modulación
+cuando es carga suelta.
+
+| | Contenedor | Carga suelta |
+|---|---|---|
+| **Importación** | Pendiente → Capturado → Revalidado → Pagado → Programado → Modulado → *(Inspección fuera de puerto)* → En tránsito → Entregado → Vacío devuelto → Finalizado | igual, con **Desconsolidado** entre Capturado y Revalidado |
+| **Exportación** | Pendiente → Capturado → Ingresado → Liberado en terminal → Pagado → Modulado → Finalizado | Pendiente → Capturado → Ingresado → Pagado → Modulado → Liberado en terminal → Finalizado |
+
+*Inspección fuera de puerto* es un paso **opcional**: solo aplica a cierta
+mercancía de importación. Cuando el expediente llega a Modulado, la pantalla
+ofrece las dos salidas y el ejecutivo elige.
+
+El expediente solo puede saltar al estado que su secuencia permite; el
+controlador rechaza cualquier otro valor que llegue del formulario.
+
+## Maniobras
+
+`Operation` registra las maniobras del expediente. El catálogo habitual vive en
+[`App\Workflow\OperationCatalog`](src/Workflow/OperationCatalog.php), pero **no
+es una lista cerrada**: el formulario deja capturar una maniobra propia para los
+casos fuera de lo común.
 
 ## Roles
 
@@ -125,6 +153,10 @@ transportista que necesitan los despachos y las devoluciones de vacío.
 
 `DoctrineFixturesBundle` solo está registrado en `dev` y `test`, así que estas
 credenciales no pueden cargarse en producción.
+
+> **Cuidado:** `doctrine:fixtures:load` purga **todas** las tablas del modelo,
+> incluida `user`. Las cuentas reales creadas con `app:user:create` desaparecen
+> y hay que volver a darlas de alta después de cargar las fixtures.
 
 Las cuentas reales se crean con un comando aparte, que pide la contraseña por
 consola para no dejarla escrita en ningún archivo:
