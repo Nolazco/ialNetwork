@@ -81,6 +81,12 @@ class ImportRequest
     #[ORM\OneToMany(targetEntity: Operation::class, mappedBy: 'reference')]
     private Collection $operations;
 
+    /**
+     * @var Collection<int, Delivery>
+     */
+    #[ORM\OneToMany(targetEntity: Delivery::class, mappedBy: 'reference')]
+    private Collection $deliveries;
+
     #[ORM\Column(length: 255)]
     private ?string $goods = null;
 
@@ -91,6 +97,34 @@ class ImportRequest
         $this->emptyReturns = new ArrayCollection();
         $this->internInvoices = new ArrayCollection();
         $this->operations = new ArrayCollection();
+        $this->deliveries = new ArrayCollection();
+    }
+
+    /**
+     * @return Collection<int, Delivery>
+     */
+    public function getDeliveries(): Collection
+    {
+        return $this->deliveries;
+    }
+
+    public function addDelivery(Delivery $delivery): static
+    {
+        if (!$this->deliveries->contains($delivery)) {
+            $this->deliveries->add($delivery);
+            $delivery->setReference($this);
+        }
+
+        return $this;
+    }
+
+    public function removeDelivery(Delivery $delivery): static
+    {
+        if ($this->deliveries->removeElement($delivery) && $delivery->getReference() === $this) {
+            $delivery->setReference(null);
+        }
+
+        return $this;
     }
 
     public function getId(): ?int

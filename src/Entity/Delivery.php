@@ -3,18 +3,30 @@
 namespace App\Entity;
 
 use App\Repository\DeliveryRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
+/**
+ * Un movimiento de transporte sobre un expediente.
+ *
+ * La carga suelta lleva un solo despacho. La mercancia contenerizada lleva
+ * tantos como haga falta, porque cada contenedor puede salir en fecha distinta
+ * y con transportista distinto, pero un camion nunca carga mas de dos.
+ */
 #[ORM\Entity(repositoryClass: DeliveryRepository::class)]
 class Delivery
 {
+    /** Cuantos contenedores caben en un mismo camion. */
+    public const MAX_CONTAINERS = 2;
+
     #[ORM\Id]
     #[ORM\GeneratedValue]
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\OneToOne(cascade: ['persist', 'remove'])]
+    #[ORM\ManyToOne(inversedBy: 'deliveries')]
     #[ORM\JoinColumn(nullable: false)]
     private ?ImportRequest $reference = null;
 
@@ -22,11 +34,32 @@ class Delivery
     #[ORM\JoinColumn(nullable: false)]
     private ?FreightHauler $transport = null;
 
+    /**
+     * Contenedores que carga este camion. Vacio cuando es carga suelta.
+     *
+     * @var Collection<int, Container>
+     */
+    #[ORM\ManyToMany(targetEntity: Container::class, inversedBy: 'deliveries')]
+    private Collection $containers;
+
+    /** Fecha y hora acordadas para la maniobra. */
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
     private ?\DateTimeImmutable $date = null;
 
     #[ORM\Column(type: Types::TIME_IMMUTABLE)]
     private ?\DateTimeImmutable $hour = null;
+
+    /** Momentos reales, que confirma el transportista desde su panel. */
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $departedAt = null;
+
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $deliveredAt = null;
+
+    public function __construct()
+    {
+        $this->containers = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -38,7 +71,7 @@ class Delivery
         return $this->reference;
     }
 
-    public function setReference(ImportRequest $reference): static
+    public function setReference(?ImportRequest $reference): static
     {
         $this->reference = $reference;
 
@@ -53,6 +86,30 @@ class Delivery
     public function setTransport(?FreightHauler $transport): static
     {
         $this->transport = $transport;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Container>
+     */
+    public function getContainers(): Collection
+    {
+        return $this->containers;
+    }
+
+    public function addContainer(Container $container): static
+    {
+        if (!$this->containers->contains($container)) {
+            $this->containers->add($container);
+        }
+
+        return $this;
+    }
+
+    public function removeContainer(Container $container): static
+    {
+        $this->containers->removeElement($container);
 
         return $this;
     }
@@ -79,5 +136,51 @@ class Delivery
         $this->hour = $hour;
 
         return $this;
+    }
+
+    public function getDepartedAt(): ?\DateTimeImmutable
+    {
+        return $this->departedAt;
+    }
+
+    public function setDepartedAt(?\DateTimeImmutable $departedAt): static
+    {
+        $this->departedAt = $departedAt;
+
+        return $this;
+    }
+
+    public function getDeliveredAt(): ?\DateTimeImmutable
+    {
+        return $this->deliveredAt;
+    }
+
+    public function setDeliveredAt(?\DateTimeImmutable $deliveredAt): static
+    {
+        $this->deliveredAt = $deliveredAt;
+
+        return $this;
+    }
+
+    public function isDeparted(): bool
+    {
+        return $this->departedAt !== null;
+    }
+
+    public function isDelivered(): bool
+    {
+        return $this->deliveredAt !== null;
+    }
+
+    /**
+     * Etiqueta del avance de este despacho, para pintarla en los listados.
+     */
+    public function getStage(): string
+    {
+        return match (true) {
+            $this->isDelivered() => 'Entregado',
+            $this->isDeparted() => 'En tránsito',
+            default => 'Asignado',
+        };
     }
 }

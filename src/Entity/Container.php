@@ -27,9 +27,24 @@ class Container
     #[ORM\Column(length: 255)]
     private ?string $type = null;
 
+    /**
+     * @var Collection<int, Delivery>
+     */
+    #[ORM\ManyToMany(targetEntity: Delivery::class, mappedBy: 'containers')]
+    private Collection $deliveries;
+
     public function __construct()
     {
         $this->reference = new ArrayCollection();
+        $this->deliveries = new ArrayCollection();
+    }
+
+    /**
+     * @return Collection<int, Delivery>
+     */
+    public function getDeliveries(): Collection
+    {
+        return $this->deliveries;
     }
 
     public function getId(): ?int

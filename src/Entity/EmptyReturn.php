@@ -14,7 +14,9 @@ class EmptyReturn
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\OneToOne(cascade: ['persist', 'remove'])]
+    // Sin cascade remove: borrar el registro de devolucion no debe borrar el
+    // contenedor, que sigue existiendo y pertenece al expediente.
+    #[ORM\OneToOne]
     #[ORM\JoinColumn(nullable: false)]
     private ?Container $container = null;
 

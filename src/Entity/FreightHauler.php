@@ -15,7 +15,9 @@ class FreightHauler
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\OneToOne(cascade: ['persist', 'remove'])]
+    // Sin cascade remove: dar de baja al transportista no debe borrar la cuenta
+    // de usuario, que es una entidad independiente.
+    #[ORM\OneToOne]
     #[ORM\JoinColumn(nullable: false)]
     private ?User $id_user = null;
 
