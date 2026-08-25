@@ -33,6 +33,11 @@ class ImportRequest
     #[ORM\Column(length: 255)]
     private ?string $importNumber = null;
 
+    /** "import" o "export": junto con $type determina la secuencia de estados. */
+    #[ORM\Column(length: 16)]
+    private ?string $direction = null;
+
+    /** "container" o "lcl". */
     #[ORM\Column(length: 255)]
     private ?string $type = null;
 
@@ -149,6 +154,18 @@ class ImportRequest
     public function setImportNumber(string $importNumber): static
     {
         $this->importNumber = $importNumber;
+
+        return $this;
+    }
+
+    public function getDirection(): ?string
+    {
+        return $this->direction;
+    }
+
+    public function setDirection(string $direction): static
+    {
+        $this->direction = $direction;
 
         return $this;
     }
