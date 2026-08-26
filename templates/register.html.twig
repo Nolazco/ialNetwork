@@ -1,29 +1,42 @@
 {% extends 'base.html.twig' %}
 {% block body %}
-	<div class="container">
-		<form method="POST" action="/user/new">
-			<input type="hidden" name="_token" value="{{ csrf_token('register') }}">
-			<div class="mb-3">
-		    <label for="name" class="form-label">Nombre</label>
-		    <input type="text" class="form-control" id="name" name="name" required>
-		  </div>
-		  <div class="mb-3">
-		    <label for="lastName" class="form-label">Apellido</label>
-		    <input type="text" class="form-control" id="lastName" name="lastName" required>
-		  </div>
-		  <div class="mb-3">
-		    <label for="email" class="form-label">Correo electronico</label>
-		    <input type="email" class="form-control" id="email" name="email" required>
-		  </div>
-		  <div class="mb-3">
-		    <label for="password1" class="form-label">Contraseña</label>
-		    <input type="password" class="form-control" id="password1" name="password1" required>
-		  </div>
-		  <div class="mb-3">
-		    <label for="password2" class="form-label">Repetir contraseña</label>
-		    <input type="password" class="form-control" id="password2" name="password2" required>
-		  </div>
-		  <button type="submit" class="btn btn-primary">Submit</button>
-		</form>
+	<div class="auth-page">
+		<div class="auth-card auth-card-wide">
+			<a href="{{ path('index') }}" class="auth-back">
+				<i class="bi bi-arrow-left"></i> Volver al inicio
+			</a>
+			<div class="auth-brand">
+				<img src="/index/img/IAL_NETWORK_logo.png" alt="Logo IAL Network" class="auth-logo">
+			</div>
+			<h1 class="auth-title">Crear cuenta</h1>
+			<form method="POST" action="/user/new">
+				<input type="hidden" name="_token" value="{{ csrf_token('register') }}">
+				<div class="row">
+					<div class="col-sm-6 mb-3">
+				    <label for="name" class="form-label">Nombre</label>
+				    <input type="text" class="form-control" id="name" name="name" required>
+				  </div>
+				  <div class="col-sm-6 mb-3">
+				    <label for="lastName" class="form-label">Apellido</label>
+				    <input type="text" class="form-control" id="lastName" name="lastName" required>
+				  </div>
+				</div>
+			  <div class="mb-3">
+			    <label for="email" class="form-label">Correo electronico</label>
+			    <input type="email" class="form-control" id="email" name="email" required>
+			  </div>
+			  <div class="row">
+			  	<div class="col-sm-6 mb-3">
+				    <label for="password1" class="form-label">Contraseña</label>
+				    <input type="password" class="form-control" id="password1" name="password1" required>
+				  </div>
+				  <div class="col-sm-6 mb-3">
+				    <label for="password2" class="form-label">Repetir contraseña</label>
+				    <input type="password" class="form-control" id="password2" name="password2" required>
+				  </div>
+			  </div>
+			  <button type="submit" class="btn btn-primary auth-submit">Registrarme</button>
+			</form>
+		</div>
 	</div>
 {% endblock %}

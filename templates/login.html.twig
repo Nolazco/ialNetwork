@@ -1,17 +1,26 @@
 {% extends 'base.html.twig' %}
 {% block body %}
-	<div class="container">
-		<form method="POST" action="{{ path('login') }}">
-			<input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
-		  <div class="mb-3">
-		    <label for="email" class="form-label">Correo electronico</label>
-		    <input type="email" class="form-control" id="email" name="email" value="{{ last_username }}" required autofocus>
-		  </div>
-		  <div class="mb-3">
-		    <label for="password" class="form-label">Contraseña</label>
-		    <input type="password" class="form-control" id="password" name="password" required>
-		  </div>
-		  <button type="submit" class="btn btn-primary">Submit</button>
-		</form>
+	<div class="auth-page">
+		<div class="auth-card">
+			<a href="{{ path('index') }}" class="auth-back">
+				<i class="bi bi-arrow-left"></i> Volver al inicio
+			</a>
+			<div class="auth-brand">
+				<img src="/index/img/IAL_NETWORK_logo.png" alt="Logo IAL Network" class="auth-logo">
+			</div>
+			<h1 class="auth-title">Iniciar sesión</h1>
+			<form method="POST" action="{{ path('login') }}">
+				<input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+			  <div class="mb-3">
+			    <label for="email" class="form-label">Correo electronico</label>
+			    <input type="email" class="form-control" id="email" name="email" value="{{ last_username }}" required autofocus>
+			  </div>
+			  <div class="mb-3">
+			    <label for="password" class="form-label">Contraseña</label>
+			    <input type="password" class="form-control" id="password" name="password" required>
+			  </div>
+			  <button type="submit" class="btn btn-primary auth-submit">Entrar</button>
+			</form>
+		</div>
 	</div>
 {% endblock %}
