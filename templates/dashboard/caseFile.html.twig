@@ -62,7 +62,11 @@
         {% elseif import.status == 'Pendiente' %}
           <p class="mb-0 text-body-secondary">
             <i class="bi bi-info-circle"></i>
-            Da de alta el pedimento para que el expediente avance.
+            {% if is_granted('ROLE_EXECUTIVE') %}
+              Da de alta el pedimento para que el expediente avance.
+            {% else %}
+              En espera de captura por parte del ejecutivo.
+            {% endif %}
           </p>
         {% else %}
           <div class="d-flex gap-2 flex-wrap">
