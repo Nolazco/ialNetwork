@@ -168,18 +168,89 @@
                   <span class="text-body-secondary">Carga suelta</span>
                 {% endfor %}
               </dd>
-
-              <dt class="col-sm-5">Documentos</dt>
-              <dd class="col-sm-7 mb-0">
-                {% for d in import.importDocuments %}
-                  <div><i class="bi bi-file-earmark-text"></i> {{ d.type }}</div>
-                {% else %}
-                  <span class="text-body-secondary">Sin documentos anexos</span>
-                {% endfor %}
-              </dd>
             </dl>
           </div>
         </div>
+      </div>
+    </div>
+
+    {# ---------- Documentos del aviso ---------- #}
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title mb-0">Documentos del aviso</h5>
+          {% if import.importDocuments|length %}
+            <span class="badge text-bg-success">{{ import.importDocuments|length }} documento(s)</span>
+          {% else %}
+            <span class="badge text-bg-warning">Sin documentos</span>
+          {% endif %}
+        </div>
+
+        {% if import.importDocuments|length %}
+          <table class="table table-sm align-middle">
+            <thead>
+              <tr>
+                <th scope="col">Documento</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Fecha de subida</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for d in import.importDocuments %}
+                <tr>
+                  <td>
+                    <a href="/{{ d.route }}" target="_blank" rel="noopener" download>
+                      <i class="bi bi-download"></i> {{ d.route|split('/')|last }}
+                    </a>
+                  </td>
+                  <td>{{ d.type }}</td>
+                  <td>{{ d.uploadedAt ? d.uploadedAt|date('d/m/Y H:i') : '—' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="mb-0 text-body-secondary">Sin documentos anexos.</p>
+        {% endif %}
+
+        {% if import.status != 'Finalizado' %}
+          <form method="POST" enctype="multipart/form-data" id="document-form" class="mt-3"
+                action="{{ path('case_file_document', { id: import.id }) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('case_file_document') }}">
+
+            <div id="document-rows">
+              <div class="row g-2 align-items-end mb-2 document-row">
+                <div class="col-md-5">
+                  <label class="form-label">Tipo de documento</label>
+                  <input type="text" class="form-control" name="documentTypes[]"
+                         placeholder="Ej. Factura, Lista de empaque, Certificado de origen">
+                </div>
+                <div class="col-md-5">
+                  <label class="form-label">Archivo</label>
+                  <input type="file" class="form-control" name="documents[]">
+                </div>
+                <div class="col-md-2">
+                  <button type="button" class="btn btn-outline-danger w-100 document-remove" title="Quitar">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <button type="button" class="btn btn-outline-primary btn-sm mt-1" id="document-add">
+              <i class="bi bi-plus-lg"></i> Agregar documento
+            </button>
+
+            <div class="mt-3">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-paperclip"></i> Anexar
+              </button>
+              <span class="ms-2 small text-body-secondary">
+                Permitidos: {{ allowedDocumentTypes|join(', ') }}
+              </span>
+            </div>
+          </form>
+        {% endif %}
       </div>
     </div>
 
@@ -542,38 +613,49 @@
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       // El campo libre solo aparece cuando la maniobra no está en el catálogo.
+      // El formulario de maniobras solo se renderiza para el ejecutivo, asi que
+      // el cliente nunca tiene este select en el DOM.
       const select = document.getElementById("maniobra");
       const wrapper = document.getElementById("custom-maniobra-wrapper");
       const custom = document.getElementById("customType");
 
-      select.addEventListener("change", function () {
-        const isOther = select.value === {{ maniobraOther|json_encode|raw }};
-        wrapper.classList.toggle("d-none", !isOther);
-        custom.required = isOther;
-        if (!isOther) {
-          custom.value = "";
-        }
-      });
+      if (select) {
+        select.addEventListener("change", function () {
+          const isOther = select.value === {{ maniobraOther|json_encode|raw }};
+          wrapper.classList.toggle("d-none", !isOther);
+          custom.required = isOther;
+          if (!isOther) {
+            custom.value = "";
+          }
+        });
+      }
 
-      // La cuenta de gastos admite tantas líneas como el contador necesite.
-      const filas = document.getElementById("expense-rows");
-      const agregar = document.getElementById("expense-add");
-      if (filas && agregar) {
+      // Agrega filas dinamicas a un formulario "una fila por archivo": la
+      // cuenta de gastos (ejecutivo) y los documentos del aviso (cualquiera con
+      // acceso al expediente) comparten el mismo patron.
+      function habilitarFilasDinamicas(rowsId, addId, rowClass, removeClass) {
+        const filas = document.getElementById(rowsId);
+        const agregar = document.getElementById(addId);
+        if (!filas || !agregar) return;
+
         agregar.addEventListener("click", function () {
-          const nueva = filas.querySelector(".expense-row").cloneNode(true);
+          const nueva = filas.querySelector("." + rowClass).cloneNode(true);
           nueva.querySelectorAll("input").forEach(i => i.value = "");
           filas.appendChild(nueva);
         });
         filas.addEventListener("click", function (e) {
-          if (!e.target.closest(".expense-remove")) return;
-          const fila = e.target.closest(".expense-row");
-          if (filas.querySelectorAll(".expense-row").length > 1) {
+          if (!e.target.closest("." + removeClass)) return;
+          const fila = e.target.closest("." + rowClass);
+          if (filas.querySelectorAll("." + rowClass).length > 1) {
             fila.remove();
           } else {
             fila.querySelectorAll("input").forEach(i => i.value = "");
           }
         });
       }
+
+      habilitarFilasDinamicas("expense-rows", "expense-add", "expense-row", "expense-remove");
+      habilitarFilasDinamicas("document-rows", "document-add", "document-row", "document-remove");
 
       // Un camión no carga más de MAX_CONTAINERS. El servidor lo valida igual;
       // esto solo evita que el usuario descubra el error hasta enviar.

@@ -180,6 +180,7 @@ class DashboardImports extends AbstractController {
   	      $documento->setReference($import);
   	      $documento->setType($types[$i] ?? 'Desconocido');
   	      $documento->setRoute($route . '/' . $newFilename);
+  	      $documento->setUploadedAt(new \DateTimeImmutable());
 
   	      $entityManager->persist($documento);
   	    }

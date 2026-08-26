@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Delivery;
 use App\Entity\Container;
 use App\Entity\FreightHauler;
+use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\InternInvoice;
 use App\Entity\Operation;
@@ -28,15 +29,17 @@ use Symfony\Component\String\Slugger\SluggerInterface;
  * registro de maniobras.
  *
  * Todo lo que mueve el expediente exige ROLE_EXECUTIVE (ROLE_ADMIN lo hereda,
- * ver role_hierarchy en security.yaml). La unica excepcion es la consulta: el
- * cliente puede abrir en solo lectura los expedientes de sus propias empresas,
- * para seguir el avance y descargar su cuenta de gastos.
+ * ver role_hierarchy en security.yaml), con dos excepciones: la consulta y los
+ * documentos del aviso. El cliente puede abrir en solo lectura los expedientes
+ * de sus propias empresas para seguir el avance y descargar su cuenta de
+ * gastos, y puede seguir anexando documentos del aviso mientras el expediente
+ * siga abierto, sin esperar a que el ejecutivo capture nada.
  */
 class DashboardCaseFiles extends AbstractController
 {
     /**
-     * Lo que acepta la cuenta de gastos: el contador manda el ZIP con el PDF y
-     * su XML, mas los comprobantes que hagan falta. Nada ejecutable.
+     * Extensiones que se aceptan tanto en la cuenta de gastos como en los
+     * documentos del aviso. Nada ejecutable.
      */
     public const EXPENSE_EXTENSIONS = ['pdf', 'xml', 'zip', 'rar', '7z', 'jpg', 'jpeg', 'png', 'xlsx', 'xls', 'docx', 'csv'];
 
@@ -93,7 +96,112 @@ class DashboardCaseFiles extends AbstractController
             'containersPendingReturn' => $this->transport->containersPendingReturn($import),
             'expenses' => $import->getInternInvoices(),
             'allowedExpenseTypes' => self::EXPENSE_EXTENSIONS,
+            'allowedDocumentTypes' => self::EXPENSE_EXTENSIONS,
         ]);
+    }
+
+    /**
+     * Documentos del aviso: a diferencia del resto del expediente, el cliente
+     * tambien puede anexar aqui, ya que son sus propios documentos (factura,
+     * lista de empaque, certificados...) y no tiene sentido hacerlo esperar al
+     * ejecutivo para subir uno que le hizo falta al dar de alta el pedimento.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/documentos', name: 'case_file_document', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function addDocuments(#[MapEntity(id: 'id')] ImportRequest $import, Request $r, SluggerInterface $slugger): Response
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        if (!$this->isCsrfTokenValid('case_file_document', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($import->getStatus() === ImportRequestWorkflow::FINISHED) {
+            $this->addFlash('error', 'El expediente ya está finalizado, no admite más documentos.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $types = $r->request->all('documentTypes');
+        $files = $r->files->all('documents');
+
+        $folder = 'uploads/empresas/'.$import->getIdCompany()->getRfc().$import->getClientReference();
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            $this->addFlash('error', 'No se pudo preparar la carpeta de documentos.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $stored = 0;
+        $rejected = [];
+
+        foreach ($files as $index => $file) {
+            if (!$file || !$file->isValid()) {
+                continue;
+            }
+
+            $original = $file->getClientOriginalName();
+            $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+
+            // Lista blanca: los archivos caen bajo public/, asi que nada que un
+            // servidor pueda interpretar entra aqui.
+            if (!in_array($extension, self::EXPENSE_EXTENSIONS, true)) {
+                $rejected[] = $original;
+
+                continue;
+            }
+
+            $type = trim((string) ($types[$index] ?? ''));
+
+            if ($type === '') {
+                $type = pathinfo($original, PATHINFO_FILENAME);
+            }
+
+            $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
+
+            try {
+                $file->move($folder, $name);
+            } catch (FileException) {
+                $rejected[] = $original;
+
+                continue;
+            }
+
+            $document = new ImportDocument();
+            $document->setType($type);
+            $document->setRoute($folder.'/'.$name);
+            $document->setUploadedAt(new \DateTimeImmutable());
+            $import->addImportDocument($document);
+
+            $this->entityManager->persist($document);
+            ++$stored;
+        }
+
+        if ($stored === 0 && $rejected === []) {
+            $this->addFlash('error', 'Selecciona al menos un documento.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $this->entityManager->flush();
+
+        if ($stored > 0) {
+            $this->addFlash('success', sprintf('%d documento(s) anexados al aviso.', $stored));
+        }
+
+        if ($rejected !== []) {
+            $this->addFlash('error', sprintf(
+                'No se aceptaron: %s. Formatos permitidos: %s.',
+                implode(', ', $rejected),
+                implode(', ', self::EXPENSE_EXTENSIONS)
+            ));
+        }
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
 
     /**

@@ -26,6 +26,9 @@ class ImportDocument
     #[ORM\Column(length: 255)]
     private ?string $type = null;
 
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $uploadedAt = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -75,6 +78,18 @@ class ImportDocument
     public function setType(string $type): static
     {
         $this->type = $type;
+
+        return $this;
+    }
+
+    public function getUploadedAt(): ?\DateTimeImmutable
+    {
+        return $this->uploadedAt;
+    }
+
+    public function setUploadedAt(?\DateTimeImmutable $uploadedAt): static
+    {
+        $this->uploadedAt = $uploadedAt;
 
         return $this;
     }
