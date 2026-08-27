@@ -1,0 +1,271 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Reporte de previo{% endblock %}
+
+{% block body %}
+  <div class="container py-4" style="max-width: 900px;">
+    <div class="text-center mb-4">
+      <img src="/index/img/IAL NETWORK.png" alt="Logo IAL Network" style="max-height: 70px;">
+      <h2 class="mt-3 mb-0">Reporte de previo</h2>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" action="{{ path('legacy_previo_create') }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('legacy_previo_create') }}">
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Datos generales</h5>
+
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="referencia" class="form-label">Referencia</label>
+              <input type="text" class="form-control" name="referencia" id="referencia" required>
+            </div>
+            <div class="col-md-4">
+              <label for="cliente" class="form-label">Cliente</label>
+              <input type="text" class="form-control" name="cliente" id="cliente" required>
+            </div>
+            <div class="col-md-4">
+              <label for="correo" class="form-label">Correo</label>
+              <input type="email" class="form-control" name="correo" id="correo" required>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label d-block">Tipo de carga</label>
+              {% for value, label in cargoTypes %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input js-cargo-type" type="radio" name="cargoType" id="cargo-{{ value }}" value="{{ value }}" {% if loop.first %}checked{% endif %} required>
+                  <label class="form-check-label" for="cargo-{{ value }}">{{ label }}</label>
+                </div>
+              {% endfor %}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label d-block">Tipo de previo</label>
+              {% for t in types %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input js-previo-type" type="radio" name="type" id="type-{{ loop.index }}" value="{{ t }}" {% if loop.first %}checked{% endif %} required>
+                  <label class="form-check-label" for="type-{{ loop.index }}">{{ t }}</label>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="col-md-4">
+              <label for="date" class="form-label">Fecha</label>
+              <input type="date" class="form-control" name="date" id="date" value="{{ "now"|date('Y-m-d') }}" required>
+            </div>
+            <div class="col-md-2">
+              <label for="startTime" class="form-label">Hora inicio</label>
+              <input type="time" class="form-control" name="startTime" id="startTime">
+            </div>
+            <div class="col-md-2">
+              <label for="endTime" class="form-label">Hora fin</label>
+              <input type="time" class="form-control" name="endTime" id="endTime">
+            </div>
+            <div class="col-md-4">
+              <label for="place" class="form-label">Lugar del previo</label>
+              <input type="text" class="form-control" name="place" id="place" required>
+            </div>
+          </div>
+
+          <div id="authority-wrapper" class="mt-3 {% if types|first != 'Inspección' %}d-none{% endif %}">
+            <label class="form-label d-block">Autoridad de inspección</label>
+            {% for a in authorities %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="authority[]" id="authority-{{ loop.index }}" value="{{ a }}">
+                <label class="form-check-label" for="authority-{{ loop.index }}">{{ a }}</label>
+              </div>
+            {% endfor %}
+            <div class="mt-2" style="max-width: 260px;">
+              <input type="text" class="form-control form-control-sm" name="authorityOther" placeholder="Otra autoridad">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4" id="container-card">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Información del contenedor</h5>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label for="containerNum" class="form-label">Número de contenedor</label>
+              <input type="text" class="form-control" name="containerNum" id="containerNum">
+            </div>
+            <div class="col-md-4">
+              <label for="sealOrigin" class="form-label">Sello de origen</label>
+              <input type="text" class="form-control" name="sealOrigin" id="sealOrigin">
+            </div>
+            <div class="col-md-4">
+              <label for="sealFinal" class="form-label">Sello final</label>
+              <input type="text" class="form-control" name="sealFinal" id="sealFinal">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Transporte</h5>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="plates" class="form-label">Placas</label>
+              <input type="text" class="form-control" name="plates" id="plates">
+            </div>
+            <div class="col-md-6">
+              <label for="transportCompanyName" class="form-label">Razón social del transporte</label>
+              <input type="text" class="form-control" name="transportCompanyName" id="transportCompanyName">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Mercancía</h5>
+
+          <div id="goods-rows">
+            <div class="row g-2 align-items-end mb-2 goods-row">
+              <div class="col-md-10">
+                <input type="text" class="form-control" name="goods[]" placeholder="Descripción de la mercancía">
+              </div>
+              <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger w-100 goods-remove" title="Quitar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" id="goods-add">
+            <i class="bi bi-plus-lg"></i> Agregar mercancía
+          </button>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Modelo/Lote</h5>
+
+          <div id="lot-rows">
+            <div class="row g-2 align-items-end mb-2 lot-row">
+              <div class="col-md-4">
+                <input type="text" class="form-control" name="lotIdentifier[]" placeholder="Modelo/Lote">
+              </div>
+              <div class="col-md-6">
+                <textarea class="form-control" name="lotObservations[]" rows="1" placeholder="Observaciones"></textarea>
+              </div>
+              <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger w-100 lot-remove" title="Quitar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" id="lot-add">
+            <i class="bi bi-plus-lg"></i> Agregar lote
+          </button>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Presentación</h5>
+          <div class="row g-3">
+            <div class="col-md-8">
+              {% for p in presentations %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" name="presentation[]" id="presentation-{{ loop.index }}" value="{{ p }}">
+                  <label class="form-check-label" for="presentation-{{ loop.index }}">{{ p }}</label>
+                </div>
+              {% endfor %}
+              <div class="mt-2" style="max-width: 260px;">
+                <input type="text" class="form-control form-control-sm" name="presentationOther" placeholder="Otra presentación">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label for="quantity" class="form-label">Cantidad</label>
+              <input type="text" class="form-control" name="quantity" id="quantity">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Observaciones generales</h5>
+          <textarea class="form-control" name="notes" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Fotos</h5>
+          <input type="file" class="form-control" name="photos[]" id="photos" accept="image/jpeg,image/png,image/webp" multiple>
+          <div class="form-text">
+            Hasta {{ maxPhotos }} fotos (jpg, jpeg, png, webp). Las primeras 4 se incrustan en el PDF; todas se anexan en un ZIP.
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center">
+        <button type="submit" class="btn btn-primary">Enviar reporte</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      function habilitarFilasDinamicas(rowsId, addId, rowClass, removeClass) {
+        const filas = document.getElementById(rowsId);
+        const agregar = document.getElementById(addId);
+        if (!filas || !agregar) return;
+
+        agregar.addEventListener("click", function () {
+          const nueva = filas.querySelector("." + rowClass).cloneNode(true);
+          nueva.querySelectorAll("input, textarea, select").forEach(i => i.value = "");
+          filas.appendChild(nueva);
+        });
+        filas.addEventListener("click", function (e) {
+          if (!e.target.closest("." + removeClass)) return;
+          const fila = e.target.closest("." + rowClass);
+          if (filas.querySelectorAll("." + rowClass).length > 1) {
+            fila.remove();
+          } else {
+            fila.querySelectorAll("input, textarea, select").forEach(i => i.value = "");
+          }
+        });
+      }
+
+      habilitarFilasDinamicas("goods-rows", "goods-add", "goods-row", "goods-remove");
+      habilitarFilasDinamicas("lot-rows", "lot-add", "lot-row", "lot-remove");
+
+      const authorityWrapper = document.getElementById("authority-wrapper");
+      document.querySelectorAll(".js-previo-type").forEach(function (radio) {
+        radio.addEventListener("change", function () {
+          authorityWrapper.classList.toggle("d-none", radio.value !== "Inspección");
+        });
+      });
+
+      const containerCard = document.getElementById("container-card");
+      function syncContainerCard() {
+        const checked = document.querySelector('input[name="cargoType"]:checked');
+        containerCard.classList.toggle("d-none", !checked || checked.value !== "container");
+      }
+      document.querySelectorAll(".js-cargo-type").forEach(function (radio) {
+        radio.addEventListener("change", syncContainerCard);
+      });
+      syncContainerCard();
+
+      const photos = document.getElementById("photos");
+      if (photos) {
+        photos.addEventListener("change", function () {
+          if (photos.files.length > {{ maxPhotos }}) {
+            alert("Selecciona como máximo {{ maxPhotos }} fotos.");
+            photos.value = "";
+          }
+        });
+      }
+    });
+  </script>
+{% endblock %}

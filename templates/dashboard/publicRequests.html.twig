@@ -1,0 +1,97 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Solicitudes públicas{% endblock %}
+
+{% block body %}
+  <div class="content">
+
+    <div class="mb-4">
+      <h2 class="mb-1">Solicitudes públicas</h2>
+      <p class="text-body-secondary mb-0">
+        Lo que entra por los accesos sin login (/legacy/clasificacion, /legacy/reportes) mientras los clientes se cambian al flujo nuevo. La empresa aquí es texto libre, no una empresa registrada.
+      </p>
+    </div>
+
+    {# ---------- Clasificaciones ---------- #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Clasificaciones</h5>
+
+        {% if classifications %}
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Empresa</th>
+                <th scope="col">Mercancía</th>
+                <th scope="col">Solicitante</th>
+                <th scope="col">Archivos</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for c in classifications %}
+                <tr>
+                  <td>{{ c.createdAt|date('d/m/Y H:i') }}</td>
+                  <td>{{ c.companyName }}</td>
+                  <td>{{ c.merchandiseName }}</td>
+                  <td>{{ c.requesterName }} ({{ c.requesterEmail }})</td>
+                  <td>
+                    {% for a in c.attachments %}
+                      <a href="/{{ a.ruta }}" download title="{{ a.nombre }}"><i class="bi bi-paperclip"></i></a>
+                    {% endfor %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-body-secondary mb-0">Todavía no llega ninguna solicitud de clasificación por este acceso.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ---------- Previos ---------- #}
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Reportes de previo</h5>
+
+        {% if previos %}
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Referencia</th>
+                <th scope="col">Cliente</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Descargas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in previos %}
+                <tr>
+                  <td>{{ p.createdAt|date('d/m/Y H:i') }}</td>
+                  <td>{{ p.referencia }}</td>
+                  <td>{{ p.cliente }} ({{ p.correo }})</td>
+                  <td>{{ p.type }}</td>
+                  <td>
+                    <a href="/{{ p.pdfRoute }}" class="btn btn-sm btn-outline-secondary" download title="Descargar PDF">
+                      <i class="bi bi-file-earmark-pdf"></i> PDF
+                    </a>
+                    {% if p.photosZipRoute %}
+                      <a href="/{{ p.photosZipRoute }}" class="btn btn-sm btn-outline-secondary" download title="Descargar fotos">
+                        <i class="bi bi-file-earmark-zip"></i> Fotos
+                      </a>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-body-secondary mb-0">Todavía no llega ningún reporte de previo por este acceso.</p>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+{% endblock %}
