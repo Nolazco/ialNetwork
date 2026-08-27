@@ -25,6 +25,12 @@ fi
 mkdir -p var/cache var/log public/uploads/empresas
 chown -R www-data:www-data var public/uploads public/build 2>/dev/null || true
 
+# --- Cron (consulta automatica al SOIA) -------------------------------------
+# Apache queda como proceso principal (exec "$@" abajo); cron corre aparte en
+# segundo plano, igual de vivo mientras el contenedor lo esté.
+touch var/log/soia_poll.log && chown www-data:www-data var/log/soia_poll.log
+service cron start
+
 echo "==> Listo. Aplicacion en http://localhost:8000"
 
 exec "$@"

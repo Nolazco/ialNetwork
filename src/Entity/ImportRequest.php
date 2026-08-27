@@ -70,6 +70,26 @@ class ImportRequest
     private Collection $importDocuments;
 
     /**
+     * @var Collection<int, RequiredDocument>
+     */
+    #[ORM\OneToMany(targetEntity: RequiredDocument::class, mappedBy: 'reference')]
+    private Collection $requiredDocuments;
+
+    /**
+     * Fecha real de modulación que reporta el SOIA, no la fecha en que se
+     * detectó desde la app.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $moduladoAt = null;
+
+    /**
+     * Última vez que se consultó el SOIA (manual o automático), para que el
+     * poller no vuelva a consultar antes de los 20 minutos.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastSoiaCheckAt = null;
+
+    /**
      * @var Collection<int, Container>
      */
     #[ORM\ManyToMany(targetEntity: Container::class, mappedBy: 'reference')]
@@ -105,6 +125,7 @@ class ImportRequest
     public function __construct()
     {
         $this->importDocuments = new ArrayCollection();
+        $this->requiredDocuments = new ArrayCollection();
         $this->containers = new ArrayCollection();
         $this->emptyReturns = new ArrayCollection();
         $this->internInvoices = new ArrayCollection();
@@ -307,6 +328,59 @@ class ImportRequest
                 $importDocument->setReference(null);
             }
         }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, RequiredDocument>
+     */
+    public function getRequiredDocuments(): Collection
+    {
+        return $this->requiredDocuments;
+    }
+
+    public function addRequiredDocument(RequiredDocument $requiredDocument): static
+    {
+        if (!$this->requiredDocuments->contains($requiredDocument)) {
+            $this->requiredDocuments->add($requiredDocument);
+            $requiredDocument->setReference($this);
+        }
+
+        return $this;
+    }
+
+    public function removeRequiredDocument(RequiredDocument $requiredDocument): static
+    {
+        if ($this->requiredDocuments->removeElement($requiredDocument)) {
+            if ($requiredDocument->getReference() === $this) {
+                $requiredDocument->setReference(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getModuladoAt(): ?\DateTimeImmutable
+    {
+        return $this->moduladoAt;
+    }
+
+    public function setModuladoAt(?\DateTimeImmutable $moduladoAt): static
+    {
+        $this->moduladoAt = $moduladoAt;
+
+        return $this;
+    }
+
+    public function getLastSoiaCheckAt(): ?\DateTimeImmutable
+    {
+        return $this->lastSoiaCheckAt;
+    }
+
+    public function setLastSoiaCheckAt(?\DateTimeImmutable $lastSoiaCheckAt): static
+    {
+        $this->lastSoiaCheckAt = $lastSoiaCheckAt;
 
         return $this;
     }

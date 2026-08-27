@@ -215,6 +215,36 @@ class DashboardDeliveries extends AbstractController
     }
 
     /**
+     * Guarda la prueba de entrega, o null si no venia archivo. Es opcional a
+     * proposito: preferible tenerla, pero no imprescindible para cerrar el
+     * despacho.
+     */
+    private function storeProof(Request $r, Delivery $delivery, SluggerInterface $slugger): ?string
+    {
+        $file = $r->files->get('proof');
+
+        if (!$file || !$file->isValid()) {
+            return null;
+        }
+
+        $folder = 'uploads/entregas/'.$delivery->getReference()->getId();
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            return null;
+        }
+
+        $name = $slugger->slug('entrega-'.$delivery->getId()).'-'.uniqid().'.'.$file->guessExtension();
+
+        try {
+            $file->move($folder, $name);
+        } catch (FileException) {
+            return null;
+        }
+
+        return $folder.'/'.$name;
+    }
+
+    /**
      * @return list<EmptyReturn>
      */
     private function returnsFor(Delivery $delivery): array
@@ -262,7 +292,7 @@ class DashboardDeliveries extends AbstractController
     }
 
     #[Route('/dashboard/despachos/{id}/entrega', name: 'delivery_arrival', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function confirmArrival(#[MapEntity(id: 'id')] Delivery $delivery, Request $r): Response
+    public function confirmArrival(#[MapEntity(id: 'id')] Delivery $delivery, Request $r, SluggerInterface $slugger): Response
     {
         if (!$this->isCsrfTokenValid('delivery_arrival', $r->request->get('_token'))) {
             $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
@@ -286,6 +316,11 @@ class DashboardDeliveries extends AbstractController
         // transportista se salto ese paso, se registra ahora.
         if (!$delivery->isDeparted() && $this->workflow->departureStatus($delivery->getReference()) !== null) {
             $this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable());
+        }
+
+        if ($route = $this->storeProof($r, $delivery, $slugger)) {
+            $delivery->setProofRoute($route);
+            $delivery->setProofUploadedAt(new \DateTimeImmutable());
         }
 
         $newStatus = $this->coordinator->confirmArrival($delivery, new \DateTimeImmutable());

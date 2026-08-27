@@ -30,8 +30,10 @@ class Delivery
     #[ORM\JoinColumn(nullable: false)]
     private ?ImportRequest $reference = null;
 
+    // Nullable a proposito: la cita se puede agendar antes de saber que
+    // transportista la cubrira ("Transporte pendiente"), y se asigna despues.
     #[ORM\ManyToOne(inversedBy: 'deliveries')]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: true)]
     private ?FreightHauler $transport = null;
 
     /**
@@ -55,6 +57,17 @@ class Delivery
 
     #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $deliveredAt = null;
+
+    /**
+     * Prueba de entrega opcional (foto, acuse firmado...). Nullable a
+     * proposito, igual que EmptyReturn::eirRoute: no todos los transportistas
+     * la suben al momento.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $proofRoute = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $proofUploadedAt = null;
 
     public function __construct()
     {
@@ -158,6 +171,30 @@ class Delivery
     public function setDeliveredAt(?\DateTimeImmutable $deliveredAt): static
     {
         $this->deliveredAt = $deliveredAt;
+
+        return $this;
+    }
+
+    public function getProofRoute(): ?string
+    {
+        return $this->proofRoute;
+    }
+
+    public function setProofRoute(?string $proofRoute): static
+    {
+        $this->proofRoute = $proofRoute;
+
+        return $this;
+    }
+
+    public function getProofUploadedAt(): ?\DateTimeImmutable
+    {
+        return $this->proofUploadedAt;
+    }
+
+    public function setProofUploadedAt(?\DateTimeImmutable $proofUploadedAt): static
+    {
+        $this->proofUploadedAt = $proofUploadedAt;
 
         return $this;
     }

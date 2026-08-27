@@ -50,6 +50,7 @@
                 <div class="roadmap-label">
                   {{ step }}
                   {% if step in skipped %}<span class="roadmap-tag">no aplicó</span>{% endif %}
+                  {% if step == 'Modulado' and import.moduladoAt %}<span class="roadmap-tag">{{ import.moduladoAt|date('d/m/Y H:i') }}</span>{% endif %}
                   {% if step == import.status %}<span class="roadmap-tag roadmap-tag-current">Actual</span>{% endif %}
                 </div>
               </li>
@@ -62,7 +63,9 @@
         {% elseif import.status == 'Pendiente' %}
           <p class="mb-0 text-body-secondary">
             <i class="bi bi-info-circle"></i>
-            {% if is_granted('ROLE_EXECUTIVE') %}
+            {% if missingByStatus['Capturado'] is defined and missingByStatus['Capturado']|length %}
+              Falta: {{ missingByStatus['Capturado']|join(', ') }}.
+            {% elseif is_granted('ROLE_EXECUTIVE') %}
               Da de alta el pedimento para que el expediente avance.
             {% else %}
               En espera de captura por parte del ejecutivo.
@@ -84,6 +87,26 @@
                 <span class="text-body-secondary">
                   <i class="bi bi-paperclip"></i>
                   Anexa la cuenta de gastos para poder finalizar.
+                </span>
+              {% elseif status == 'Modulado' %}
+                {# Modulado ya no se marca a mano: solo lo confirma el SOIA. #}
+                {% if import.importNumber and import.importNumber != 'Pendiente' %}
+                  <form method="POST" action="{{ path('case_file_soia_query', { id: import.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('case_file_soia_query') }}">
+                    <button type="submit" class="btn btn-primary">
+                      <i class="bi bi-search"></i> Consultar SOIA
+                    </button>
+                  </form>
+                {% else %}
+                  <span class="text-body-secondary">
+                    <i class="bi bi-hourglass-split"></i>
+                    Falta el número de pedimento para poder consultar el SOIA.
+                  </span>
+                {% endif %}
+              {% elseif missingByStatus[status] is defined and missingByStatus[status]|length %}
+                <span class="text-body-secondary">
+                  <i class="bi bi-exclamation-circle"></i>
+                  Falta: {{ missingByStatus[status]|join(', ') }}.
                 </span>
               {% else %}
                 <form method="POST" action="{{ path('case_file_advance', { id: import.id }) }}">
@@ -113,27 +136,34 @@
         <div class="card shadow-sm h-100">
           <div class="card-body">
             <h5 class="card-title mb-3">Alta del pedimento</h5>
-            <form method="POST" action="{{ path('case_file_capture', { id: import.id }) }}">
-              <input type="hidden" name="_token" value="{{ csrf_token('case_file_capture') }}">
+            {% if import.status == 'Pendiente' and missingByStatus['Capturado'] is defined and missingByStatus['Capturado']|length %}
+              <p class="mb-0 text-body-secondary">
+                <i class="bi bi-info-circle"></i>
+                Sube {{ missingByStatus['Capturado']|join(', ') }} en «Documentos del ejecutivo» antes de dar de alta el pedimento.
+              </p>
+            {% else %}
+              <form method="POST" action="{{ path('case_file_capture', { id: import.id }) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('case_file_capture') }}">
 
-              <div class="mb-3">
-                <label for="agencyReference" class="form-label">Referencia de la agencia</label>
-                <input type="text" class="form-control" id="agencyReference" name="agencyReference"
-                       value="{{ import.agencyReference == 'Pendiente' ? '' : import.agencyReference }}"
-                       placeholder="Referencia interna" required>
-              </div>
+                <div class="mb-3">
+                  <label for="agencyReference" class="form-label">Referencia de la agencia</label>
+                  <input type="text" class="form-control" id="agencyReference" name="agencyReference"
+                         value="{{ import.agencyReference == 'Pendiente' ? '' : import.agencyReference }}"
+                         placeholder="Referencia interna" required>
+                </div>
 
-              <div class="mb-3">
-                <label for="importNumber" class="form-label">Número de pedimento</label>
-                <input type="text" class="form-control" id="importNumber" name="importNumber"
-                       value="{{ import.importNumber == 'Pendiente' ? '' : import.importNumber }}"
-                       placeholder="Número de pedimento" required>
-              </div>
+                <div class="mb-3">
+                  <label for="importNumber" class="form-label">Número de pedimento</label>
+                  <input type="text" class="form-control" id="importNumber" name="importNumber"
+                         value="{{ import.importNumber == 'Pendiente' ? '' : import.importNumber }}"
+                         placeholder="Número de pedimento" required>
+                </div>
 
-              <button type="submit" class="btn btn-primary">
-                <i class="bi bi-save"></i> Guardar
-              </button>
-            </form>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-save"></i> Guardar
+                </button>
+              </form>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -171,6 +201,127 @@
             </dl>
           </div>
         </div>
+      </div>
+    </div>
+
+    {# ---------- Documentos del ejecutivo ---------- #}
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Documentos del ejecutivo</h5>
+
+        <table class="table table-sm align-middle mb-3">
+          <thead>
+            <tr>
+              <th scope="col">Documento</th>
+              <th scope="col">Estado</th>
+              {% if is_granted('ROLE_EXECUTIVE') %}<th scope="col" class="text-end">Opciones</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% set proforma = requiredDocuments['Proforma del pedimento'] is defined ? requiredDocuments['Proforma del pedimento'] : null %}
+            <tr>
+              <td>Proforma del pedimento</td>
+              <td>
+                {% if proforma and proforma.route %}
+                  <a href="/{{ proforma.route }}" target="_blank" rel="noopener" download>
+                    <i class="bi bi-download"></i> {{ proforma.route|split('/')|last }}
+                  </a>
+                  <span class="small text-body-secondary">({{ proforma.uploadedAt ? proforma.uploadedAt|date('d/m/Y H:i') : '—' }})</span>
+                {% else %}
+                  <span class="badge text-bg-warning">Falta</span>
+                {% endif %}
+              </td>
+              {% if is_granted('ROLE_EXECUTIVE') %}
+                <td class="text-end">
+                  <form method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center justify-content-end"
+                        action="{{ path('case_file_required_document', { id: import.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('case_file_required_document') }}">
+                    <input type="hidden" name="type" value="Proforma del pedimento">
+                    <input type="file" class="form-control form-control-sm" name="document" style="max-width:180px" required>
+                    <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
+                      {{ proforma and proforma.route ? 'Reemplazar' : 'Subir' }}
+                    </button>
+                  </form>
+                </td>
+              {% endif %}
+            </tr>
+
+            {% for type in requiredDocumentTypes %}
+              {% if type != 'Proforma del pedimento' %}
+                {% set doc = requiredDocuments[type] is defined ? requiredDocuments[type] : null %}
+                <tr>
+                  <td>{{ type }}</td>
+                  <td>
+                    {% if doc and doc.route %}
+                      <a href="/{{ doc.route }}" target="_blank" rel="noopener" download>
+                        <i class="bi bi-download"></i> {{ doc.route|split('/')|last }}
+                      </a>
+                      <span class="small text-body-secondary">({{ doc.uploadedAt ? doc.uploadedAt|date('d/m/Y H:i') : '—' }})</span>
+                    {% else %}
+                      <span class="badge text-bg-warning">Falta</span>
+                    {% endif %}
+                  </td>
+                  {% if is_granted('ROLE_EXECUTIVE') %}
+                    <td class="text-end">
+                      <form method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center justify-content-end"
+                            action="{{ path('case_file_required_document', { id: import.id }) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('case_file_required_document') }}">
+                        <input type="hidden" name="type" value="{{ type }}">
+                        <input type="file" class="form-control form-control-sm" name="document" style="max-width:180px" required>
+                        <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
+                          {{ doc and doc.route ? 'Reemplazar' : 'Subir' }}
+                        </button>
+                      </form>
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+
+        {# Solicitud de anticipo: no bloquea Capturado, admite varias (complementos). #}
+        <h6 class="mb-2">Solicitud de anticipo <span class="small text-body-secondary fw-normal">(opcional, admite varias)</span></h6>
+        {% if advanceRequests|length %}
+          <table class="table table-sm align-middle mb-2">
+            <tbody>
+              {% for a in advanceRequests %}
+                <tr>
+                  <td>
+                    <a href="/{{ a.route }}" target="_blank" rel="noopener" download>
+                      <i class="bi bi-download"></i> {{ a.route|split('/')|last }}
+                    </a>
+                    <span class="small text-body-secondary">({{ a.uploadedAt ? a.uploadedAt|date('d/m/Y H:i') : '—' }})</span>
+                  </td>
+                  {% if is_granted('ROLE_EXECUTIVE') %}
+                    <td class="text-end">
+                      <form method="POST" class="d-inline js-confirm-delete"
+                            action="{{ path('case_file_advance_request_delete', { id: import.id, document: a.id }) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('case_file_advance_request_delete') }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="small text-body-secondary">Sin solicitudes de anticipo anexadas.</p>
+        {% endif %}
+
+        {% if is_granted('ROLE_EXECUTIVE') %}
+          <form method="POST" enctype="multipart/form-data" class="d-flex gap-2 align-items-center"
+                action="{{ path('case_file_advance_request', { id: import.id }) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('case_file_advance_request') }}">
+            <input type="file" class="form-control form-control-sm" name="document" style="max-width:220px" required>
+            <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
+              <i class="bi bi-plus-lg"></i> Agregar
+            </button>
+          </form>
+        {% endif %}
       </div>
     </div>
 
@@ -278,7 +429,13 @@
             <tbody>
               {% for d in import.deliveries %}
                 <tr>
-                  <td>{{ d.transport.companyName }} <span class="text-body-secondary">(CAAT {{ d.transport.caat }})</span></td>
+                  <td>
+                    {% if d.transport %}
+                      {{ d.transport.companyName }} <span class="text-body-secondary">(CAAT {{ d.transport.caat }})</span>
+                    {% else %}
+                      <span class="badge text-bg-warning">Transporte pendiente</span>
+                    {% endif %}
+                  </td>
                   <td>{{ d.date|date('d/m/Y') }} {{ d.hour|date('H:i') }}</td>
                   <td>
                     {% for c in d.containers %}
@@ -295,11 +452,21 @@
                       <div class="small text-body-secondary">Salida {{ d.departedAt|date('d/m/Y H:i') }}</div>
                     {% endif %}
                     {% if d.deliveredAt %}
-                      <div class="small text-body-secondary">Entrega {{ d.deliveredAt|date('d/m/Y H:i') }}</div>
+                      <div class="small text-body-secondary">
+                        Entrega {{ d.deliveredAt|date('d/m/Y H:i') }}
+                        {% if d.proofRoute %}
+                          <a href="/{{ d.proofRoute }}" target="_blank" rel="noopener" title="Ver prueba de entrega">
+                            <i class="bi bi-paperclip"></i>
+                          </a>
+                        {% endif %}
+                      </div>
                     {% endif %}
                   </td>
-                  <td class="text-end">
+                  <td class="text-end text-nowrap">
                     {% if not d.departed and is_granted('ROLE_EXECUTIVE') %}
+                      <button type="button" class="btn btn-sm btn-outline-secondary js-edit-transport-toggle" data-target="edit-transport-{{ d.id }}" title="Editar">
+                        <i class="bi bi-pencil"></i>
+                      </button>
                       <form method="POST" class="d-inline js-confirm-delete"
                             action="{{ path('case_file_transport_cancel', { id: import.id, delivery: d.id }) }}">
                         <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport_cancel') }}">
@@ -310,6 +477,37 @@
                     {% endif %}
                   </td>
                 </tr>
+                {% if not d.departed and is_granted('ROLE_EXECUTIVE') %}
+                  <tr id="edit-transport-{{ d.id }}" class="d-none">
+                    <td colspan="5">
+                      <form method="POST" action="{{ path('case_file_transport_edit', { id: import.id, delivery: d.id }) }}" class="row g-2 align-items-end">
+                        <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport_edit') }}">
+                        <div class="col-md-4">
+                          <label class="form-label small">Transportista</label>
+                          <select class="form-select form-select-sm" name="transport">
+                            <option value="" {{ d.transport is null ? 'selected' : '' }}>Transporte pendiente</option>
+                            {% for h in haulers %}
+                              <option value="{{ h.id }}" {{ d.transport and d.transport.id == h.id ? 'selected' : '' }}>{{ h.companyName }} (CAAT {{ h.caat }})</option>
+                            {% endfor %}
+                          </select>
+                        </div>
+                        <div class="col-md-3">
+                          <label class="form-label small">Fecha</label>
+                          <input type="date" class="form-control form-control-sm" name="date" value="{{ d.date|date('Y-m-d') }}" required>
+                        </div>
+                        <div class="col-md-2">
+                          <label class="form-label small">Hora</label>
+                          <input type="time" class="form-control form-control-sm" name="hour" value="{{ d.hour|date('H:i') }}" required>
+                        </div>
+                        <div class="col-md-3">
+                          <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-save"></i> Actualizar
+                          </button>
+                        </div>
+                      </form>
+                    </td>
+                  </tr>
+                {% endif %}
               {% endfor %}
             </tbody>
           </table>
@@ -326,8 +524,8 @@
 
               <div class="col-md-4">
                 <label for="transport" class="form-label">Transportista</label>
-                <select class="form-select" name="transport" id="transport" required>
-                  <option selected disabled value="">Seleccione un transportista</option>
+                <select class="form-select" name="transport" id="transport">
+                  <option value="">Transporte pendiente (definir después)</option>
                   {% for h in haulers %}
                     <option value="{{ h.id }}">{{ h.companyName }} (CAAT {{ h.caat }})</option>
                   {% endfor %}
@@ -656,6 +854,14 @@
 
       habilitarFilasDinamicas("expense-rows", "expense-add", "expense-row", "expense-remove");
       habilitarFilasDinamicas("document-rows", "document-add", "document-row", "document-remove");
+
+      // Muestra/oculta la fila de edicion de un despacho (transportista/fecha/hora).
+      document.querySelectorAll(".js-edit-transport-toggle").forEach(function (boton) {
+        boton.addEventListener("click", function () {
+          const fila = document.getElementById(boton.dataset.target);
+          if (fila) fila.classList.toggle("d-none");
+        });
+      });
 
       // Un camión no carga más de MAX_CONTAINERS. El servidor lo valida igual;
       // esto solo evita que el usuario descubra el error hasta enviar.

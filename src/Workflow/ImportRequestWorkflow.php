@@ -56,6 +56,25 @@ final class ImportRequestWorkflow
     private const OPTIONAL = [self::OFFSITE_INSPECTION];
 
     /**
+     * Documentos del ejecutivo que hacen falta para llegar a cada estatus.
+     * Es una capa aparte de la secuencia (SEQUENCES/nextStatuses): esta decide
+     * *que* estatus sigue, DOCUMENT_GATES decide si ya se puede *entrar*.
+     *
+     * SCHEDULED y MODULATED no llevan entrada aqui porque su regla no es "un
+     * documento fijo" (ver missingRequirements): SCHEDULED se satisface con el
+     * comprobante O con tener ya un despacho asignado, y MODULATED ya no se
+     * satisface con un documento sino con una consulta SOIA exitosa.
+     *
+     * @var array<string, list<string>>
+     */
+    private const DOCUMENT_GATES = [
+        self::CAPTURED => [RequiredDocumentType::PROFORMA],
+        self::REVALIDATED => [RequiredDocumentType::REVALIDATED_BL],
+        self::PAID => [RequiredDocumentType::FULL_PEDIMENTO, RequiredDocumentType::SIMPLIFIED_PEDIMENTO],
+        self::OFFSITE_INSPECTION => [RequiredDocumentType::INSPECTION_CERTIFICATE],
+    ];
+
+    /**
      * @var array<string, list<string>>
      */
     private const SEQUENCES = [
@@ -152,6 +171,52 @@ final class ImportRequestWorkflow
         return in_array($status, $this->nextStatuses($request), true);
     }
 
+    /**
+     * Que le falta al expediente para poder entrar al estatus indicado, en
+     * frases listas para mostrar. Vacio significa que ya se puede avanzar (en
+     * cuanto a documentos: sigue haciendo falta que $status este en
+     * nextStatuses()).
+     *
+     * @return list<string>
+     */
+    public function missingRequirements(ImportRequest $request, string $status): array
+    {
+        if ($status === self::SCHEDULED) {
+            $satisfied = !$request->getDeliveries()->isEmpty()
+                || $this->hasRequiredDocument($request, RequiredDocumentType::SCHEDULE_PROOF);
+
+            return $satisfied ? [] : [RequiredDocumentType::SCHEDULE_PROOF.' (o asignar transporte con fecha/hora)'];
+        }
+
+        // Modulado ya no se satisface subiendo un documento: solo lo dispara
+        // una consulta SOIA exitosa (ver ModuladoConfirmer), automatica o
+        // manual, nunca el boton generico de avance.
+        if ($status === self::MODULATED) {
+            return ['Usa "Consultar SOIA" para confirmar la modulación'];
+        }
+
+        $missing = [];
+
+        foreach (self::DOCUMENT_GATES[$status] ?? [] as $type) {
+            if (!$this->hasRequiredDocument($request, $type)) {
+                $missing[] = $type;
+            }
+        }
+
+        return $missing;
+    }
+
+    private function hasRequiredDocument(ImportRequest $request, string $type): bool
+    {
+        foreach ($request->getRequiredDocuments() as $document) {
+            if ($document->getType() === $type && $document->getRoute() !== null) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function isFinished(ImportRequest $request): bool
     {
         return $request->getStatus() === self::FINISHED;
@@ -197,11 +262,15 @@ final class ImportRequestWorkflow
      * ¿Se le puede asignar transporte ahora?
      *
      * Tambien cuando ya va en transito: con varios contenedores el primer
-     * camion puede haber salido mientras faltan otros por asignar.
+     * camion puede haber salido mientras faltan otros por asignar. Y tambien
+     * un paso antes de Programado: agendar la cita (con transportista real o
+     * "pendiente") es una de las dos formas de satisfacer ese requisito, asi
+     * que hace falta poder hacerlo desde Pagado, no solo cuando el despacho ya
+     * es el siguiente paso inmediato.
      */
     public function canAssignTransport(ImportRequest $request): bool
     {
-        if ($this->awaitsTransport($request)) {
+        if ($this->awaitsTransport($request) || in_array(self::SCHEDULED, $this->nextStatuses($request), true)) {
             return true;
         }
 

@@ -1,0 +1,89 @@
+<?php
+
+namespace App\Entity;
+
+use App\Repository\RequiredDocumentRepository;
+use Doctrine\ORM\Mapping as ORM;
+
+/**
+ * Documento que el ejecutivo debe anexar para que el expediente pueda avanzar
+ * de etapa (proforma, BL revalidado, pedimentos...), a diferencia de
+ * ImportDocument, que son los que anexa el cliente.
+ *
+ * $route es nullable porque la fila puede existir como "slot" pendiente antes
+ * de que se suba nada.
+ */
+#[ORM\Entity(repositoryClass: RequiredDocumentRepository::class)]
+class RequiredDocument
+{
+    #[ORM\Id]
+    #[ORM\GeneratedValue]
+    #[ORM\Column]
+    private ?int $id = null;
+
+    #[ORM\ManyToOne(inversedBy: 'requiredDocuments')]
+    #[ORM\JoinColumn(nullable: false)]
+    private ?ImportRequest $reference = null;
+
+    #[ORM\Column(length: 255)]
+    private ?string $type = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $route = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $uploadedAt = null;
+
+    public function getId(): ?int
+    {
+        return $this->id;
+    }
+
+    public function getReference(): ?ImportRequest
+    {
+        return $this->reference;
+    }
+
+    public function setReference(?ImportRequest $reference): static
+    {
+        $this->reference = $reference;
+
+        return $this;
+    }
+
+    public function getType(): ?string
+    {
+        return $this->type;
+    }
+
+    public function setType(string $type): static
+    {
+        $this->type = $type;
+
+        return $this;
+    }
+
+    public function getRoute(): ?string
+    {
+        return $this->route;
+    }
+
+    public function setRoute(?string $route): static
+    {
+        $this->route = $route;
+
+        return $this;
+    }
+
+    public function getUploadedAt(): ?\DateTimeImmutable
+    {
+        return $this->uploadedAt;
+    }
+
+    public function setUploadedAt(?\DateTimeImmutable $uploadedAt): static
+    {
+        $this->uploadedAt = $uploadedAt;
+
+        return $this;
+    }
+}

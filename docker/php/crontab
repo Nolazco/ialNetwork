@@ -1,0 +1,7 @@
+# Consulta el SOIA de los expedientes en Programado (ver src/Command/PollSoiaCommand.php).
+# El propio comando decide, expediente por expediente, si ya le toca
+# consultar (una hora tras la cita, cada 20 minutos despues), asi que correr
+# cada 5 minutos es barato y no rompe esa cadencia.
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+*/5 * * * * www-data cd /app && php bin/console app:soia:poll >> var/log/soia_poll.log 2>&1

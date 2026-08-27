@@ -50,7 +50,7 @@
               </td>
               <td>{{ d.reference.cr.name }}</td>
               {% if not isHauler %}
-                <td>{{ d.transport.companyName }}</td>
+                <td>{{ d.transport ? d.transport.companyName : 'Transporte pendiente' }}</td>
               {% endif %}
               <td>{{ d.date|date('d/m/Y') }} {{ d.hour|date('H:i') }}</td>
               <td>
@@ -82,9 +82,10 @@
                     </form>
                   {% endif %}
                   {% if not d.delivered %}
-                    <form method="POST" class="d-inline" action="{{ path('delivery_arrival', { id: d.id }) }}">
+                    <form method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center" action="{{ path('delivery_arrival', { id: d.id }) }}">
                       <input type="hidden" name="_token" value="{{ csrf_token('delivery_arrival') }}">
-                      <button type="submit" class="btn btn-sm btn-primary">
+                      <input type="file" class="form-control form-control-sm" name="proof" style="max-width:140px" title="Prueba de entrega (opcional)">
+                      <button type="submit" class="btn btn-sm btn-primary text-nowrap">
                         <i class="bi bi-check2"></i> Entrega
                       </button>
                     </form>

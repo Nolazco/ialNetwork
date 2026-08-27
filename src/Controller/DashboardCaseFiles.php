@@ -9,10 +9,13 @@ use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\InternInvoice;
 use App\Entity\Operation;
+use App\Entity\RequiredDocument;
 use App\Entity\User;
 use App\Security\CompanyAccess;
+use App\Soia\ModuladoConfirmer;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
+use App\Workflow\RequiredDocumentType;
 use App\Workflow\TransportCoordinator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -49,6 +52,7 @@ class DashboardCaseFiles extends AbstractController
         private readonly OperationCatalog $catalog,
         private readonly TransportCoordinator $transport,
         private readonly CompanyAccess $companyAccess,
+        private readonly ModuladoConfirmer $moduladoConfirmer,
     ) {
     }
 
@@ -71,6 +75,26 @@ class DashboardCaseFiles extends AbstractController
             throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
         }
 
+        $nextStatuses = $this->workflow->nextStatuses($import);
+        $missingByStatus = [];
+
+        foreach ($nextStatuses as $status) {
+            $missingByStatus[$status] = $this->workflow->missingRequirements($import, $status);
+        }
+
+        $singleSlotDocuments = [];
+        $advanceRequests = [];
+
+        foreach ($import->getRequiredDocuments() as $document) {
+            if ($document->getType() === RequiredDocumentType::ADVANCE_REQUEST) {
+                $advanceRequests[] = $document;
+            } else {
+                // Slot unico: si por algun motivo hubiera mas de una fila del
+                // mismo tipo, se queda con la mas reciente.
+                $singleSlotDocuments[$document->getType()] = $document;
+            }
+        }
+
         return $this->render('/dashboard/caseFile.html.twig', [
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
@@ -79,7 +103,8 @@ class DashboardCaseFiles extends AbstractController
             'sequence' => $this->workflow->sequenceFor($import),
             'completed' => $this->workflow->completedStatuses($import),
             'skipped' => $this->workflow->skippedStatuses($import),
-            'nextStatuses' => $this->workflow->nextStatuses($import),
+            'nextStatuses' => $nextStatuses,
+            'missingByStatus' => $missingByStatus,
             'progress' => $this->workflow->progress($import),
             'directions' => ImportRequestWorkflow::DIRECTIONS,
             'types' => ImportRequestWorkflow::TYPES,
@@ -97,6 +122,9 @@ class DashboardCaseFiles extends AbstractController
             'expenses' => $import->getInternInvoices(),
             'allowedExpenseTypes' => self::EXPENSE_EXTENSIONS,
             'allowedDocumentTypes' => self::EXPENSE_EXTENSIONS,
+            'requiredDocumentTypes' => RequiredDocumentType::SINGLE_SLOT,
+            'requiredDocuments' => $singleSlotDocuments,
+            'advanceRequests' => $advanceRequests,
         ]);
     }
 
@@ -205,6 +233,185 @@ class DashboardCaseFiles extends AbstractController
     }
 
     /**
+     * Documentos del ejecutivo, de slot unico (proforma, BL revalidado,
+     * pedimentos...): subir uno nuevo reemplaza al que hubiera, para que se
+     * puedan corregir sin dejar basura de versiones viejas.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/requisitos', name: 'case_file_required_document', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function addRequiredDocument(#[MapEntity(id: 'id')] ImportRequest $import, Request $r, SluggerInterface $slugger): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_required_document', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $type = (string) $r->request->get('type');
+
+        if (!in_array($type, RequiredDocumentType::SINGLE_SLOT, true)) {
+            $this->addFlash('error', 'Tipo de documento no válido.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $file = $r->files->get('document');
+
+        if (!$file || !$file->isValid()) {
+            $this->addFlash('error', 'Selecciona un archivo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $original = $file->getClientOriginalName();
+        $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+
+        if (!in_array($extension, self::EXPENSE_EXTENSIONS, true)) {
+            $this->addFlash('error', sprintf('No se aceptó "%s". Formatos permitidos: %s.', $original, implode(', ', self::EXPENSE_EXTENSIONS)));
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $folder = 'uploads/requisitos/'.$import->getId();
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            $this->addFlash('error', 'No se pudo preparar la carpeta de documentos.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
+
+        try {
+            $file->move($folder, $name);
+        } catch (FileException) {
+            $this->addFlash('error', 'No se pudo guardar el archivo, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $document = null;
+
+        foreach ($import->getRequiredDocuments() as $existing) {
+            if ($existing->getType() === $type) {
+                $document = $existing;
+
+                break;
+            }
+        }
+
+        if ($document === null) {
+            $document = new RequiredDocument();
+            $document->setType($type);
+            $import->addRequiredDocument($document);
+            $this->entityManager->persist($document);
+        } elseif ($document->getRoute() && is_file($document->getRoute())) {
+            unlink($document->getRoute());
+        }
+
+        $document->setRoute($folder.'/'.$name);
+        $document->setUploadedAt(new \DateTimeImmutable());
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', sprintf('"%s" anexado.', $type));
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Solicitudes de anticipo: a diferencia del resto de los documentos del
+     * ejecutivo, admite varias (el anticipo inicial suele llevar
+     * complementos), asi que aqui siempre se agrega una fila nueva.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/requisitos/anticipo', name: 'case_file_advance_request', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function addAdvanceRequest(#[MapEntity(id: 'id')] ImportRequest $import, Request $r, SluggerInterface $slugger): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_advance_request', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $file = $r->files->get('document');
+
+        if (!$file || !$file->isValid()) {
+            $this->addFlash('error', 'Selecciona un archivo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $original = $file->getClientOriginalName();
+        $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+
+        if (!in_array($extension, self::EXPENSE_EXTENSIONS, true)) {
+            $this->addFlash('error', sprintf('No se aceptó "%s". Formatos permitidos: %s.', $original, implode(', ', self::EXPENSE_EXTENSIONS)));
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $folder = 'uploads/requisitos/'.$import->getId();
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            $this->addFlash('error', 'No se pudo preparar la carpeta de documentos.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
+
+        try {
+            $file->move($folder, $name);
+        } catch (FileException) {
+            $this->addFlash('error', 'No se pudo guardar el archivo, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $document = new RequiredDocument();
+        $document->setType(RequiredDocumentType::ADVANCE_REQUEST);
+        $document->setRoute($folder.'/'.$name);
+        $document->setUploadedAt(new \DateTimeImmutable());
+        $import->addRequiredDocument($document);
+
+        $this->entityManager->persist($document);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Solicitud de anticipo anexada.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/requisitos/anticipo/{document}/eliminar', name: 'case_file_advance_request_delete', requirements: ['id' => '\d+', 'document' => '\d+'], methods: ['POST'])]
+    public function deleteAdvanceRequest(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'document')] RequiredDocument $document, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_advance_request_delete', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($document->getReference() !== $import || $document->getType() !== RequiredDocumentType::ADVANCE_REQUEST) {
+            $this->addFlash('error', 'Ese documento no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($document->getRoute() && is_file($document->getRoute())) {
+            unlink($document->getRoute());
+        }
+
+        $this->entityManager->remove($document);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Solicitud de anticipo eliminada.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
      * Aviso al transporte: asigna un camion al expediente.
      *
      * En importacion el camion recoge en el recinto y lleva la mercancia al
@@ -228,12 +435,19 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        $hauler = $this->entityManager->getRepository(FreightHauler::class)->find($r->request->get('transport'));
+        // Vacio es a proposito: "transporte pendiente" cuando ya se tiene la
+        // cita pero todavia no se sabe que transportista la cubrira.
+        $transportId = (string) $r->request->get('transport');
+        $hauler = null;
 
-        if (!$hauler) {
-            $this->addFlash('error', 'Selecciona un transportista.');
+        if ($transportId !== '') {
+            $hauler = $this->entityManager->getRepository(FreightHauler::class)->find($transportId);
 
-            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            if (!$hauler) {
+                $this->addFlash('error', 'Selecciona un transportista válido.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
         }
 
         $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('date'));
@@ -288,7 +502,71 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->persist($delivery);
         $this->entityManager->flush();
 
-        $this->addFlash('success', sprintf('Se avisó a %s para el %s.', $hauler->getCompanyName(), $date->format('d/m/Y')));
+        $this->addFlash('success', sprintf(
+            'Cita registrada para el %s con %s.',
+            $date->format('d/m/Y'),
+            $hauler ? $hauler->getCompanyName() : 'transporte pendiente por asignar'
+        ));
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Corrige un despacho ya creado (por ejemplo, asignar el transportista
+     * real a una cita que se agendó como "transporte pendiente"). Mismo
+     * candado que cancelarlo: una vez que el camión salió, ya no se toca.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/transporte/{delivery}/editar', name: 'case_file_transport_edit', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['POST'])]
+    public function editTransport(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_transport_edit', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($delivery->getReference() !== $import) {
+            $this->addFlash('error', 'Ese despacho no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($delivery->isDeparted()) {
+            $this->addFlash('error', 'No se puede editar un despacho que ya salió.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $transportId = (string) $r->request->get('transport');
+        $hauler = null;
+
+        if ($transportId !== '') {
+            $hauler = $this->entityManager->getRepository(FreightHauler::class)->find($transportId);
+
+            if (!$hauler) {
+                $this->addFlash('error', 'Selecciona un transportista válido.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('date'));
+        $hour = \DateTimeImmutable::createFromFormat('H:i', (string) $r->request->get('hour'));
+
+        if (!$date || !$hour) {
+            $this->addFlash('error', 'La fecha y la hora del despacho son obligatorias.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $delivery->setTransport($hauler);
+        $delivery->setDate($date->setTime(0, 0));
+        $delivery->setHour($hour);
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Despacho actualizado.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
@@ -335,6 +613,19 @@ class DashboardCaseFiles extends AbstractController
             $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        // Dar de alta el pedimento es lo que saca al expediente de "Pendiente",
+        // y eso exige tener ya la proforma: sin ella no hay con que respaldar
+        // el estatus "Capturado".
+        if ($import->getStatus() === ImportRequestWorkflow::PENDING) {
+            $missing = $this->workflow->missingRequirements($import, ImportRequestWorkflow::CAPTURED);
+
+            if ($missing !== []) {
+                $this->addFlash('error', sprintf('Sube antes: %s.', implode(', ', $missing)));
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
         }
 
         $agencyReference = trim((string) $r->request->get('agencyReference'));
@@ -386,6 +677,14 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        $missing = $this->workflow->missingRequirements($import, $status);
+
+        if ($missing !== []) {
+            $this->addFlash('error', sprintf('Falta: %s.', implode(', ', $missing)));
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
         // "Vacío devuelto" lo alcanza el expediente cuando el transportista
         // registra el EIR de cada contenedor, no marcandolo a mano: de otro modo
         // el expediente cerraria sin el respaldo de los patios.
@@ -420,6 +719,45 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', sprintf('El expediente pasó a "%s".', $status));
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Consulta el SOIA a mano. Un poller automático (app:soia:poll) hace lo
+     * mismo empezando una hora después de la cita, pero el ejecutivo puede
+     * forzar una consulta antes de que le toque al automático.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/soia', name: 'case_file_soia_query', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function querySoia(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_soia_query', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (!$import->getImportNumber() || $import->getImportNumber() === ImportRequestWorkflow::PENDING) {
+            $this->addFlash('error', 'El expediente todavía no tiene número de pedimento.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $wasModulated = $import->getStatus() === ImportRequestWorkflow::MODULATED;
+        $result = $this->moduladoConfirmer->attemptConfirm($import);
+
+        if (!$result->found) {
+            $this->addFlash('error', $result->error ?? 'El portal del SOIA no respondió, intenta de nuevo en unos minutos.');
+        } elseif ($import->getStatus() === ImportRequestWorkflow::MODULATED && !$wasModulated) {
+            $this->addFlash('success', sprintf(
+                'Modulación confirmada (%s, %s). El expediente pasó a "Modulado".',
+                $result->estado,
+                $import->getModuladoAt()?->format('d/m/Y H:i') ?? 'sin fecha'
+            ));
+        } else {
+            $this->addFlash('info', sprintf('Estatus actual en el SOIA: %s.', $result->estado));
+        }
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
