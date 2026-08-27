@@ -71,6 +71,7 @@ class DashboardCompanies extends AbstractController{
     $company->setName($r->request->get('name'));
     $company->setRfc($r->request->get('rfc'));
     $company->setAddress($r->request->get('address'));
+    $company->setClassificationContactEmail($this->nullableTrim($r->request->get('classificationContactEmail')));
 
     $entityManager->persist($company);
 
@@ -231,11 +232,19 @@ class DashboardCompanies extends AbstractController{
     $company->setName($name);
     $company->setAddress($address);
     $company->setRfc($rfc);
+    $company->setClassificationContactEmail($this->nullableTrim($data['classificationContactEmail'] ?? null));
 
     $entityManager->persist($company);
     $entityManager->flush();
 
     return new JsonResponse(['success' => true]);
+  }
+
+  private function nullableTrim(mixed $value): ?string
+  {
+    $value = trim((string) $value);
+
+    return $value === '' ? null : $value;
   }
 
   #[Route('/dashboard/empresas/{id}/documentos', methods: ['GET'])]

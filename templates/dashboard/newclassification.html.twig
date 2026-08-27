@@ -1,0 +1,76 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Nueva solicitud de clasificación{% endblock %}
+
+{% block body %}
+  <div class="content">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <h2 class="mb-0">Solicitud de clasificación</h2>
+      <a href="{{ path('classifications') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+
+    {% if companies is empty %}
+      <div class="alert alert-warning">
+        No tienes ninguna empresa afiliada y aprobada todavía. Afíliate a una empresa antes de solicitar una clasificación.
+      </div>
+    {% else %}
+      <form method="POST" enctype="multipart/form-data" action="{{ path('classification_create') }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('classification_create') }}">
+
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <p class="mb-3 text-body-secondary">Solicitando como: <strong>{{ name }} ({{ app.user.email }})</strong></p>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="company" class="form-label">Empresa</label>
+                <select class="form-select" name="company" id="company" required>
+                  <option value="" selected disabled>Selecciona una empresa</option>
+                  {% for c in companies %}
+                    <option value="{{ c.id }}">{{ c.name }} ({{ c.rfc }})</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label for="merchandiseName" class="form-label">Nombre comercial de la mercancía</label>
+                <input type="text" class="form-control" name="merchandiseName" id="merchandiseName" placeholder="Paracetamol, Ibuprofen, etc..." required>
+              </div>
+
+              <div class="col-md-6">
+                <label for="chemicalName" class="form-label">Nombre químico (opcional)</label>
+                <input type="text" class="form-control" name="chemicalName" id="chemicalName" placeholder="4-Acetamidophenol">
+              </div>
+              <div class="col-md-6">
+                <label for="casNumber" class="form-label">Número de CAS (opcional)</label>
+                <input type="text" class="form-control" name="casNumber" id="casNumber" placeholder="XXX-XX-X">
+              </div>
+
+              <div class="col-md-6">
+                <label for="merchandiseUse" class="form-label">Uso de la mercancía</label>
+                <input type="text" class="form-control" name="merchandiseUse" id="merchandiseUse" placeholder="Humano, Veterinario, Plaguicida" required>
+              </div>
+              <div class="col-md-6">
+                <label for="presentation" class="form-label">Presentación de la mercancía</label>
+                <input type="text" class="form-control" name="presentation" id="presentation" placeholder="Polvo, Granular, Tabletas" required>
+              </div>
+
+              <div class="col-12">
+                <label for="documents" class="form-label">Archivos (COA, MSDS, cualquier archivo que consideres necesario)</label>
+                <input type="file" class="form-control" name="documents[]" id="documents" multiple required>
+                <div class="form-text">Permitidos: {{ allowedExtensions|join(', ') }}.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-send"></i> Enviar solicitud
+        </button>
+      </form>
+    {% endif %}
+
+  </div>
+{% endblock %}

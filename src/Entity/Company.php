@@ -25,6 +25,14 @@ class Company
     private ?string $rfc = null;
 
     /**
+     * Se agrega en copia a toda solicitud de clasificación de esta empresa,
+     * ademas del equipo fijo de clasificadores. Opcional: la mayoria de las
+     * empresas no necesita uno.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $classificationContactEmail = null;
+
+    /**
      * @var Collection<int, CompanyDocument>
      */
     #[ORM\OneToMany(targetEntity: CompanyDocument::class, mappedBy: 'idCompany')]
@@ -86,6 +94,18 @@ class Company
     public function setRfc(string $rfc): static
     {
         $this->rfc = $rfc;
+
+        return $this;
+    }
+
+    public function getClassificationContactEmail(): ?string
+    {
+        return $this->classificationContactEmail;
+    }
+
+    public function setClassificationContactEmail(?string $classificationContactEmail): static
+    {
+        $this->classificationContactEmail = $classificationContactEmail;
 
         return $this;
     }

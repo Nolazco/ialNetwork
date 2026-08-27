@@ -30,7 +30,8 @@
                   data-id="{{ c.id }}"
                   data-name="{{ c.name }}"
                   data-address="{{ c.address }}"
-                  data-rfc="{{ c.rfc }}">
+                  data-rfc="{{ c.rfc }}"
+                  data-classification-contact-email="{{ c.classificationContactEmail }}">
                   <i class="bi bi-pencil-square"></i>
                 </button>
                 <button
@@ -89,6 +90,7 @@
         const currentName = btn.getAttribute("data-name");
         const currentAddress = btn.getAttribute("data-address");
         const currentRfc = btn.getAttribute("data-rfc");
+        const currentClassificationContactEmail = btn.getAttribute("data-classification-contact-email");
 
         Swal.fire({
           title: "Editar empresa",
@@ -96,6 +98,7 @@
             <input id="swal-name" class="swal2-input" placeholder="Razon Social" value="${currentName}">
             <input id="swal-address" class="swal2-input" placeholder="Domicilio" value="${currentAddress}">
             <input id="swal-rfc" class="swal2-input" placeholder="RFC" value="${currentRfc}">
+            <input id="swal-classification-contact-email" class="swal2-input" placeholder="Contacto de clasificación (opcional)" value="${currentClassificationContactEmail}">
           `,
           focusConfirm: false,
           showCancelButton: true,
@@ -105,13 +108,14 @@
             const name = document.getElementById("swal-name").value.trim();
             const address = document.getElementById("swal-address").value.trim();
             const rfc = document.getElementById("swal-rfc").value.trim();
+            const classificationContactEmail = document.getElementById("swal-classification-contact-email").value.trim();
 
             if (!name || !address || !rfc) {
               Swal.showValidationMessage("Todos los campos son obligatorios");
               return false;
             }
 
-            return { name, address, rfc };
+            return { name, address, rfc, classificationContactEmail };
           }
         }).then(result => {
           if (result.isConfirmed) {
@@ -133,6 +137,7 @@
                 btn.setAttribute("data-name", updatedData.name);
                 btn.setAttribute("data-address", updatedData.address);
                 btn.setAttribute("data-rfc", updatedData.rfc);
+                btn.setAttribute("data-classification-contact-email", updatedData.classificationContactEmail);
 
                 const row = btn.closest("tr");
                 row.children[0].textContent = updatedData.name;
