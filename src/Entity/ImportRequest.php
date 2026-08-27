@@ -79,6 +79,12 @@ class ImportRequest
     private Collection $requiredDocuments;
 
     /**
+     * @var Collection<int, PrevioReport>
+     */
+    #[ORM\OneToMany(targetEntity: PrevioReport::class, mappedBy: 'reference')]
+    private Collection $previoReports;
+
+    /**
      * Fecha real de modulación que reporta el SOIA, no la fecha en que se
      * detectó desde la app.
      */
@@ -87,10 +93,19 @@ class ImportRequest
 
     /**
      * Última vez que se consultó el SOIA (manual o automático), para que el
-     * poller no vuelva a consultar antes de los 20 minutos.
+     * poller no vuelva a consultar antes de los 5 minutos.
      */
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastSoiaCheckAt = null;
+
+    /**
+     * Cuántas veces el poller automático ya consultó el SOIA por este
+     * expediente. No cuenta las consultas manuales ("Consultar SOIA"): el
+     * límite es para no seguir golpeando el portal indefinidamente si un
+     * expediente nunca modula solo, no para limitar al ejecutivo.
+     */
+    #[ORM\Column(options: ['default' => 0])]
+    private int $soiaPollAttempts = 0;
 
     /**
      * @var Collection<int, Container>
@@ -138,6 +153,7 @@ class ImportRequest
     {
         $this->importDocuments = new ArrayCollection();
         $this->requiredDocuments = new ArrayCollection();
+        $this->previoReports = new ArrayCollection();
         $this->containers = new ArrayCollection();
         $this->emptyReturns = new ArrayCollection();
         $this->internInvoices = new ArrayCollection();
@@ -373,6 +389,35 @@ class ImportRequest
         return $this;
     }
 
+    /**
+     * @return Collection<int, PrevioReport>
+     */
+    public function getPrevioReports(): Collection
+    {
+        return $this->previoReports;
+    }
+
+    public function addPrevioReport(PrevioReport $previoReport): static
+    {
+        if (!$this->previoReports->contains($previoReport)) {
+            $this->previoReports->add($previoReport);
+            $previoReport->setReference($this);
+        }
+
+        return $this;
+    }
+
+    public function removePrevioReport(PrevioReport $previoReport): static
+    {
+        if ($this->previoReports->removeElement($previoReport)) {
+            if ($previoReport->getReference() === $this) {
+                $previoReport->setReference(null);
+            }
+        }
+
+        return $this;
+    }
+
     public function getModuladoAt(): ?\DateTimeImmutable
     {
         return $this->moduladoAt;
@@ -393,6 +438,18 @@ class ImportRequest
     public function setLastSoiaCheckAt(?\DateTimeImmutable $lastSoiaCheckAt): static
     {
         $this->lastSoiaCheckAt = $lastSoiaCheckAt;
+
+        return $this;
+    }
+
+    public function getSoiaPollAttempts(): int
+    {
+        return $this->soiaPollAttempts;
+    }
+
+    public function incrementSoiaPollAttempts(): static
+    {
+        ++$this->soiaPollAttempts;
 
         return $this;
     }

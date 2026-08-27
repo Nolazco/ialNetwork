@@ -1,0 +1,282 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Reporte de previo · {{ import.clientReference }}{% endblock %}
+
+{% block body %}
+  <div class="content">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Reporte de previo</h2>
+        <p class="text-body-secondary mb-0">
+          {{ import.clientReference }} &middot; {{ import.idCompany.name }}
+        </p>
+      </div>
+      <a href="{{ path('case_file', { id: import.id }) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver al expediente
+      </a>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" action="{{ path('case_file_previo_create', { id: import.id }) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('case_file_previo_create') }}">
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Datos generales</h5>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Referencia</label>
+              <input type="text" class="form-control" value="{{ import.clientReference }}" disabled>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Cliente</label>
+              <input type="text" class="form-control" value="{{ import.idCompany.name }}" disabled>
+            </div>
+
+            <div class="col-md-6">
+              <label class="form-label">Tipo de carga</label>
+              <input type="text" class="form-control" value="{{ types[import.type]|default(import.type) }}" disabled>
+            </div>
+            <div class="col-md-6">
+              <label for="place" class="form-label">Lugar del previo</label>
+              <input type="text" class="form-control" name="place" id="place" required>
+            </div>
+
+            <div class="col-md-4">
+              <label class="form-label d-block">Tipo de previo</label>
+              {% for t in types %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input js-previo-type" type="radio" name="type" id="type-{{ loop.index }}" value="{{ t }}" {% if loop.first %}checked{% endif %} required>
+                  <label class="form-check-label" for="type-{{ loop.index }}">{{ t }}</label>
+                </div>
+              {% endfor %}
+            </div>
+
+            <div class="col-md-4">
+              <label for="date" class="form-label">Fecha</label>
+              <input type="date" class="form-control" name="date" id="date" value="{{ "now"|date('Y-m-d') }}" required>
+            </div>
+            <div class="col-md-2">
+              <label for="startTime" class="form-label">Hora inicio</label>
+              <input type="time" class="form-control" name="startTime" id="startTime">
+            </div>
+            <div class="col-md-2">
+              <label for="endTime" class="form-label">Hora fin</label>
+              <input type="time" class="form-control" name="endTime" id="endTime">
+            </div>
+          </div>
+
+          <div id="authority-wrapper" class="mt-3 {% if types|first != 'Inspección' %}d-none{% endif %}">
+            <label class="form-label d-block">Autoridad de inspección</label>
+            {% for a in authorities %}
+              <div class="form-check form-check-inline">
+                <input class="form-check-input" type="checkbox" name="authority[]" id="authority-{{ loop.index }}" value="{{ a }}">
+                <label class="form-check-label" for="authority-{{ loop.index }}">{{ a }}</label>
+              </div>
+            {% endfor %}
+            <div class="mt-2" style="max-width: 260px;">
+              <input type="text" class="form-control form-control-sm" name="authorityOther" placeholder="Otra autoridad">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% if import.type == 'container' %}
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Información del contenedor</h5>
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label for="containerId" class="form-label">Número de contenedor</label>
+                <select class="form-select" name="containerId" id="containerId">
+                  <option value="">Selecciona un contenedor</option>
+                  {% for container in import.containers %}
+                    <option value="{{ container.id }}">{{ container.num }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label for="sealOrigin" class="form-label">Sello de origen</label>
+                <input type="text" class="form-control" name="sealOrigin" id="sealOrigin">
+              </div>
+              <div class="col-md-4">
+                <label for="sealFinal" class="form-label">Sello final</label>
+                <input type="text" class="form-control" name="sealFinal" id="sealFinal">
+              </div>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Transporte</h5>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label for="plates" class="form-label">Placas</label>
+              <input type="text" class="form-control" name="plates" id="plates">
+            </div>
+            <div class="col-md-6">
+              <label for="transportCompanyName" class="form-label">Razón social del transporte</label>
+              <input type="text" class="form-control" name="transportCompanyName" id="transportCompanyName">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Mercancía</h5>
+
+          <div id="goods-rows">
+            <div class="row g-2 align-items-end mb-2 goods-row">
+              <div class="col-md-10">
+                <input type="text" class="form-control" name="goods[]" placeholder="Descripción de la mercancía">
+              </div>
+              <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger w-100 goods-remove" title="Quitar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" id="goods-add">
+            <i class="bi bi-plus-lg"></i> Agregar mercancía
+          </button>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Modelo/Lote</h5>
+
+          <div id="lot-rows">
+            <div class="row g-2 align-items-end mb-2 lot-row">
+              <div class="col-md-4">
+                <input type="text" class="form-control" name="lotIdentifier[]" placeholder="Modelo/Lote">
+              </div>
+              <div class="col-md-6">
+                <textarea class="form-control" name="lotObservations[]" rows="1" placeholder="Observaciones"></textarea>
+              </div>
+              <div class="col-md-2">
+                <button type="button" class="btn btn-outline-danger w-100 lot-remove" title="Quitar">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm mt-1" id="lot-add">
+            <i class="bi bi-plus-lg"></i> Agregar lote
+          </button>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Presentación</h5>
+          <div class="row g-3">
+            <div class="col-md-8">
+              {% for p in presentations %}
+                <div class="form-check form-check-inline">
+                  <input class="form-check-input" type="checkbox" name="presentation[]" id="presentation-{{ loop.index }}" value="{{ p }}">
+                  <label class="form-check-label" for="presentation-{{ loop.index }}">{{ p }}</label>
+                </div>
+              {% endfor %}
+              <div class="mt-2" style="max-width: 260px;">
+                <input type="text" class="form-control form-control-sm" name="presentationOther" placeholder="Otra presentación">
+              </div>
+            </div>
+            <div class="col-md-4">
+              <label for="quantity" class="form-label">Cantidad</label>
+              <input type="text" class="form-control" name="quantity" id="quantity">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Observaciones generales</h5>
+          <textarea class="form-control" name="notes" rows="3"></textarea>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Fotos</h5>
+          <input type="file" class="form-control" name="photos[]" id="photos" accept="image/jpeg,image/png,image/webp" multiple>
+          <div class="form-text">
+            Hasta {{ maxPhotos }} fotos (jpg, jpeg, png, webp). Las primeras 4 se incrustan en el PDF; todas se anexan en un ZIP.
+          </div>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-2">Destinatarios del correo</h5>
+          <p class="mb-1"><strong>Para:</strong> {{ previewTo|join(', ') }}</p>
+          <p class="mb-0"><strong>Cc:</strong> {{ previewCc|join(', ') }}</p>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-file-earmark-pdf"></i> Generar y enviar reporte
+      </button>
+    </form>
+
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // Igual que en el expediente, pero limpiando tambien textarea/select:
+      // aqui las filas de lote llevan un textarea de observaciones, y el
+      // helper original del expediente solo limpiaba <input>.
+      function habilitarFilasDinamicas(rowsId, addId, rowClass, removeClass) {
+        const filas = document.getElementById(rowsId);
+        const agregar = document.getElementById(addId);
+        if (!filas || !agregar) return;
+
+        agregar.addEventListener("click", function () {
+          const nueva = filas.querySelector("." + rowClass).cloneNode(true);
+          nueva.querySelectorAll("input, textarea, select").forEach(i => i.value = "");
+          filas.appendChild(nueva);
+        });
+        filas.addEventListener("click", function (e) {
+          if (!e.target.closest("." + removeClass)) return;
+          const fila = e.target.closest("." + rowClass);
+          if (filas.querySelectorAll("." + rowClass).length > 1) {
+            fila.remove();
+          } else {
+            fila.querySelectorAll("input, textarea, select").forEach(i => i.value = "");
+          }
+        });
+      }
+
+      habilitarFilasDinamicas("goods-rows", "goods-add", "goods-row", "goods-remove");
+      habilitarFilasDinamicas("lot-rows", "lot-add", "lot-row", "lot-remove");
+
+      // La autoridad de inspección solo aplica al tipo "Inspección".
+      const wrapper = document.getElementById("authority-wrapper");
+      document.querySelectorAll(".js-previo-type").forEach(function (radio) {
+        radio.addEventListener("change", function () {
+          wrapper.classList.toggle("d-none", radio.value !== "Inspección");
+        });
+      });
+
+      // Limita la seleccion a maxPhotos, sin depender solo del servidor.
+      const photos = document.getElementById("photos");
+      if (photos) {
+        photos.addEventListener("change", function () {
+          if (photos.files.length > {{ maxPhotos }}) {
+            alert("Selecciona como máximo {{ maxPhotos }} fotos.");
+            photos.value = "";
+          }
+        });
+      }
+    });
+  </script>
+{% endblock %}

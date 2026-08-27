@@ -10,6 +10,7 @@ use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\InternInvoice;
 use App\Entity\Operation;
+use App\Entity\PrevioReport;
 use App\Entity\RequiredDocument;
 use App\Entity\User;
 use App\Security\CompanyAccess;
@@ -121,6 +122,8 @@ class DashboardCaseFiles extends AbstractController
             'maxContainers' => Delivery::MAX_CONTAINERS,
             'requiresEmptyReturn' => $this->workflow->requiresEmptyReturn($import),
             'containersPendingReturn' => $this->transport->containersPendingReturn($import),
+            'previoReports' => $this->entityManager->getRepository(PrevioReport::class)
+                ->findBy(['reference' => $import], ['date' => 'DESC', 'id' => 'DESC']),
             'expenses' => $import->getInternInvoices(),
             'allowedExpenseTypes' => self::EXPENSE_EXTENSIONS,
             'allowedDocumentTypes' => self::EXPENSE_EXTENSIONS,
@@ -729,7 +732,7 @@ class DashboardCaseFiles extends AbstractController
 
     /**
      * Consulta el SOIA a mano. Un poller automático (app:soia:poll) hace lo
-     * mismo empezando una hora después de la cita, pero el ejecutivo puede
+     * mismo empezando 30 minutos después de la cita, pero el ejecutivo puede
      * forzar una consulta antes de que le toque al automático.
      */
     #[IsGranted('ROLE_EXECUTIVE')]
@@ -741,6 +744,15 @@ class DashboardCaseFiles extends AbstractController
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
+
+        // SoiaClient reintenta hasta 5 veces con 30s de timeout por cada una
+        // de sus 2 peticiones (hasta 300s en el peor caso, cuando el portal
+        // no responde): eso solo, sin contar el resto del request, ya rebasa
+        // el max_execution_time por defecto (120s) de php.ini. Si PHP mata la
+        // ejecución a medio camino la sesión se pierde y la vista siguiente
+        // ve al ejecutivo como no autenticado. Se amplía el límite solo para
+        // esta acción en vez de subirlo globalmente.
+        set_time_limit(360);
 
         if (!$import->getImportNumber() || $import->getImportNumber() === ImportRequestWorkflow::PENDING) {
             $this->addFlash('error', 'El expediente todavía no tiene número de pedimento.');

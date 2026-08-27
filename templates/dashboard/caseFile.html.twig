@@ -755,6 +755,68 @@
       </div>
     </div>
 
+    {# ---------- Previos e inspecciones ---------- #}
+    <div class="card shadow-sm mt-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title mb-0">Previos e inspecciones</h5>
+          {% if is_granted('ROLE_EXECUTIVE') %}
+            <a href="{{ path('case_file_previo_new', { id: import.id }) }}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-plus-lg"></i> Generar reporte de previo
+            </a>
+          {% endif %}
+        </div>
+
+        {% if previoReports %}
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Autoridad</th>
+                <th scope="col" class="text-end">Descargas</th>
+                {% if is_granted('ROLE_EXECUTIVE') %}
+                  <th scope="col" class="text-end">Opciones</th>
+                {% endif %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for previo in previoReports %}
+                <tr>
+                  <td>{{ previo.date|date('d/m/Y') }}</td>
+                  <td>{{ previo.type }}</td>
+                  <td>{{ previo.authority ?: '—' }}</td>
+                  <td class="text-end">
+                    <a href="/{{ previo.pdfRoute }}" class="btn btn-sm btn-outline-secondary" download title="Descargar PDF">
+                      <i class="bi bi-file-earmark-pdf"></i> PDF
+                    </a>
+                    {% if previo.photosZipRoute %}
+                      <a href="/{{ previo.photosZipRoute }}" class="btn btn-sm btn-outline-secondary" download title="Descargar fotos">
+                        <i class="bi bi-file-earmark-zip"></i> Fotos
+                      </a>
+                    {% endif %}
+                  </td>
+                  {% if is_granted('ROLE_EXECUTIVE') %}
+                    <td class="text-end">
+                      <form method="POST" class="d-inline js-confirm-delete"
+                            action="{{ path('case_file_previo_delete', { id: import.id, previo: previo.id }) }}">
+                        <input type="hidden" name="_token" value="{{ csrf_token('case_file_previo_delete') }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar reporte">
+                          <i class="bi bi-trash"></i>
+                        </button>
+                      </form>
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-body-secondary mb-0">Todavía no se generan reportes de previo en este expediente.</p>
+        {% endif %}
+      </div>
+    </div>
+
     {# ---------- Maniobras ---------- #}
     <div class="card shadow-sm mt-4">
       <div class="card-body">

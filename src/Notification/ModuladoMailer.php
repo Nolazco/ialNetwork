@@ -3,8 +3,6 @@
 namespace App\Notification;
 
 use App\Entity\ImportRequest;
-use App\Entity\User;
-use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mailer\MailerInterface;
@@ -18,7 +16,7 @@ final class ModuladoMailer
 {
     public function __construct(
         private readonly MailerInterface $mailer,
-        private readonly EntityManagerInterface $entityManager,
+        private readonly RecipientResolver $recipients,
         #[Autowire(env: 'MAILER_FROM_ADDRESS')]
         private readonly string $fromAddress,
     ) {
@@ -26,8 +24,8 @@ final class ModuladoMailer
 
     public function notify(ImportRequest $import): void
     {
-        $to = $this->clientEmails($import);
-        $cc = $this->executiveEmails();
+        $to = $this->recipients->clientEmails($import);
+        $cc = $this->recipients->executiveEmails();
 
         if ($to === [] && $cc === []) {
             return;
@@ -48,42 +46,5 @@ final class ModuladoMailer
         }
 
         $this->mailer->send($email);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function clientEmails(ImportRequest $import): array
-    {
-        $emails = [];
-
-        foreach ($import->getIdCompany()->getAssociateds() as $associated) {
-            if ($associated->isApproved() && $associated->getIdClient()?->getEmail()) {
-                $emails[$associated->getIdClient()->getEmail()] = true;
-            }
-        }
-
-        return array_keys($emails);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function executiveEmails(): array
-    {
-        $emails = [];
-
-        foreach ($this->entityManager->getRepository(User::class)->findAll() as $user) {
-            // ROLE_ADMIN hereda ROLE_EXECUTIVE (role_hierarchy en
-            // security.yaml), pero getRoles() del entity no resuelve la
-            // jerarquia, asi que se comprueban ambos explicitamente.
-            $roles = $user->getRoles();
-
-            if ((in_array('ROLE_EXECUTIVE', $roles, true) || in_array('ROLE_ADMIN', $roles, true)) && $user->getEmail()) {
-                $emails[$user->getEmail()] = true;
-            }
-        }
-
-        return array_keys($emails);
     }
 }

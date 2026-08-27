@@ -15,10 +15,15 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Consulta el SOIA por los expedientes que ya deberían estar modulados.
  *
- * Pensado para correr por cron cada pocos minutos: es este comando el que
- * decide, expediente por expediente, si ya le toca consultar (una hora
- * después de la cita más próxima, y no antes de 20 minutos desde la última
+ * Pensado para correr por cron cada 5 minutos: es este comando el que
+ * decide, expediente por expediente, si ya le toca consultar (30 minutos
+ * después de la cita más próxima, y no antes de 5 minutos desde la última
  * consulta), así que no importa que el cron corra más seguido que esa regla.
+ *
+ * Se rinde tras 100 intentos por expediente (~8 horas de reintentos a razón
+ * de uno cada 5 minutos): pasado ese punto ya no vale la pena seguir
+ * golpeando el portal solo, y el ejecutivo puede forzar una consulta manual
+ * en cualquier momento con el botón "Consultar SOIA" del expediente.
  */
 #[AsCommand(
     name: 'app:soia:poll',
@@ -26,8 +31,16 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 )]
 class PollSoiaCommand extends Command
 {
-    private const WAIT_AFTER_DESPACHO = '+1 hour';
-    private const RECHECK_INTERVAL = '+20 minutes';
+    private const WAIT_AFTER_DESPACHO = '+30 minutes';
+    // Menor a los 5 minutos del cron a propósito: si el intervalo fuera
+    // exactamente igual, una corrida que arranca unos segundos tarde (el
+    // propio tiempo que tarda en correr) empuja lastSoiaCheckAt justo pasado
+    // el borde de los 5 minutos, y la siguiente corrida (exactamente 5
+    // minutos después) cae un poco corta y se salta — en la práctica
+    // termina revisando cada ~10 minutos, no cada 5. Confirmado en
+    // var/log/soia_poll.log: patrón alternado "Revisados: 1"/"Revisados: 0".
+    private const RECHECK_INTERVAL = '+4 minutes';
+    private const MAX_AUTO_ATTEMPTS = 100;
 
     /** Pausa entre consultas de la misma corrida, para no golpear el portal de un jalón. */
     private const PAUSE_BETWEEN_CHECKS_SECONDS = 1;
@@ -61,6 +74,10 @@ class PollSoiaCommand extends Command
                 continue;
             }
 
+            if ($import->getSoiaPollAttempts() >= self::MAX_AUTO_ATTEMPTS) {
+                continue;
+            }
+
             $lastCheck = $import->getLastSoiaCheckAt();
 
             if ($lastCheck !== null && $now < $lastCheck->modify(self::RECHECK_INTERVAL)) {
@@ -68,6 +85,7 @@ class PollSoiaCommand extends Command
             }
 
             ++$checked;
+            $import->incrementSoiaPollAttempts();
             $result = $this->confirmer->attemptConfirm($import);
 
             if ($import->getStatus() === ImportRequestWorkflow::MODULATED) {

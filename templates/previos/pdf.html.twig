@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <style>
+    @page { margin: 22px 28px; }
+    body { font-family: DejaVu Sans, Arial, sans-serif; color: #111; font-size: 11px; }
+    .header { border-bottom: 1px solid #777; margin-bottom: 14px; padding-bottom: 8px; position: relative; }
+    .logo { width: 90px; position: absolute; left: 0; top: 0; }
+    h1 { font-size: 20px; text-align: center; margin: 4px 0 6px; color: #21607a; }
+    .date { position: absolute; right: 0; top: 0; font-size: 10px; }
+    .section { margin-top: 12px; page-break-inside: avoid; }
+    .section-title { font-size: 13px; font-weight: bold; margin-bottom: 6px; }
+    .grid { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
+    .grid td { padding: 3px 5px; vertical-align: top; }
+    .label { font-weight: bold; }
+    table.report { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    table.report th { background: #41b6c8; color: #fff; text-align: left; padding: 6px; }
+    table.report td { padding: 6px; border-bottom: 1px solid #eee; vertical-align: top; word-break: break-word; }
+    table.report tr:nth-child(even) td { background: #f5f5f5; }
+    .observaciones { border-top: 1px solid #bbb; padding-top: 8px; white-space: pre-wrap; word-break: break-word; line-height: 1.45; }
+    .photos { page-break-before: always; }
+    .photo-grid { width: 100%; border-collapse: collapse; }
+    .photo-grid td { width: 50%; padding: 10px; text-align: center; vertical-align: top; }
+    .photo-grid img { max-width: 240px; max-height: 180px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    {% if logo %}<img class="logo" src="{{ logo }}">{% endif %}
+    <div class="date">Fecha: {{ generatedAt|date('d/m/Y') }}</div>
+    <h1>Reporte de Previo</h1>
+  </div>
+
+  <table class="grid">
+    <tr>
+      <td><span class="label">Referencia:</span> {{ import.clientReference }}</td>
+      <td><span class="label">Cliente:</span> {{ import.idCompany.name }}</td>
+    </tr>
+    <tr>
+      <td colspan="2"><span class="label">Lugar del Previo:</span> {{ previo.place }}</td>
+    </tr>
+    <tr>
+      <td><span class="label">Fecha:</span> {{ previo.date|date('d/m/Y') }}</td>
+      <td>
+        <span class="label">Hora Inicio:</span> {{ previo.startTime ? previo.startTime|date('g:i A') : 'No especificado' }}
+        &nbsp; <span class="label">Hora Fin:</span> {{ previo.endTime ? previo.endTime|date('g:i A') : 'No especificado' }}
+      </td>
+    </tr>
+  </table>
+
+  {% if import.type == 'container' %}
+    <div class="section">
+      <div class="section-title">Información del Contenedor</div>
+      <table class="grid">
+        <tr>
+          <td><span class="label">Número de Contenedor:</span> {{ previo.containerNum ?: 'No especificado' }}</td>
+          <td><span class="label">Sello de Origen:</span> {{ previo.sealOrigin ?: 'No especificado' }}</td>
+        </tr>
+        <tr>
+          <td><span class="label">Sello Final:</span> {{ previo.sealFinal ?: 'No especificado' }}</td>
+          <td><span class="label">Tipo de Previo:</span> {{ previo.type }}</td>
+        </tr>
+      </table>
+    </div>
+  {% endif %}
+
+  <div class="section">
+    <div class="section-title">Transporte</div>
+    <table class="grid">
+      <tr>
+        <td><span class="label">Placas:</span> {{ previo.plates ?: 'No especificado' }}</td>
+        <td><span class="label">Razón Social del Transporte:</span> {{ previo.transportCompanyName ?: 'No especificado' }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <table class="grid">
+      {% if import.type != 'container' %}
+        <tr><td colspan="2"><span class="label">Tipo de Previo:</span> {{ previo.type }}</td></tr>
+      {% endif %}
+      <tr>
+        <td colspan="2"><span class="label">Autoridad de Inspección:</span> {{ previo.authority ?: 'No especificado' }}</td>
+      </tr>
+      <tr>
+        <td colspan="2"><span class="label">Presentación de la Mercancía:</span> {{ previo.presentation ?: 'No especificado' }}</td>
+      </tr>
+      <tr>
+        <td colspan="2"><span class="label">Cantidad:</span> {{ previo.quantity ?: 'No especificado' }}</td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <table class="report">
+      <thead><tr><th>Mercancía</th></tr></thead>
+      <tbody>
+        {% for item in previo.goods %}
+          <tr><td>{{ item }}</td></tr>
+        {% else %}
+          <tr><td>No especificado</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <table class="report">
+      <thead><tr><th style="width: 22%;">Modelo/Lote</th><th>Observaciones</th></tr></thead>
+      <tbody>
+        {% for lot in previo.lots %}
+          <tr>
+            <td>{{ lot.identificador ?: 'No especificado' }}</td>
+            <td>{{ lot.observaciones ?: 'No especificado' }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="2">No especificado</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Observaciones Generales:</div>
+    <div class="observaciones">{{ previo.notes ?: 'No especificado' }}</div>
+  </div>
+
+  {% if photos|length %}
+    <div class="photos">
+      <h1>Fotos Adjuntas (solo primeras {{ photos|length }})</h1>
+      <table class="photo-grid">
+        {% for row in photos|batch(2) %}
+          <tr>
+            {% for photo in row %}
+              <td>{% if photo %}<img src="{{ photo }}">{% endif %}</td>
+            {% endfor %}
+            {% if row|length == 1 %}<td></td>{% endif %}
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
+</body>
+</html>
