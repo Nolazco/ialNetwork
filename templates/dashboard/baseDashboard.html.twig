@@ -19,12 +19,13 @@
         display: flex;
         flex-direction: column;
       }
+      /* offcanvas-lg (ver el body) ya resuelve el colapsar/abrir por su
+         cuenta: fijo y oculto bajo "lg", panel normal encima. Aqui solo se
+         fija el ancho y los colores; el fixed+margen de escritorio se agrega
+         aparte porque arriba de "lg" Bootstrap deja el offcanvas en flujo
+         normal, no fijo. */
       .sidebar {
-        height: 100vh;
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: 240px;
+        --bs-offcanvas-width: 240px;
         background-color: #343a40;
         color: white;
       }
@@ -35,11 +36,22 @@
         background-color: #495057;
       }
       .content {
-        margin-left: 240px;
         padding: 20px;
       }
-      .navbar {
-        margin-left: 240px;
+      @media (min-width: 992px) {
+        .sidebar {
+          /* --bs-offcanvas-width solo lo aplica Bootstrap en el modo cajon
+             (bajo "lg"); en el modo panel fijo hay que fijarlo aparte. */
+          width: 240px;
+          height: 100vh;
+          position: fixed;
+          left: 0;
+          top: 0;
+        }
+        .content,
+        .navbar {
+          margin-left: 240px;
+        }
       }
     </style>
   {% endblock %}
@@ -49,56 +61,66 @@
 </head>
 
 <body>
-  <!-- Sidebar -->
-  <div class="sidebar d-flex flex-column p-3">
-    <h4 class="text-center">IAL Network</h4>
-    <hr>
-    <ul class="nav nav-pills flex-column mb-auto">
-      {# Cada rol solo ve lo que puede abrir: antes el menu era el mismo para
-         todos y la mitad de los enlaces terminaba en un 403 o en un 404. #}
-      <li class="nav-item">
-        <a href="/dashboard" class="nav-link {% if app.request.pathinfo == '/dashboard' %}active{% endif %}">Inicio</a>
-      </li>
-      {% if is_granted('ROLE_ADMIN') %}
-        <li>
-          <a href="/dashboard/usuarios" class="nav-link {% if app.request.pathinfo starts with '/dashboard/usuarios' %}active{% endif %}">Usuarios</a>
+  <!-- Sidebar: offcanvas-lg = panel fijo desde "lg", cajon colapsable con
+       fondo y boton de cerrar por debajo de eso. -->
+  <div class="sidebar offcanvas-lg offcanvas-start" tabindex="-1" id="dashboardSidebar" aria-labelledby="dashboardSidebarLabel">
+    <div class="offcanvas-header d-lg-none">
+      <h5 class="offcanvas-title" id="dashboardSidebarLabel">IAL Network</h5>
+      <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" data-bs-target="#dashboardSidebar" aria-label="Cerrar"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column p-3">
+      <h4 class="text-center d-none d-lg-block">IAL Network</h4>
+      <hr class="d-none d-lg-block">
+      <ul class="nav nav-pills flex-column mb-auto">
+        {# Cada rol solo ve lo que puede abrir: antes el menu era el mismo para
+           todos y la mitad de los enlaces terminaba en un 403 o en un 404. #}
+        <li class="nav-item">
+          <a href="/dashboard" class="nav-link {% if app.request.pathinfo == '/dashboard' %}active{% endif %}">Inicio</a>
         </li>
-      {% endif %}
-      {% if is_granted('ROLE_EXECUTIVE') or is_granted('ROLE_CLIENT') %}
-        <li>
-          <a href="/dashboard/empresas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/empresas' %}active{% endif %}">Empresas</a>
-        </li>
-      {% endif %}
-      {% if is_granted('ROLE_EXECUTIVE') %}
-        <li>
-          <a href="/dashboard/proveedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/proveedores' %}active{% endif %}">Proveedores</a>
-        </li>
-        <li>
-          <a href="/dashboard/pedimentos/" class="nav-link {% if app.request.pathinfo starts with '/dashboard/pedimentos' %}active{% endif %}">Pedimentos</a>
-        </li>
-        <li>
-          <a href="/dashboard/recintos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/recintos' %}active{% endif %}">Recintos</a>
-        </li>
-        <li>
-          <a href="/dashboard/afiliaciones" class="nav-link {% if app.request.pathinfo starts with '/dashboard/afiliaciones' %}active{% endif %}">Afiliaciones</a>
-        </li>
-      {% endif %}
-      {% if is_granted('ROLE_EXECUTIVE') or is_granted('ROLE_FH') %}
-        <li>
-          <a href="/dashboard/despachos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/despachos' %}active{% endif %}">Despachos</a>
-        </li>
-      {% endif %}
-    </ul>
+        {% if is_granted('ROLE_ADMIN') %}
+          <li>
+            <a href="/dashboard/usuarios" class="nav-link {% if app.request.pathinfo starts with '/dashboard/usuarios' %}active{% endif %}">Usuarios</a>
+          </li>
+        {% endif %}
+        {% if is_granted('ROLE_EXECUTIVE') or is_granted('ROLE_CLIENT') %}
+          <li>
+            <a href="/dashboard/empresas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/empresas' %}active{% endif %}">Empresas</a>
+          </li>
+        {% endif %}
+        {% if is_granted('ROLE_EXECUTIVE') %}
+          <li>
+            <a href="/dashboard/proveedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/proveedores' %}active{% endif %}">Proveedores</a>
+          </li>
+          <li>
+            <a href="/dashboard/pedimentos/" class="nav-link {% if app.request.pathinfo starts with '/dashboard/pedimentos' %}active{% endif %}">Pedimentos</a>
+          </li>
+          <li>
+            <a href="/dashboard/recintos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/recintos' %}active{% endif %}">Recintos</a>
+          </li>
+          <li>
+            <a href="/dashboard/afiliaciones" class="nav-link {% if app.request.pathinfo starts with '/dashboard/afiliaciones' %}active{% endif %}">Afiliaciones</a>
+          </li>
+        {% endif %}
+        {% if is_granted('ROLE_EXECUTIVE') or is_granted('ROLE_FH') %}
+          <li>
+            <a href="/dashboard/despachos" class="nav-link {% if app.request.pathinfo starts with '/dashboard/despachos' %}active{% endif %}">Despachos</a>
+          </li>
+        {% endif %}
+      </ul>
 
-    <hr>
-    <div>
-      <span>Usuario: {{ name }}</span>
+      <hr>
+      <div>
+        <span>Usuario: {{ name }}</span>
+      </div>
     </div>
   </div>
 
   <!-- Navbar superior -->
   <nav class="navbar navbar-expand-lg bg-body-tertiary shadow-sm">
     <div class="container-fluid">
+      <button class="btn btn-outline-secondary d-lg-none me-2" type="button" data-bs-toggle="offcanvas" data-bs-target="#dashboardSidebar" aria-controls="dashboardSidebar" aria-label="Abrir menú">
+        <i class="bi bi-list fs-4"></i>
+      </button>
       <a class="navbar-brand" href="#">Panel de Control</a>
     </div>
   </nav>
