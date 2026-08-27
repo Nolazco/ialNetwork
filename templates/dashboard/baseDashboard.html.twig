@@ -41,12 +41,18 @@
       @media (min-width: 992px) {
         .sidebar {
           /* --bs-offcanvas-width solo lo aplica Bootstrap en el modo cajon
-             (bajo "lg"); en el modo panel fijo hay que fijarlo aparte. */
+             (bajo "lg"); en el modo panel fijo hay que fijarlo aparte. El
+             !important es obligado: Bootstrap pone
+             ".offcanvas-lg { background-color: transparent !important }" en
+             este mismo breakpoint (asume que en modo panel fijo el fondo lo
+             pone el layout de alrededor), y sin ganarle esa regla el sidebar
+             queda transparente en escritorio. */
           width: 240px;
           height: 100vh;
           position: fixed;
           left: 0;
           top: 0;
+          background-color: #343a40 !important;
         }
         .content,
         .navbar {
