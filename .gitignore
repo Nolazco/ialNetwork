@@ -31,7 +31,7 @@
 npm-debug.log
 yarn-error.log
 ###< symfony/webpack-encore-bundle ###
-public/uploads/empresas
+public/uploads/
 
 ###> certificados locales ###
 # Las CAs de antivirus/proxy son especificas de cada maquina, no se versionan.
