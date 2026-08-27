@@ -125,6 +125,15 @@ class ImportRequest
     #[ORM\Column(length: 255)]
     private ?string $goods = null;
 
+    /**
+     * Lo que el cliente anticipa sobre la inspección al dar de alta la
+     * solicitud (autoridad esperada, "No requiere" o "Por confirmar"). No
+     * decide nada por si solo: el certificado real en "Documentos del
+     * ejecutivo" sigue siendo lo que gatea "Inspección fuera de puerto".
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $expectedInspectionAuthority = null;
+
     public function __construct()
     {
         $this->importDocuments = new ArrayCollection();
@@ -513,6 +522,18 @@ class ImportRequest
     public function setGoods(string $goods): static
     {
         $this->goods = $goods;
+
+        return $this;
+    }
+
+    public function getExpectedInspectionAuthority(): ?string
+    {
+        return $this->expectedInspectionAuthority;
+    }
+
+    public function setExpectedInspectionAuthority(?string $expectedInspectionAuthority): static
+    {
+        $this->expectedInspectionAuthority = $expectedInspectionAuthority;
 
         return $this;
     }

@@ -10,6 +10,7 @@ use App\Entity\Provider;
 use App\Entity\User;
 use App\Security\CompanyAccess;
 use App\Workflow\ImportRequestWorkflow;
+use App\Workflow\InspectionAuthorityCatalog;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
@@ -20,7 +21,10 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardImports extends AbstractController {
-	public function __construct(private readonly CompanyAccess $companyAccess) {
+	public function __construct(
+		private readonly CompanyAccess $companyAccess,
+		private readonly InspectionAuthorityCatalog $inspectionCatalog,
+	) {
 	}
 
 	// El listado global cruza todas las empresas, asi que es solo de la agencia.
@@ -84,7 +88,11 @@ class DashboardImports extends AbstractController {
   		'providers' => $providers,
   		'directions' => ImportRequestWorkflow::DIRECTIONS,
   		'types' => ImportRequestWorkflow::TYPES,
-  		'loged' => 'true'
+  		'loged' => 'true',
+  		'inspectionAuthorities' => InspectionAuthorityCatalog::COMMON,
+  		'inspectionNone' => InspectionAuthorityCatalog::NONE,
+  		'inspectionUnsure' => InspectionAuthorityCatalog::UNSURE,
+  		'inspectionOther' => InspectionAuthorityCatalog::OTHER,
   	]);
   }
 
@@ -146,6 +154,19 @@ class DashboardImports extends AbstractController {
   		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
   	}
 
+  	// Lo que el cliente anticipa sobre la inspeccion: no gatea nada por si
+  	// solo (eso lo sigue decidiendo el certificado real mas adelante), es
+  	// solo un aviso temprano para el ejecutivo.
+  	$inspectionAuthority = $this->inspectionCatalog->resolve(
+  		$r->request->get('inspectionAuthority'),
+  		$r->request->get('customInspectionAuthority')
+  	);
+
+  	if ($inspectionAuthority === null) {
+  		$this->addFlash('error', 'Selecciona si la mercancía requiere inspección.');
+  		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  	}
+
   	$import = new ImportRequest();
   	$import->setClientReference($r->request->get('ref'));
   	$import->setAgencyReference('Pendiente');
@@ -156,6 +177,7 @@ class DashboardImports extends AbstractController {
   	$import->setEta(new \DateTimeImmutable($r->request->get('eta')));
   	// Sin recinto: el cliente rara vez sabe a cual va a llegar su mercancia.
   	// Lo asigna el ejecutivo al dar de alta el pedimento.
+  	$import->setExpectedInspectionAuthority($inspectionAuthority);
   	$import->setDirection($direction);
   	$import->setType($type);
   	$import->setStatus(ImportRequestWorkflow::PENDING);

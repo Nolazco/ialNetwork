@@ -72,6 +72,24 @@
         <i class="bi bi-info-circle"></i>
         El recinto lo asigna la agencia al dar de alta el pedimento.
       </p>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="inspectionAuthority" class="form-label">¿Requiere inspección?</label>
+          <select class="form-select" name="inspectionAuthority" id="inspectionAuthority" required>
+            <option selected disabled value="">Seleccione una opción</option>
+            <option value="{{ inspectionNone }}">{{ inspectionNone }}</option>
+            {% for a in inspectionAuthorities %}
+              <option value="{{ a }}">{{ a }}</option>
+            {% endfor %}
+            <option value="{{ inspectionOther }}">Otra autoridad (especificar)…</option>
+            <option value="{{ inspectionUnsure }}">{{ inspectionUnsure }}</option>
+          </select>
+        </div>
+        <div class="col d-none" id="custom-inspection-wrapper">
+          <label for="customInspectionAuthority" class="form-label">¿Cuál autoridad?</label>
+          <input type="text" class="form-control" name="customInspectionAuthority" id="customInspectionAuthority" placeholder="Nombre de la autoridad">
+        </div>
+      </div>
       <div id="container-fields-wrapper" style="display: none;">
         <label class="form-label mt-3">Contenedores</label>
         <div id="container-fields">
@@ -176,6 +194,20 @@
         toggleProviderBtn.innerHTML = creatingProvider
           ? '<i class="bi bi-list"></i> Elegir del catálogo'
           : '<i class="bi bi-plus-lg"></i> Nuevo proveedor';
+      });
+
+      // El campo libre solo aparece cuando la autoridad no esta en el catalogo.
+      const inspectionSelect = document.getElementById("inspectionAuthority");
+      const inspectionWrapper = document.getElementById("custom-inspection-wrapper");
+      const inspectionCustom = document.getElementById("customInspectionAuthority");
+
+      inspectionSelect.addEventListener("change", function () {
+        const isOther = inspectionSelect.value === {{ inspectionOther|json_encode|raw }};
+        inspectionWrapper.classList.toggle("d-none", !isOther);
+        inspectionCustom.required = isOther;
+        if (!isOther) {
+          inspectionCustom.value = "";
+        }
       });
 
       const typeSelect = document.getElementById("type");

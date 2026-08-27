@@ -197,6 +197,15 @@
               <dt class="col-sm-5">Fecha de arribo</dt>
               <dd class="col-sm-7">{{ import.eta|date('d/m/Y') }}</dd>
 
+              <dt class="col-sm-5">Inspección esperada</dt>
+              <dd class="col-sm-7">
+                {% if import.expectedInspectionAuthority %}
+                  {{ import.expectedInspectionAuthority }}
+                {% else %}
+                  <span class="text-body-secondary">Sin especificar</span>
+                {% endif %}
+              </dd>
+
               <dt class="col-sm-5">Recinto</dt>
               <dd class="col-sm-7">
                 {% if import.cr %}
