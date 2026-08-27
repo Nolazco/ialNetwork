@@ -44,8 +44,11 @@ class ImportRequest
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
     private ?\DateTimeImmutable $eta = null;
 
+    // Nullable a proposito: el cliente no suele saber a que recinto va a
+    // llegar su mercancia, asi que ya no lo elige al dar de alta la
+    // solicitud. Lo asigna el ejecutivo despues, en el alta del pedimento.
     #[ORM\ManyToOne(inversedBy: 'importRequests')]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: true)]
     private ?ContainerYard $cr = null;
 
     #[ORM\Column(length: 255)]

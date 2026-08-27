@@ -159,6 +159,16 @@
                          placeholder="Número de pedimento" required>
                 </div>
 
+                <div class="mb-3">
+                  <label for="yard" class="form-label">Recinto</label>
+                  <select class="form-select" id="yard" name="yard" required>
+                    <option value="" {{ import.cr ? '' : 'selected disabled' }}>Seleccione un recinto</option>
+                    {% for y in yards %}
+                      <option value="{{ y.id }}" {{ import.cr and import.cr.id == y.id ? 'selected' : '' }}>{{ y.name }} (CR {{ y.cr }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
                 <button type="submit" class="btn btn-primary">
                   <i class="bi bi-save"></i> Guardar
                 </button>
@@ -188,7 +198,13 @@
               <dd class="col-sm-7">{{ import.eta|date('d/m/Y') }}</dd>
 
               <dt class="col-sm-5">Recinto</dt>
-              <dd class="col-sm-7">{{ import.cr.name }} (CR {{ import.cr.cr }})</dd>
+              <dd class="col-sm-7">
+                {% if import.cr %}
+                  {{ import.cr.name }} (CR {{ import.cr.cr }})
+                {% else %}
+                  <span class="text-body-secondary">Pendiente de asignar</span>
+                {% endif %}
+              </dd>
 
               <dt class="col-sm-5">Contenedores</dt>
               <dd class="col-sm-7">

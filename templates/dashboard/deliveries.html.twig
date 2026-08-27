@@ -48,7 +48,7 @@
                 {{ directions[d.reference.direction]|default(d.reference.direction) }}
                 <div class="small text-body-secondary">{{ d.reference.goods }}</div>
               </td>
-              <td>{{ d.reference.cr.name }}</td>
+              <td>{{ d.reference.cr ? d.reference.cr.name : 'Sin asignar' }}</td>
               {% if not isHauler %}
                 <td>{{ d.transport ? d.transport.companyName : 'Transporte pendiente' }}</td>
               {% endif %}

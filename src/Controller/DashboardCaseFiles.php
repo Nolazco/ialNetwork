@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Delivery;
 use App\Entity\Container;
+use App\Entity\ContainerYard;
 use App\Entity\FreightHauler;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
@@ -115,6 +116,7 @@ class DashboardCaseFiles extends AbstractController
             'canAssignTransport' => $this->workflow->canAssignTransport($import),
             'awaitsTransport' => $this->workflow->awaitsTransport($import),
             'haulers' => $this->entityManager->getRepository(FreightHauler::class)->findBy([], ['companyName' => 'ASC']),
+            'yards' => $this->entityManager->getRepository(ContainerYard::class)->findBy([], ['name' => 'ASC']),
             'unassignedContainers' => $this->transport->unassignedContainers($import),
             'maxContainers' => Delivery::MAX_CONTAINERS,
             'requiresEmptyReturn' => $this->workflow->requiresEmptyReturn($import),
@@ -630,15 +632,17 @@ class DashboardCaseFiles extends AbstractController
 
         $agencyReference = trim((string) $r->request->get('agencyReference'));
         $importNumber = trim((string) $r->request->get('importNumber'));
+        $yard = $this->entityManager->getRepository(ContainerYard::class)->find($r->request->get('yard'));
 
-        if ($agencyReference === '' || $importNumber === '') {
-            $this->addFlash('error', 'La referencia de la agencia y el número de pedimento son obligatorios.');
+        if ($agencyReference === '' || $importNumber === '' || !$yard) {
+            $this->addFlash('error', 'La referencia de la agencia, el número de pedimento y el recinto son obligatorios.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
         $import->setAgencyReference($agencyReference);
         $import->setImportNumber($importNumber);
+        $import->setCr($yard);
 
         // Dar de alta el pedimento es lo que saca al expediente de "Pendiente".
         // Si ya avanzo mas alla, esto es una correccion y no debe retroceder.

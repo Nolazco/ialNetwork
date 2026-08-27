@@ -16,13 +16,32 @@
       </div>
       <div class="row mt-3">
         <div class="col">
-          <label for="ref" class="form-label">Proveedor</label>
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="provider" class="form-label mb-0">Proveedor</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-provider">
+              <i class="bi bi-plus-lg"></i> Nuevo proveedor
+            </button>
+          </div>
           <select class="form-select" name="provider" id="provider" required>
-            <option selected disabled>Seleccione un proveedor</option>
+            <option value="" selected disabled>Seleccione un proveedor</option>
             {% for p in providers %}
               <option value="{{ p.id }}">{{ p.name }}</option>
             {% endfor %}
           </select>
+          <div id="new-provider-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newProviderName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newProviderName" name="newProviderName" placeholder="Nombre del proveedor">
+            </div>
+            <div class="mb-2">
+              <label for="newProviderTaxId" class="form-label small mb-1">RFC / identificador fiscal</label>
+              <input type="text" class="form-control form-control-sm" id="newProviderTaxId" name="newProviderTaxId" placeholder="RFC o tax ID">
+            </div>
+            <div class="mb-0">
+              <label for="newProviderAddress" class="form-label small mb-1">Dirección</label>
+              <input type="text" class="form-control form-control-sm" id="newProviderAddress" name="newProviderAddress" placeholder="Dirección">
+            </div>
+          </div>
         </div>
         <div class="col">
           <label for="eta" class="form-label">Fecha de arribo</label>
@@ -48,16 +67,11 @@
             {% endfor %}
           </select>
         </div>
-        <div class="col">
-          <label for="yard" class="form-label">Recinto</label>
-          <select class="form-select" name="yard" id="yard" required>
-            <option selected disabled value="">Seleccione un recinto</option>
-            {% for y in yards %}
-              <option value="{{ y.id }}">{{ y.name }} (CR {{ y.cr }})</option>
-            {% endfor %}
-          </select>
-        </div>
       </div>
+      <p class="text-body-secondary small mt-2 mb-0">
+        <i class="bi bi-info-circle"></i>
+        El recinto lo asigna la agencia al dar de alta el pedimento.
+      </p>
       <div id="container-fields-wrapper" style="display: none;">
         <label class="form-label mt-3">Contenedores</label>
         <div id="container-fields">
@@ -138,6 +152,30 @@
             row.querySelectorAll("input").forEach(input => input.value = "");
           }
         }
+      });
+
+      // Alterna entre elegir un proveedor del catalogo o capturar uno nuevo.
+      const providerSelect = document.getElementById("provider");
+      const toggleProviderBtn = document.getElementById("toggle-new-provider");
+      const newProviderFields = document.getElementById("new-provider-fields");
+      let creatingProvider = false;
+
+      toggleProviderBtn.addEventListener("click", function () {
+        creatingProvider = !creatingProvider;
+
+        providerSelect.classList.toggle("d-none", creatingProvider);
+        providerSelect.required = !creatingProvider;
+        providerSelect.value = "";
+
+        newProviderFields.classList.toggle("d-none", !creatingProvider);
+        newProviderFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingProvider;
+          input.value = "";
+        });
+
+        toggleProviderBtn.innerHTML = creatingProvider
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo proveedor';
       });
 
       const typeSelect = document.getElementById("type");

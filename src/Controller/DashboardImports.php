@@ -4,7 +4,6 @@ namespace App\Controller;
 
 use App\Entity\Company;
 use App\Entity\Container;
-use App\Entity\ContainerYard;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\Provider;
@@ -77,14 +76,12 @@ class DashboardImports extends AbstractController {
   	}
 
   	$providers = $entityManager->getRepository(Provider::class)->findAll();
-  	$yards = $entityManager->getRepository(ContainerYard::class)->findAll();
 
   	return $this->render("/dashboard/newimport.html.twig", [
   		'name' => $user->getName(),
   		'role' => $user->getRoles()[0],
   		'rfc' => $rfc,
   		'providers' => $providers,
-  		'yards' => $yards,
   		'directions' => ImportRequestWorkflow::DIRECTIONS,
   		'types' => ImportRequestWorkflow::TYPES,
   		'loged' => 'true'
@@ -99,8 +96,6 @@ class DashboardImports extends AbstractController {
   	}
 
   	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
-  	$yard = $entityManager->getRepository(ContainerYard::class)->find($r->request->get('yard'));
-  	$provider = $entityManager->getRepository(Provider::class)->find($r->request->get('provider'));
 
   	$direction = $r->request->get('direction');
   	$type = $r->request->get('type');
@@ -109,9 +104,39 @@ class DashboardImports extends AbstractController {
   		throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
   	}
 
-  	if (!$company || !$yard || !$provider) {
-  		$this->addFlash('error', 'Empresa, recinto o proveedor no válido.');
+  	if (!$company) {
+  		$this->addFlash('error', 'Empresa no válida.');
   		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  	}
+
+  	// El cliente elige un proveedor del catalogo, o da de alta uno nuevo ahi
+  	// mismo si el suyo todavia no existe: el catalogo es de toda la agencia,
+  	// no hay que esperar a que el ejecutivo lo capture aparte.
+  	$providerId = $r->request->get('provider');
+
+  	if ($providerId) {
+  		$provider = $entityManager->getRepository(Provider::class)->find($providerId);
+
+  		if (!$provider) {
+  			$this->addFlash('error', 'Selecciona un proveedor válido.');
+  			return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  		}
+  	} else {
+  		$providerName = trim((string) $r->request->get('newProviderName'));
+  		$providerTaxId = trim((string) $r->request->get('newProviderTaxId'));
+  		$providerAddress = trim((string) $r->request->get('newProviderAddress'));
+
+  		if ($providerName === '' || $providerTaxId === '' || $providerAddress === '') {
+  			$this->addFlash('error', 'Selecciona un proveedor del catálogo o captura uno nuevo completo.');
+  			return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  		}
+
+  		$provider = new Provider();
+  		$provider->setName($providerName);
+  		$provider->setTaxId($providerTaxId);
+  		$provider->setAddress($providerAddress);
+
+  		$entityManager->persist($provider);
   	}
 
   	// El par direccion + tipo decide la secuencia de estados del expediente, asi
@@ -129,7 +154,8 @@ class DashboardImports extends AbstractController {
   	$import->setGoods($r->request->get('goods'));
   	$import->setImportNumber('Pendiente');
   	$import->setEta(new \DateTimeImmutable($r->request->get('eta')));
-  	$import->setCr($yard);
+  	// Sin recinto: el cliente rara vez sabe a cual va a llegar su mercancia.
+  	// Lo asigna el ejecutivo al dar de alta el pedimento.
   	$import->setDirection($direction);
   	$import->setType($type);
   	$import->setStatus(ImportRequestWorkflow::PENDING);
