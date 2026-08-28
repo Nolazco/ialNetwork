@@ -205,7 +205,15 @@
       <div class="card shadow-sm mb-4">
         <div class="card-body">
           <h5 class="card-title mb-3">Fotos</h5>
-          <input type="file" class="form-control" name="photos[]" id="photos" accept="image/jpeg,image/png,image/webp" multiple>
+          <div class="file-drop-area">
+            <input type="file" name="photos[]" id="photos" accept="image/jpeg,image/png,image/webp" multiple
+                   class="position-absolute top-0 start-0 w-100 h-100" style="opacity: 0;">
+            <div class="file-drop-hint">
+              <i class="bi bi-cloud-arrow-up"></i>
+              Arrastra y suelta fotos aquí, o haz clic para elegir archivos.
+            </div>
+          </div>
+          <ul class="list-group file-drop-list" id="photos-list"></ul>
           <div class="form-text">
             Hasta {{ maxPhotos }} fotos (jpg, jpeg, png, webp). Las primeras 4 se incrustan en el PDF; todas se anexan en un ZIP.
           </div>
@@ -267,16 +275,7 @@
         });
       });
 
-      // Limita la seleccion a maxPhotos, sin depender solo del servidor.
-      const photos = document.getElementById("photos");
-      if (photos) {
-        photos.addEventListener("change", function () {
-          if (photos.files.length > {{ maxPhotos }}) {
-            alert("Selecciona como máximo {{ maxPhotos }} fotos.");
-            photos.value = "";
-          }
-        });
-      }
+      initMultiFileInput({ inputId: "photos", listId: "photos-list", maxFiles: {{ maxPhotos }} });
     });
   </script>
 {% endblock %}

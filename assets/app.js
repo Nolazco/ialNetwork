@@ -2,11 +2,16 @@ import 'bootstrap';
 import "bootstrap/scss/bootstrap.scss";
 import 'bootstrap-icons/font/bootstrap-icons.css';
 import Swal from 'sweetalert2';
+import { initMultiFileInput } from './multi_file_input.js';
 import './styles/app.css';
 
 // Las plantillas Twig invocan Swal desde <script> en linea, asi que tiene que
 // estar en el ambito global. Antes venia del <script> del CDN.
 window.Swal = Swal;
+
+// Igual que Swal: las plantillas con selectores de archivos lo invocan desde
+// <script> en linea.
+window.initMultiFileInput = initMultiFileInput;
 
 // Token CSRF en toda peticion fetch que modifique algo.
 //

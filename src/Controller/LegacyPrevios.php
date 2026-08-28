@@ -27,7 +27,14 @@ class LegacyPrevios extends AbstractController
     public const CARGO_TYPES = ['container' => 'Contenedor', 'lcl' => 'Carga suelta'];
     public const PRESENTATIONS = ['Cajas', 'Pallets', 'Cuñetes'];
     public const PHOTO_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
-    public const MAX_PHOTOS = 8;
+
+    /**
+     * Un despacho con muchas mercancías puede traer fácil 50+ fotos de
+     * evidencia; el límite real de cuántas se aceptan por request lo pone
+     * php.ini (max_file_uploads), esto solo evita un número arbitrariamente
+     * alto.
+     */
+    public const MAX_PHOTOS = 100;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
@@ -56,6 +63,11 @@ class LegacyPrevios extends AbstractController
 
             return $this->redirectToRoute('legacy_previo_new');
         }
+
+        // Hasta MAX_PHOTOS fotos, cada una reescalada con GD y metida al ZIP:
+        // con muchas fotos grandes esto puede tardar más que el
+        // max_execution_time por defecto (120s).
+        set_time_limit(300);
 
         $referencia = trim((string) $r->request->get('referencia'));
         $cliente = trim((string) $r->request->get('cliente'));
