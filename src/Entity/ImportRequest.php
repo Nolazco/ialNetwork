@@ -134,7 +134,7 @@ class ImportRequest
     /**
      * @var Collection<int, Delivery>
      */
-    #[ORM\OneToMany(targetEntity: Delivery::class, mappedBy: 'reference')]
+    #[ORM\ManyToMany(targetEntity: Delivery::class, mappedBy: 'references')]
     private Collection $deliveries;
 
     #[ORM\Column(length: 255)]
@@ -173,7 +173,7 @@ class ImportRequest
     {
         if (!$this->deliveries->contains($delivery)) {
             $this->deliveries->add($delivery);
-            $delivery->setReference($this);
+            $delivery->addReference($this);
         }
 
         return $this;
@@ -181,8 +181,8 @@ class ImportRequest
 
     public function removeDelivery(Delivery $delivery): static
     {
-        if ($this->deliveries->removeElement($delivery) && $delivery->getReference() === $this) {
-            $delivery->setReference(null);
+        if ($this->deliveries->removeElement($delivery)) {
+            $delivery->removeReference($this);
         }
 
         return $this;

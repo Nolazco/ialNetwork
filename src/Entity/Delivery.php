@@ -26,9 +26,19 @@ class Delivery
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\ManyToOne(inversedBy: 'deliveries')]
-    #[ORM\JoinColumn(nullable: false)]
-    private ?ImportRequest $reference = null;
+    /**
+     * Expediente(s) que carga este despacho. Normalmente uno solo, pero un
+     * mismo camion puede cargar mercancia de varios expedientes del mismo
+     * cliente cuando se pagan el mismo dia y van al mismo domicilio — mismo
+     * patron que Container::$reference, que ya es ManyToMany por la misma
+     * razon. La BD ya no garantiza "al menos un expediente" (se perdio el
+     * NOT NULL que tenia el FK singular): esa garantia la dan los
+     * controladores, no el esquema.
+     *
+     * @var Collection<int, ImportRequest>
+     */
+    #[ORM\ManyToMany(targetEntity: ImportRequest::class, inversedBy: 'deliveries')]
+    private Collection $references;
 
     // Nullable a proposito: la cita se puede agendar antes de saber que
     // transportista la cubrira ("Transporte pendiente"), y se asigna despues.
@@ -87,6 +97,7 @@ class Delivery
     public function __construct()
     {
         $this->containers = new ArrayCollection();
+        $this->references = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -94,14 +105,26 @@ class Delivery
         return $this->id;
     }
 
-    public function getReference(): ?ImportRequest
+    /**
+     * @return Collection<int, ImportRequest>
+     */
+    public function getReferences(): Collection
     {
-        return $this->reference;
+        return $this->references;
     }
 
-    public function setReference(?ImportRequest $reference): static
+    public function addReference(ImportRequest $reference): static
     {
-        $this->reference = $reference;
+        if (!$this->references->contains($reference)) {
+            $this->references->add($reference);
+        }
+
+        return $this;
+    }
+
+    public function removeReference(ImportRequest $reference): static
+    {
+        $this->references->removeElement($reference);
 
         return $this;
     }

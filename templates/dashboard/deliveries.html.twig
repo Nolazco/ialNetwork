@@ -41,14 +41,21 @@
           {% for d in deliveries %}
             <tr>
               <td>
-                <strong>{{ d.reference.clientReference }}</strong>
-                <div class="small text-body-secondary">{{ d.reference.idCompany.name }}</div>
+                {% for r in d.references %}
+                  <div{{ not loop.first ? ' class="mt-1 pt-1 border-top"' : '' }}>
+                    <strong>{{ r.clientReference }}</strong>
+                    <div class="small text-body-secondary">{{ r.idCompany.name }}</div>
+                  </div>
+                {% endfor %}
               </td>
               <td>
-                {{ directions[d.reference.direction]|default(d.reference.direction) }}
-                <div class="small text-body-secondary">{{ d.reference.goods }}</div>
+                {% set first = d.references|first %}
+                {{ first ? directions[first.direction]|default(first.direction) : '' }}
+                {% for r in d.references %}
+                  <div class="small text-body-secondary">{{ r.goods }}</div>
+                {% endfor %}
               </td>
-              <td>{{ d.reference.cr ? d.reference.cr.name : 'Sin asignar' }}</td>
+              <td>{{ (d.references|first) and (d.references|first).cr ? (d.references|first).cr.name : 'Sin asignar' }}</td>
               {% if not isHauler %}
                 <td>{{ d.transport ? d.transport.companyName : 'Transporte pendiente' }}</td>
               {% endif %}

@@ -463,11 +463,22 @@
                   </td>
                   <td>{{ d.date|date('d/m/Y') }} {{ d.hour|date('H:i') }}</td>
                   <td>
-                    {% for c in d.containers %}
+                    {% set ownContainers = d.containers|filter(c => c in import.containers) %}
+                    {% for c in ownContainers %}
                       <span class="badge text-bg-secondary">{{ c.num }}</span>
                     {% else %}
                       <span class="text-body-secondary">Carga suelta</span>
                     {% endfor %}
+                    {% set otherContainers = d.containers|length - ownContainers|length %}
+                    {% if otherContainers > 0 %}
+                      <div class="small text-body-secondary">+{{ otherContainers }} de otro expediente</div>
+                    {% endif %}
+                    {% set otherReferences = d.references|filter(r => r.id != import.id)|map(r => r.clientReference) %}
+                    {% if otherReferences|length > 0 %}
+                      <div class="small text-body-secondary">
+                        Compartido con: {{ otherReferences|join(', ') }}
+                      </div>
+                    {% endif %}
                   </td>
                   <td>
                     <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
@@ -588,6 +599,43 @@
                     {% endfor %}
                   </div>
                 </div>
+              {% endif %}
+
+              {% if shareableImports|length > 0 %}
+                <div class="col-12">
+                  <label class="form-label">
+                    Compartir esta unidad con otro(s) expediente(s) (opcional)
+                  </label>
+                  <div class="border rounded p-2" style="max-height: 220px; overflow-y: auto;">
+                    {% for candidate in shareableImports %}
+                      <div class="form-check">
+                        <input class="form-check-input js-additional-import" type="checkbox" name="additionalImports[]"
+                               value="{{ candidate.id }}" id="additional-{{ candidate.id }}"
+                               {% if candidate.type == 'container' %}data-container-target="additional-containers-{{ candidate.id }}"{% endif %}>
+                        <label class="form-check-label" for="additional-{{ candidate.id }}">
+                          {{ candidate.clientReference }} &middot; {{ candidate.idCompany.name }} &middot; {{ types[candidate.type]|default(candidate.type) }}
+                        </label>
+                      </div>
+                    {% endfor %}
+                  </div>
+                  <div class="form-text">Sin restricción de empresa: puedes combinar cualquier expediente, tú decides.</div>
+                </div>
+
+                {% for candidate in shareableImports %}
+                  {% if candidate.type == 'container' %}
+                    <div class="col-md-4 d-none" id="additional-containers-{{ candidate.id }}">
+                      <label class="form-label small">Contenedores de {{ candidate.clientReference }}</label>
+                      <div class="border rounded p-2">
+                        {% for c in shareableContainers[candidate.id]|default([]) %}
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="containers[]" value="{{ c.id }}" id="cont-{{ c.id }}">
+                            <label class="form-check-label" for="cont-{{ c.id }}">{{ c.num }} &middot; {{ c.type }}</label>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endif %}
+                {% endfor %}
               {% endif %}
 
               <div class="col-12">
@@ -958,13 +1006,28 @@
         });
       });
 
-      // Un camión no carga más de MAX_CONTAINERS. El servidor lo valida igual;
-      // esto solo evita que el usuario descubra el error hasta enviar.
+      // Al marcar un expediente adicional para compartir la unidad, se
+      // muestran sus propios contenedores sin asignar (ya vienen precargados
+      // en la pagina, sin ir de vuelta al servidor).
+      document.querySelectorAll(".js-additional-import").forEach(function (checkbox) {
+        checkbox.addEventListener("change", function () {
+          const target = checkbox.dataset.containerTarget && document.getElementById(checkbox.dataset.containerTarget);
+          if (target) {
+            target.classList.toggle("d-none", !checkbox.checked);
+          }
+        });
+      });
+
+      // Un camión no carga más de MAX_CONTAINERS en total, sin importar de
+      // cuántos expedientes distintos vengan los contenedores elegidos. El
+      // servidor lo valida igual; esto solo evita que el usuario descubra el
+      // error hasta enviar.
       const picker = document.getElementById("container-picker");
       if (picker) {
         const max = {{ maxContainers }};
-        const boxes = picker.querySelectorAll("input[type=checkbox]");
-        picker.addEventListener("change", function () {
+        const form = picker.closest("form");
+        form.addEventListener("change", function () {
+          const boxes = form.querySelectorAll('input[name="containers[]"]');
           const marcados = [...boxes].filter(b => b.checked).length;
           boxes.forEach(b => { b.disabled = !b.checked && marcados >= max; });
         });

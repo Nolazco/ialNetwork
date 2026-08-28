@@ -97,6 +97,26 @@ class DashboardCaseFiles extends AbstractController
             }
         }
 
+        // Otros expedientes con los que se podria compartir una misma unidad
+        // (mismo cliente o no, sin restriccion): cualquiera que hoy admita
+        // aviso al transporte, salvo este mismo. Se precalculan sus propios
+        // contenedores sin asignar para que el formulario los muestre/oculte
+        // por JS sin ir de vuelta al servidor.
+        $shareableImports = [];
+        $shareableContainers = [];
+
+        foreach ($this->entityManager->getRepository(ImportRequest::class)->findBy([], ['clientReference' => 'ASC']) as $candidate) {
+            if ($candidate === $import || !$this->workflow->canAssignTransport($candidate)) {
+                continue;
+            }
+
+            $shareableImports[] = $candidate;
+
+            if ($candidate->getType() === ImportRequestWorkflow::TYPE_CONTAINER) {
+                $shareableContainers[$candidate->getId()] = $this->transport->unassignedContainers($candidate);
+            }
+        }
+
         return $this->render('/dashboard/caseFile.html.twig', [
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
@@ -120,6 +140,8 @@ class DashboardCaseFiles extends AbstractController
             'yards' => $this->entityManager->getRepository(ContainerYard::class)->findBy([], ['name' => 'ASC']),
             'unassignedContainers' => $this->transport->unassignedContainers($import),
             'maxContainers' => Delivery::MAX_CONTAINERS,
+            'shareableImports' => $shareableImports,
+            'shareableContainers' => $shareableContainers,
             'requiresEmptyReturn' => $this->workflow->requiresEmptyReturn($import),
             'containersPendingReturn' => $this->transport->containersPendingReturn($import),
             'previoReports' => $this->entityManager->getRepository(PrevioReport::class)
@@ -464,17 +486,50 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        // Otros expedientes que comparten esta misma unidad (mismo cliente o
+        // no: no hay restriccion, el ejecutivo decide). Cada uno se revalida
+        // por su cuenta: lo que venga del formulario no es de fiar.
+        $allImports = [$import];
+
+        foreach ($r->request->all('additionalImports') as $additionalId) {
+            $candidate = $this->entityManager->getRepository(ImportRequest::class)->find($additionalId);
+
+            if (!$candidate || $candidate === $import || !$this->workflow->canAssignTransport($candidate)) {
+                $this->addFlash('error', 'Alguno de los expedientes adicionales ya no admite aviso al transporte.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            // Una unidad hace un solo trayecto: no se puede recoger en el
+            // recinto y en planta a la vez.
+            if ($candidate->getDirection() !== $import->getDirection()) {
+                $this->addFlash('error', 'No se puede compartir una unidad entre una importación y una exportación.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $allImports[] = $candidate;
+        }
+
         $delivery = new Delivery();
-        $delivery->setReference($import);
+
+        foreach ($allImports as $imp) {
+            $delivery->addReference($imp);
+        }
+
         $delivery->setTransport($hauler);
         $delivery->setDate($date->setTime(0, 0));
         $delivery->setHour($hour);
 
-        if ($import->getType() === ImportRequestWorkflow::TYPE_CONTAINER) {
+        $containerizedImports = array_filter($allImports, static fn (ImportRequest $imp) => $imp->getType() === ImportRequestWorkflow::TYPE_CONTAINER);
+
+        if ($containerizedImports !== []) {
             $available = [];
 
-            foreach ($this->transport->unassignedContainers($import) as $container) {
-                $available[$container->getId()] = $container;
+            foreach ($containerizedImports as $imp) {
+                foreach ($this->transport->unassignedContainers($imp) as $container) {
+                    $available[$container->getId()] = $container;
+                }
             }
 
             $chosen = $r->request->all('containers');
@@ -492,10 +547,10 @@ class DashboardCaseFiles extends AbstractController
             }
 
             foreach ($chosen as $containerId) {
-                // Solo contenedores de este expediente que no viajen ya en otro
-                // camion: la lista llega del formulario y no es de fiar.
+                // Solo contenedores de los expedientes elegidos que no viajen
+                // ya en otro camion: la lista llega del formulario y no es de fiar.
                 if (!isset($available[(int) $containerId])) {
-                    $this->addFlash('error', 'Alguno de los contenedores ya está asignado o no pertenece al expediente.');
+                    $this->addFlash('error', 'Alguno de los contenedores ya está asignado o no pertenece a los expedientes elegidos.');
 
                     return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
                 }
@@ -508,9 +563,10 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', sprintf(
-            'Cita registrada para el %s con %s.',
+            'Cita registrada para el %s con %s%s.',
             $date->format('d/m/Y'),
-            $hauler ? $hauler->getCompanyName() : 'transporte pendiente por asignar'
+            $hauler ? $hauler->getCompanyName() : 'transporte pendiente por asignar',
+            count($allImports) > 1 ? sprintf(' (compartida con %d expediente(s) más)', count($allImports) - 1) : ''
         ));
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -531,7 +587,7 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        if ($delivery->getReference() !== $import) {
+        if (!$delivery->getReferences()->contains($import)) {
             $this->addFlash('error', 'Ese despacho no pertenece a este expediente.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -592,7 +648,7 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        if ($delivery->getReference() !== $import) {
+        if (!$delivery->getReferences()->contains($import)) {
             $this->addFlash('error', 'Ese despacho no pertenece a este expediente.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -606,6 +662,23 @@ class DashboardCaseFiles extends AbstractController
 
         if ($delivery->isFailed()) {
             $this->addFlash('error', 'Ese despacho ya está marcado como fallido: queda como registro, no se puede cancelar.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        // Compartido con otro(s) expediente(s): cancelar aqui solo desvincula
+        // a este, la unidad se mantiene para los demas. Solo se borra del
+        // todo cuando este expediente es el unico que le queda.
+        if ($delivery->getReferences()->count() > 1) {
+            $delivery->removeReference($import);
+
+            foreach ($import->getContainers() as $container) {
+                $delivery->removeContainer($container);
+            }
+
+            $this->entityManager->flush();
+
+            $this->addFlash('success', 'Expediente retirado de esa unidad. La cita se mantiene para los demás expedientes que la comparten.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }

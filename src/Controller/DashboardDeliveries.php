@@ -7,6 +7,7 @@ use App\Entity\ContainerYard;
 use App\Entity\Delivery;
 use App\Entity\EmptyReturn;
 use App\Entity\FreightHauler;
+use App\Entity\ImportRequest;
 use App\Entity\User;
 use App\Workflow\DeliveryFailureCatalog;
 use App\Workflow\EmptyReturnCatalog;
@@ -98,12 +99,20 @@ class DashboardDeliveries extends AbstractController
             throw $this->createAccessDeniedException('Ese despacho no está asignado a tu cuenta.');
         }
 
+        $pending = $this->coordinator->containersPendingReturnFor($delivery);
+        $containerOwners = [];
+
+        foreach ($pending as $container) {
+            $containerOwners[$container->getId()] = $this->ownerFor($delivery, $container);
+        }
+
         return $this->render('/dashboard/emptyReturns.html.twig', [
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
             'loged' => 'true',
             'delivery' => $delivery,
-            'pending' => $this->coordinator->containersPendingReturnFor($delivery),
+            'pending' => $pending,
+            'containerOwners' => $containerOwners,
             'returned' => $this->returnsFor($delivery),
             'yards' => $this->entityManager->getRepository(ContainerYard::class)->findBy([], ['name' => 'ASC']),
             'returnTypes' => EmptyReturnCatalog::TYPES,
@@ -157,11 +166,19 @@ class DashboardDeliveries extends AbstractController
             return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
         }
 
+        $owner = $this->ownerFor($delivery, $container);
+
+        if ($owner === null) {
+            $this->addFlash('error', 'Ese contenedor no tiene un expediente único en este despacho; corrígelo antes de registrar el EIR.');
+
+            return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
+        }
+
         $return = new EmptyReturn();
         // addEmptyReturn en vez de setReference: hay que meterlo tambien en la
         // coleccion del expediente, porque confirmEmptyReturn la recorre para
         // saber si ya volvieron todos los contenedores y todavia no hubo flush.
-        $delivery->getReference()->addEmptyReturn($return);
+        $owner->addEmptyReturn($return);
         $return->setTransport($delivery->getTransport());
         $return->setContainer($container);
         $return->setYard($yard);
@@ -190,6 +207,26 @@ class DashboardDeliveries extends AbstractController
     }
 
     /**
+     * Un despacho compartido puede cargar contenedores de mas de un
+     * expediente: el dueño de un contenedor concreto es la interseccion
+     * entre los expedientes del despacho y los del propio contenedor, no
+     * "el" expediente del despacho a secas. Devuelve null si esa
+     * interseccion no da exactamente uno (dato inconsistente, no se adivina).
+     */
+    private function ownerFor(Delivery $delivery, Container $container): ?ImportRequest
+    {
+        $owners = [];
+
+        foreach ($delivery->getReferences() as $candidate) {
+            if ($container->getReference()->contains($candidate)) {
+                $owners[] = $candidate;
+            }
+        }
+
+        return count($owners) === 1 ? $owners[0] : null;
+    }
+
+    /**
      * Guarda el EIR escaneado y devuelve su ruta, o null si no venia archivo.
      */
     private function storeEir(Request $r, Delivery $delivery, Container $container, SluggerInterface $slugger): ?string
@@ -200,7 +237,7 @@ class DashboardDeliveries extends AbstractController
             return null;
         }
 
-        $folder = 'uploads/eir/'.$delivery->getReference()->getId();
+        $folder = 'uploads/eir/'.$delivery->getId();
 
         if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
             return null;
@@ -230,7 +267,7 @@ class DashboardDeliveries extends AbstractController
             return null;
         }
 
-        $folder = 'uploads/entregas/'.$delivery->getReference()->getId();
+        $folder = 'uploads/entregas/'.$delivery->getId();
 
         if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
             return null;
@@ -254,9 +291,11 @@ class DashboardDeliveries extends AbstractController
     {
         $returns = [];
 
-        foreach ($delivery->getReference()->getEmptyReturns() as $return) {
-            if ($delivery->getContainers()->contains($return->getContainer())) {
-                $returns[] = $return;
+        foreach ($delivery->getReferences() as $request) {
+            foreach ($request->getEmptyReturns() as $return) {
+                if ($delivery->getContainers()->contains($return->getContainer())) {
+                    $returns[] = $return;
+                }
             }
         }
 
@@ -290,11 +329,11 @@ class DashboardDeliveries extends AbstractController
             return $this->redirectToRoute('deliveries');
         }
 
-        $newStatus = $this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable());
+        $moved = $this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable());
         $this->entityManager->flush();
 
-        $this->addFlash('success', $newStatus
-            ? sprintf('Salida confirmada. El expediente pasó a "%s".', $newStatus)
+        $this->addFlash('success', $moved !== []
+            ? sprintf('Salida confirmada. %s', $this->describeMoves($moved))
             : 'Salida confirmada.');
 
         return $this->redirectToRoute('deliveries');
@@ -328,8 +367,12 @@ class DashboardDeliveries extends AbstractController
         }
 
         // En importacion la entrega presupone que el camion salio; si el
-        // transportista se salto ese paso, se registra ahora.
-        if (!$delivery->isDeparted() && $this->workflow->departureStatus($delivery->getReference()) !== null) {
+        // transportista se salto ese paso, se registra ahora. Los expedientes
+        // de un mismo despacho siempre comparten direccion (se valida al
+        // agendar la cita), asi que basta con mirar el primero.
+        $firstReference = $delivery->getReferences()->first() ?: null;
+
+        if (!$delivery->isDeparted() && $firstReference && $this->workflow->departureStatus($firstReference) !== null) {
             $this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable());
         }
 
@@ -338,17 +381,25 @@ class DashboardDeliveries extends AbstractController
             $delivery->setProofUploadedAt(new \DateTimeImmutable());
         }
 
-        $newStatus = $this->coordinator->confirmArrival($delivery, new \DateTimeImmutable());
+        $moved = $this->coordinator->confirmArrival($delivery, new \DateTimeImmutable());
         $this->entityManager->flush();
 
-        if ($newStatus) {
-            $this->addFlash('success', sprintf('Entrega confirmada. El expediente pasó a "%s".', $newStatus));
+        if ($moved !== []) {
+            $this->addFlash('success', sprintf('Entrega confirmada. %s', $this->describeMoves($moved)));
         } else {
-            $pending = $this->coordinator->pendingDeliveries($delivery->getReference());
-            $this->addFlash('success', sprintf(
-                'Entrega confirmada. Faltan %d despacho(s) por llegar para cerrar el expediente.',
-                $pending
-            ));
+            $parts = [];
+
+            foreach ($delivery->getReferences() as $request) {
+                $pending = $this->coordinator->pendingDeliveries($request);
+
+                if ($pending > 0) {
+                    $parts[] = sprintf('%s: faltan %d despacho(s) por llegar', $request->getClientReference(), $pending);
+                }
+            }
+
+            $this->addFlash('success', $parts !== []
+                ? sprintf('Entrega confirmada. %s.', implode('; ', $parts))
+                : 'Entrega confirmada.');
         }
 
         return $this->redirectToRoute('deliveries');
@@ -420,6 +471,34 @@ class DashboardDeliveries extends AbstractController
         $hauler = $this->haulerFor($user);
 
         return $hauler !== null && $delivery->getTransport() === $hauler;
+    }
+
+    /**
+     * Arma el mensaje de qué expediente(s) avanzaron tras confirmar salida o
+     * entrega de un despacho — puede ser más de uno si la unidad se comparte.
+     *
+     * @param list<array{request: ImportRequest, status: string}> $moved
+     */
+    private function describeMoves(array $moved): string
+    {
+        $referencesByStatus = [];
+
+        foreach ($moved as $entry) {
+            $referencesByStatus[$entry['status']][] = $entry['request']->getClientReference();
+        }
+
+        $parts = [];
+
+        foreach ($referencesByStatus as $status => $references) {
+            $parts[] = sprintf(
+                '%s %s a "%s".',
+                implode(', ', $references),
+                count($references) > 1 ? 'pasaron' : 'pasó',
+                $status
+            );
+        }
+
+        return implode(' ', $parts);
     }
 
     private function haulerFor(User $user): ?FreightHauler

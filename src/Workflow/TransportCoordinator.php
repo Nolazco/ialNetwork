@@ -21,14 +21,31 @@ final class TransportCoordinator
     }
 
     /**
-     * El transportista confirma que salio. Devuelve el nuevo estado del
-     * expediente, o null si el expediente no se movio.
+     * El transportista confirma que salio. Un despacho compartido entre
+     * varios expedientes (mismo cliente, misma unidad) los mueve a todos de
+     * forma independiente: cada uno avanza solo si a el le toca.
+     *
+     * @return list<array{request: ImportRequest, status: string}>
      */
-    public function confirmDeparture(Delivery $delivery, \DateTimeImmutable $at): ?string
+    public function confirmDeparture(Delivery $delivery, \DateTimeImmutable $at): array
     {
         $delivery->setDepartedAt($at);
 
-        $request = $delivery->getReference();
+        $moved = [];
+
+        foreach ($delivery->getReferences() as $request) {
+            $status = $this->confirmDepartureFor($request);
+
+            if ($status !== null) {
+                $moved[] = ['request' => $request, 'status' => $status];
+            }
+        }
+
+        return $moved;
+    }
+
+    private function confirmDepartureFor(ImportRequest $request): ?string
+    {
         $departure = $this->workflow->departureStatus($request);
 
         // En exportacion no hay trayecto que registrar: el expediente no avanza
@@ -43,15 +60,32 @@ final class TransportCoordinator
     }
 
     /**
-     * El transportista confirma la entrega. El expediente solo avanza cuando ya
-     * no queda ningun despacho pendiente.
+     * El transportista confirma la entrega. Cada expediente del despacho solo
+     * avanza cuando ya no le queda ningun despacho propio pendiente — el
+     * hecho de compartir camion con otro expediente no acelera ni retrasa el
+     * suyo.
+     *
+     * @return list<array{request: ImportRequest, status: string}>
      */
-    public function confirmArrival(Delivery $delivery, \DateTimeImmutable $at): ?string
+    public function confirmArrival(Delivery $delivery, \DateTimeImmutable $at): array
     {
         $delivery->setDeliveredAt($at);
 
-        $request = $delivery->getReference();
+        $moved = [];
 
+        foreach ($delivery->getReferences() as $request) {
+            $status = $this->confirmArrivalFor($request);
+
+            if ($status !== null) {
+                $moved[] = ['request' => $request, 'status' => $status];
+            }
+        }
+
+        return $moved;
+    }
+
+    private function confirmArrivalFor(ImportRequest $request): ?string
+    {
         if ($this->pendingDeliveries($request) > 0) {
             return null;
         }
@@ -143,10 +177,18 @@ final class TransportCoordinator
      */
     public function containersPendingReturnFor(Delivery $delivery): array
     {
+        $pendingByRequest = [];
+
+        foreach ($delivery->getReferences() as $request) {
+            foreach ($this->containersPendingReturn($request) as $container) {
+                $pendingByRequest[$container->getId()] = $container;
+            }
+        }
+
         $pending = [];
 
-        foreach ($this->containersPendingReturn($delivery->getReference()) as $container) {
-            if ($delivery->getContainers()->contains($container)) {
+        foreach ($delivery->getContainers() as $container) {
+            if (isset($pendingByRequest[$container->getId()])) {
                 $pending[] = $container;
             }
         }

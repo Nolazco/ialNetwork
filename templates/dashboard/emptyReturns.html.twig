@@ -9,8 +9,8 @@
       <div>
         <h2 class="mb-1">Devolución de vacíos</h2>
         <p class="text-body-secondary mb-0">
-          Expediente {{ delivery.reference.clientReference }}
-          &middot; {{ delivery.reference.idCompany.name }}
+          Expediente{{ delivery.references|length > 1 ? 's' : '' }}
+          {%- for r in delivery.references %} {{ r.clientReference }} ({{ r.idCompany.name }}){{ not loop.last ? ',' : '' }}{% endfor %}
           &middot; cita {{ delivery.date|date('d/m/Y') }} {{ delivery.hour|date('H:i') }}
         </p>
       </div>
@@ -73,6 +73,9 @@
             <h5 class="card-title mb-3">
               <i class="bi bi-box-seam"></i> {{ c.num }}
               <span class="text-body-secondary fs-6">{{ c.type }}</span>
+              {% if delivery.references|length > 1 and containerOwners[c.id] %}
+                <span class="badge text-bg-secondary fs-6">{{ containerOwners[c.id].clientReference }}</span>
+              {% endif %}
             </h5>
 
             <form method="POST" enctype="multipart/form-data" class="row g-2 align-items-end"
