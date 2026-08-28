@@ -34,7 +34,7 @@
             <th scope="col">Cita</th>
             <th scope="col">Carga</th>
             <th scope="col">Avance</th>
-            {% if isHauler %}<th scope="col" class="text-end">Confirmar</th>{% endif %}
+            <th scope="col" class="text-end">Opciones</th>
           </tr>
         </thead>
         <tbody>
@@ -61,7 +61,7 @@
                 {% endfor %}
               </td>
               <td>
-                <span class="badge {{ d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary') }}">
+                <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
                   {{ d.stage }}
                 </span>
                 {% if d.departedAt %}
@@ -70,9 +70,17 @@
                 {% if d.deliveredAt %}
                   <div class="small text-body-secondary">Entrega {{ d.deliveredAt|date('d/m/Y H:i') }}</div>
                 {% endif %}
+                {% if d.failedAt %}
+                  <div class="small text-danger">
+                    {{ d.failureReason }}
+                    <div class="text-body-secondary">
+                      {{ d.failedAt|date('d/m/Y H:i') }}{{ d.failureReportedBy ? ' · ' ~ d.failureReportedBy.name : '' }}
+                    </div>
+                  </div>
+                {% endif %}
               </td>
-              {% if isHauler %}
-                <td class="text-end text-nowrap">
+              <td class="text-end text-nowrap">
+                {% if isHauler and not d.failed %}
                   {% if not d.departed %}
                     <form method="POST" class="d-inline" action="{{ path('delivery_departure', { id: d.id }) }}">
                       <input type="hidden" name="_token" value="{{ csrf_token('delivery_departure') }}">
@@ -97,12 +105,72 @@
                   {% else %}
                     <span class="text-body-secondary"><i class="bi bi-check2-all"></i></span>
                   {% endif %}
-                </td>
-              {% endif %}
+                {% endif %}
+                {% if not d.departed and not d.failed %}
+                  <button type="button" class="btn btn-sm btn-outline-danger js-report-failure-toggle" data-target="report-failure-{{ d.id }}" title="No se pudo cargar">
+                    <i class="bi bi-exclamation-triangle"></i>
+                  </button>
+                {% endif %}
+              </td>
             </tr>
+            {% if not d.departed and not d.failed %}
+              <tr id="report-failure-{{ d.id }}" class="d-none">
+                <td colspan="{{ isHauler ? 7 : 8 }}">
+                  <form method="POST" action="{{ path('delivery_failure', { id: d.id }) }}" class="row g-2 align-items-end">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delivery_failure') }}">
+                    <div class="col-md-4">
+                      <label class="form-label small">Motivo por el que no se pudo cargar</label>
+                      <select class="form-select form-select-sm js-failure-reason" data-target="failure-other-{{ d.id }}" name="reason" required>
+                        <option value="" selected disabled>Selecciona un motivo</option>
+                        {% for reason in failureReasons %}
+                          <option value="{{ reason }}">{{ reason }}</option>
+                        {% endfor %}
+                        <option value="__otra__">Otra (especificar)…</option>
+                      </select>
+                    </div>
+                    <div class="col-md-5 d-none" id="failure-other-{{ d.id }}">
+                      <label class="form-label small">¿Cuál?</label>
+                      <input type="text" class="form-control form-control-sm" name="customReason" placeholder="Describe el motivo">
+                    </div>
+                    <div class="col-md-3">
+                      <button type="submit" class="btn btn-sm btn-danger">
+                        <i class="bi bi-exclamation-triangle"></i> Marcar como fallido
+                      </button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            {% endif %}
           {% endfor %}
         </tbody>
       </table>
     {% endif %}
   </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // Igual que en el expediente: alterna la fila de captura del motivo.
+      document.querySelectorAll(".js-report-failure-toggle").forEach(function (boton) {
+        boton.addEventListener("click", function () {
+          const fila = document.getElementById(boton.dataset.target);
+          if (fila) {
+            fila.classList.toggle("d-none");
+          }
+        });
+      });
+
+      // El motivo libre solo aparece cuando se elige "Otra".
+      document.querySelectorAll(".js-failure-reason").forEach(function (select) {
+        select.addEventListener("change", function () {
+          const wrapper = document.getElementById(select.dataset.target);
+          const isOther = select.value === "__otra__";
+          wrapper.classList.toggle("d-none", !isOther);
+          wrapper.querySelector("input").required = isOther;
+        });
+      });
+    });
+  </script>
 {% endblock %}

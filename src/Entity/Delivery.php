@@ -69,6 +69,21 @@ class Delivery
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $proofUploadedAt = null;
 
+    /**
+     * Cuando la carga no se pudo realizar (la autoridad la rechazó, la unidad
+     * no cumplió requisitos...). Se marca, no se borra: queda como registro
+     * permanente para que el ejecutivo tenga el contexto al reprogramar.
+     */
+    #[ORM\Column(type: Types::DATETIME_IMMUTABLE, nullable: true)]
+    private ?\DateTimeImmutable $failedAt = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $failureReason = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $failureReportedBy = null;
+
     public function __construct()
     {
         $this->containers = new ArrayCollection();
@@ -209,12 +224,54 @@ class Delivery
         return $this->deliveredAt !== null;
     }
 
+    public function isFailed(): bool
+    {
+        return $this->failedAt !== null;
+    }
+
+    public function getFailedAt(): ?\DateTimeImmutable
+    {
+        return $this->failedAt;
+    }
+
+    public function setFailedAt(?\DateTimeImmutable $failedAt): static
+    {
+        $this->failedAt = $failedAt;
+
+        return $this;
+    }
+
+    public function getFailureReason(): ?string
+    {
+        return $this->failureReason;
+    }
+
+    public function setFailureReason(?string $failureReason): static
+    {
+        $this->failureReason = $failureReason;
+
+        return $this;
+    }
+
+    public function getFailureReportedBy(): ?User
+    {
+        return $this->failureReportedBy;
+    }
+
+    public function setFailureReportedBy(?User $failureReportedBy): static
+    {
+        $this->failureReportedBy = $failureReportedBy;
+
+        return $this;
+    }
+
     /**
      * Etiqueta del avance de este despacho, para pintarla en los listados.
      */
     public function getStage(): string
     {
         return match (true) {
+            $this->isFailed() => 'Fallido',
             $this->isDelivered() => 'Entregado',
             $this->isDeparted() => 'En tránsito',
             default => 'Asignado',

@@ -470,7 +470,7 @@
                     {% endfor %}
                   </td>
                   <td>
-                    <span class="badge {{ d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary') }}">
+                    <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
                       {{ d.stage }}
                     </span>
                     {% if d.departedAt %}
@@ -486,9 +486,17 @@
                         {% endif %}
                       </div>
                     {% endif %}
+                    {% if d.failedAt %}
+                      <div class="small text-danger">
+                        {{ d.failureReason }}
+                        <div class="text-body-secondary">
+                          {{ d.failedAt|date('d/m/Y H:i') }}{{ d.failureReportedBy ? ' · ' ~ d.failureReportedBy.name : '' }}
+                        </div>
+                      </div>
+                    {% endif %}
                   </td>
                   <td class="text-end text-nowrap">
-                    {% if not d.departed and is_granted('ROLE_EXECUTIVE') %}
+                    {% if not d.departed and not d.failed and is_granted('ROLE_EXECUTIVE') %}
                       <button type="button" class="btn btn-sm btn-outline-secondary js-edit-transport-toggle" data-target="edit-transport-{{ d.id }}" title="Editar">
                         <i class="bi bi-pencil"></i>
                       </button>
@@ -502,7 +510,7 @@
                     {% endif %}
                   </td>
                 </tr>
-                {% if not d.departed and is_granted('ROLE_EXECUTIVE') %}
+                {% if not d.departed and not d.failed and is_granted('ROLE_EXECUTIVE') %}
                   <tr id="edit-transport-{{ d.id }}" class="d-none">
                     <td colspan="5">
                       <form method="POST" action="{{ path('case_file_transport_edit', { id: import.id, delivery: d.id }) }}" class="row g-2 align-items-end">

@@ -8,6 +8,7 @@ use App\Entity\Delivery;
 use App\Entity\EmptyReturn;
 use App\Entity\FreightHauler;
 use App\Entity\User;
+use App\Workflow\DeliveryFailureCatalog;
 use App\Workflow\EmptyReturnCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\TransportCoordinator;
@@ -40,6 +41,7 @@ class DashboardDeliveries extends AbstractController
         private readonly TransportCoordinator $coordinator,
         private readonly ImportRequestWorkflow $workflow,
         private readonly EmptyReturnCatalog $returnCatalog,
+        private readonly DeliveryFailureCatalog $failureCatalog,
     ) {
     }
 
@@ -79,6 +81,7 @@ class DashboardDeliveries extends AbstractController
             'isHauler' => !$this->isGranted('ROLE_EXECUTIVE'),
             'directions' => ImportRequestWorkflow::DIRECTIONS,
             'pendingReturns' => $pendingReturns,
+            'failureReasons' => DeliveryFailureCatalog::COMMON,
         ]);
     }
 
@@ -281,6 +284,12 @@ class DashboardDeliveries extends AbstractController
             return $this->redirectToRoute('deliveries');
         }
 
+        if ($delivery->isFailed()) {
+            $this->addFlash('error', 'Ese despacho está marcado como fallido, no se puede confirmar la salida.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
         $newStatus = $this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable());
         $this->entityManager->flush();
 
@@ -312,6 +321,12 @@ class DashboardDeliveries extends AbstractController
             return $this->redirectToRoute('deliveries');
         }
 
+        if ($delivery->isFailed()) {
+            $this->addFlash('error', 'Ese despacho está marcado como fallido, no se puede confirmar la entrega.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
         // En importacion la entrega presupone que el camion salio; si el
         // transportista se salto ese paso, se registra ahora.
         if (!$delivery->isDeparted() && $this->workflow->departureStatus($delivery->getReference()) !== null) {
@@ -335,6 +350,61 @@ class DashboardDeliveries extends AbstractController
                 $pending
             ));
         }
+
+        return $this->redirectToRoute('deliveries');
+    }
+
+    /**
+     * El despacho no se pudo realizar (la autoridad rechazó la carga, la
+     * unidad no cumplió requisitos...). A diferencia de salida/entrega, aquí
+     * sí puede reportar el ejecutivo además del transportista: el aviso a
+     * veces llega por teléfono, no por la app.
+     */
+    #[Route('/dashboard/despachos/{id}/fallo', name: 'delivery_failure', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function reportFailure(#[MapEntity(id: 'id')] Delivery $delivery, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('delivery_failure', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        if (!$this->ownsDelivery($delivery) && !$this->isGranted('ROLE_EXECUTIVE')) {
+            $this->addFlash('error', 'Ese despacho no está asignado a tu cuenta.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        if ($delivery->isDeparted()) {
+            $this->addFlash('error', 'Ese despacho ya salió, no se puede marcar como fallido.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        if ($delivery->isFailed()) {
+            $this->addFlash('warning', 'Ese despacho ya estaba marcado como fallido.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        $reason = $this->failureCatalog->resolve($r->request->get('reason'), $r->request->get('customReason'));
+
+        if ($reason === null) {
+            $this->addFlash('error', 'Selecciona el motivo por el que no se pudo realizar la carga.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $delivery->setFailedAt(new \DateTimeImmutable());
+        $delivery->setFailureReason($reason);
+        $delivery->setFailureReportedBy($user);
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Despacho marcado como fallido. El ejecutivo puede reprogramar desde el expediente.');
 
         return $this->redirectToRoute('deliveries');
     }

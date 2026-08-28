@@ -543,6 +543,12 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        if ($delivery->isFailed()) {
+            $this->addFlash('error', 'Ese despacho ya está marcado como fallido, no se puede editar. Agenda uno nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
         $transportId = (string) $r->request->get('transport');
         $hauler = null;
 
@@ -594,6 +600,12 @@ class DashboardCaseFiles extends AbstractController
 
         if ($delivery->isDeparted()) {
             $this->addFlash('error', 'No se puede cancelar un despacho que ya salió.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($delivery->isFailed()) {
+            $this->addFlash('error', 'Ese despacho ya está marcado como fallido: queda como registro, no se puede cancelar.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }

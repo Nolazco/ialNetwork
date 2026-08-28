@@ -75,7 +75,9 @@ final class TransportCoordinator
         $pending = 0;
 
         foreach ($request->getDeliveries() as $delivery) {
-            if (!$delivery->isDelivered()) {
+            // Un despacho fallido nunca se va a entregar: es un callejon sin
+            // salida que una nueva cita reemplaza, no algo que siga pendiente.
+            if (!$delivery->isDelivered() && !$delivery->isFailed()) {
                 ++$pending;
             }
         }
@@ -162,6 +164,12 @@ final class TransportCoordinator
         $assigned = [];
 
         foreach ($request->getDeliveries() as $delivery) {
+            // Un despacho fallido no se queda con el contenedor: vuelve a
+            // estar disponible para una nueva cita.
+            if ($delivery->isFailed()) {
+                continue;
+            }
+
             foreach ($delivery->getContainers() as $container) {
                 $assigned[$container->getId()] = true;
             }
