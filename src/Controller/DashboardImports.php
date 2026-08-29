@@ -4,11 +4,13 @@ namespace App\Controller;
 
 use App\Entity\Company;
 use App\Entity\Container;
+use App\Entity\Forwarder;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\Provider;
 use App\Entity\User;
 use App\Security\CompanyAccess;
+use App\Workflow\EmailListParser;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\InspectionAuthorityCatalog;
 use Doctrine\ORM\EntityManagerInterface;
@@ -80,12 +82,16 @@ class DashboardImports extends AbstractController {
   	}
 
   	$providers = $entityManager->getRepository(Provider::class)->findAll();
+  	// Solo id/nombre llegan a esta plantilla: los forwarders pueden tener
+  	// cuentas bancarias, pero eso nunca debe ser visible para el cliente.
+  	$forwarders = $entityManager->getRepository(Forwarder::class)->findAll();
 
   	return $this->render("/dashboard/newimport.html.twig", [
   		'name' => $user->getName(),
   		'role' => $user->getRoles()[0],
   		'rfc' => $rfc,
   		'providers' => $providers,
+  		'forwarders' => $forwarders,
   		'directions' => ImportRequestWorkflow::DIRECTIONS,
   		'types' => ImportRequestWorkflow::TYPES,
   		'loged' => 'true',
@@ -147,6 +153,42 @@ class DashboardImports extends AbstractController {
   		$entityManager->persist($provider);
   	}
 
+  	// La mercancia no siempre viene consignada al cliente: a veces viene
+  	// consignada a un forwarder, que el cliente elige del catalogo o da de
+  	// alta aqui mismo (solo nombre + correos de contacto — sus cuentas
+  	// bancarias se capturan aparte, desde el catalogo interno, nunca desde
+  	// este formulario).
+  	$consignedTo = $r->request->get('consignedTo', 'cliente');
+  	$forwarder = null;
+
+  	if ($consignedTo === 'forwarder') {
+  		$forwarderId = $r->request->get('forwarderId');
+
+  		if ($forwarderId) {
+  			$forwarder = $entityManager->getRepository(Forwarder::class)->find($forwarderId);
+
+  			if (!$forwarder) {
+  				$this->addFlash('error', 'Selecciona un forwarder válido.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+  		} else {
+  			$forwarderName = trim((string) $r->request->get('newForwarderName'));
+  			$forwarderEmails = EmailListParser::parse((string) $r->request->get('newForwarderEmails'));
+
+  			if ($forwarderName === '' || $forwarderEmails === []) {
+  				$this->addFlash('error', 'Selecciona un forwarder del catálogo o captura uno nuevo completo, con al menos un correo válido.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+
+  			$forwarder = new Forwarder();
+  			$forwarder->setName($forwarderName);
+  			$forwarder->setContactEmails($forwarderEmails);
+  			$forwarder->setBankAccounts([]);
+
+  			$entityManager->persist($forwarder);
+  		}
+  	}
+
   	// El par direccion + tipo decide la secuencia de estados del expediente, asi
   	// que no puede quedar en cualquier valor.
   	if (!isset(ImportRequestWorkflow::DIRECTIONS[$direction]) || !isset(ImportRequestWorkflow::TYPES[$type])) {
@@ -172,6 +214,7 @@ class DashboardImports extends AbstractController {
   	$import->setAgencyReference('Pendiente');
   	$import->setIdCompany($company);
   	$import->setIdProvider($provider);
+  	$import->setForwarder($forwarder);
   	$import->setGoods($r->request->get('goods'));
   	$import->setImportNumber('Pendiente');
   	$import->setEta(new \DateTimeImmutable($r->request->get('eta')));

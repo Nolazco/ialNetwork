@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Devolución de vacío registrada</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7f9; padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden;">
+          <tr>
+            <td style="background-color:#41b6c8; padding:20px 24px;">
+              <span style="color:#ffffff; font-size:18px; font-weight:bold;">IAL Network</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px; font-size:16px; color:#212529;">
+                Se registró la devolución de vacío del contenedor <strong>{{ containerNum }}</strong> del expediente <strong>{{ clientReference }}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
+                <tr>
+                  <td style="color:#909090;">Contenedor</td>
+                  <td><strong>{{ containerNum }}{{ containerType ? ' · ' ~ containerType : '' }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Tipo de devolución</td>
+                  <td><strong>{{ returnType }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Patio</td>
+                  <td><strong>{{ yardName }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Fecha</td>
+                  <td><strong>{{ returnDate|date('d/m/Y') }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Folio EIR</td>
+                  <td><strong>{{ eir }}</strong></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

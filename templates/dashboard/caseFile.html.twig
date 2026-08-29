@@ -191,6 +191,9 @@
               <dt class="col-sm-5">Proveedor</dt>
               <dd class="col-sm-7">{{ import.idProvider.name }}</dd>
 
+              <dt class="col-sm-5">Consignado a</dt>
+              <dd class="col-sm-7">{{ import.forwarder ? 'Forwarder: ' ~ import.forwarder.name : 'Cliente' }}</dd>
+
               <dt class="col-sm-5">Mercancía</dt>
               <dd class="col-sm-7">{{ import.goods }}</dd>
 

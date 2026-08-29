@@ -37,6 +37,17 @@ final class RecipientResolver
     }
 
     /**
+     * Los correos de contacto del forwarder al que viene consignado el
+     * expediente, o una lista vacia si viene consignado al cliente directo.
+     *
+     * @return list<string>
+     */
+    public function forwarderEmails(ImportRequest $import): array
+    {
+        return array_keys(array_flip($import->getForwarder()?->getContactEmails() ?? []));
+    }
+
+    /**
      * @return list<string>
      */
     public function executiveEmails(): array

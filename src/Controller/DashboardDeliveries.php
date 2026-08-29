@@ -9,6 +9,7 @@ use App\Entity\EmptyReturn;
 use App\Entity\FreightHauler;
 use App\Entity\ImportRequest;
 use App\Entity\User;
+use App\Notification\ForwarderMailer;
 use App\Workflow\DeliveryFailureCatalog;
 use App\Workflow\EmptyReturnCatalog;
 use App\Workflow\ImportRequestWorkflow;
@@ -43,6 +44,7 @@ class DashboardDeliveries extends AbstractController
         private readonly ImportRequestWorkflow $workflow,
         private readonly EmptyReturnCatalog $returnCatalog,
         private readonly DeliveryFailureCatalog $failureCatalog,
+        private readonly ForwarderMailer $forwarderMailer,
     ) {
     }
 
@@ -194,6 +196,10 @@ class DashboardDeliveries extends AbstractController
 
         $newStatus = $this->coordinator->confirmEmptyReturn($return);
         $this->entityManager->flush();
+
+        if ($owner->getForwarder() !== null) {
+            $this->forwarderMailer->notifyEmptyReturn($return, $owner);
+        }
 
         if ($newStatus) {
             $this->addFlash('success', sprintf('Vacío %s devuelto. El expediente pasó a "%s".', $container->getNum(), $newStatus));

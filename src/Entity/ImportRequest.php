@@ -24,6 +24,13 @@ class ImportRequest
     #[ORM\JoinColumn(nullable: false)]
     private ?Provider $idProvider = null;
 
+    // Nullable: la mayoria de las mercancias vienen consignadas al cliente
+    // directo. Si no es nulo, el expediente esta consignado a ese forwarder
+    // en vez de al cliente (ver Forwarder y ForwarderMailer).
+    #[ORM\ManyToOne(inversedBy: 'importRequests')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Forwarder $forwarder = null;
+
     #[ORM\Column(length: 255)]
     private ?string $clientReference = null;
 
@@ -213,6 +220,18 @@ class ImportRequest
     public function setIdProvider(?Provider $idProvider): static
     {
         $this->idProvider = $idProvider;
+
+        return $this;
+    }
+
+    public function getForwarder(): ?Forwarder
+    {
+        return $this->forwarder;
+    }
+
+    public function setForwarder(?Forwarder $forwarder): static
+    {
+        $this->forwarder = $forwarder;
 
         return $this;
     }

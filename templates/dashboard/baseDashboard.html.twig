@@ -103,6 +103,9 @@
             <a href="/dashboard/proveedores" class="nav-link {% if app.request.pathinfo starts with '/dashboard/proveedores' %}active{% endif %}">Proveedores</a>
           </li>
           <li>
+            <a href="/dashboard/forwarders" class="nav-link {% if app.request.pathinfo starts with '/dashboard/forwarders' %}active{% endif %}">Forwarders</a>
+          </li>
+          <li>
             <a href="/dashboard/pedimentos/" class="nav-link {% if app.request.pathinfo starts with '/dashboard/pedimentos' %}active{% endif %}">Pedimentos</a>
           </li>
           <li>
@@ -125,6 +128,14 @@
       <hr>
       <div>
         <span>Usuario: {{ name }}</span>
+      </div>
+      <div class="d-grid gap-1 mt-2">
+        <a href="{{ path('index') }}" class="btn btn-sm btn-outline-light text-start">
+          <i class="bi bi-house"></i> Volver al inicio
+        </a>
+        <a href="{{ path('logout') }}" class="btn btn-sm btn-outline-light text-start">
+          <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+        </a>
       </div>
     </div>
   </div>

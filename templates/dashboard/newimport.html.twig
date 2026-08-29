@@ -50,6 +50,40 @@
       </div>
       <div class="row mt-3">
         <div class="col">
+          <label class="form-label">Consignado a</label>
+          <select class="form-select" name="consignedTo" id="consignedTo" required>
+            <option value="cliente" selected>Cliente</option>
+            <option value="forwarder">Forwarder</option>
+          </select>
+        </div>
+        <div class="col d-none" id="forwarder-wrapper">
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="forwarderId" class="form-label mb-0">Forwarder</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-forwarder">
+              <i class="bi bi-plus-lg"></i> Nuevo forwarder
+            </button>
+          </div>
+          <select class="form-select" name="forwarderId" id="forwarderId">
+            <option value="" selected disabled>Seleccione un forwarder</option>
+            {% for f in forwarders %}
+              <option value="{{ f.id }}">{{ f.name }}</option>
+            {% endfor %}
+          </select>
+          <div id="new-forwarder-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newForwarderName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newForwarderName" name="newForwarderName" placeholder="Nombre del forwarder">
+            </div>
+            <div class="mb-0">
+              <label for="newForwarderEmails" class="form-label small mb-1">Correos de contacto</label>
+              <input type="text" class="form-control form-control-sm" id="newForwarderEmails" name="newForwarderEmails" placeholder="correo1@forwarder.com; correo2@forwarder.com">
+              <div class="form-text small">Puedes capturar varios, separados por punto y coma.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
           <label for="direction" class="form-label">Operación</label>
           <select class="form-select" name="direction" id="direction" required>
             <option selected disabled value="">Seleccione la operación</option>
@@ -194,6 +228,55 @@
         toggleProviderBtn.innerHTML = creatingProvider
           ? '<i class="bi bi-list"></i> Elegir del catálogo'
           : '<i class="bi bi-plus-lg"></i> Nuevo proveedor';
+      });
+
+      // Alterna si el embarque viene consignado al cliente o a un forwarder,
+      // y dentro de forwarder, entre elegir uno del catalogo o capturar uno
+      // nuevo (mismo mecanismo que el bloque de proveedor de arriba).
+      const consignedToSelect = document.getElementById("consignedTo");
+      const forwarderWrapper = document.getElementById("forwarder-wrapper");
+      const forwarderSelect = document.getElementById("forwarderId");
+      const toggleForwarderBtn = document.getElementById("toggle-new-forwarder");
+      const newForwarderFields = document.getElementById("new-forwarder-fields");
+      let creatingForwarder = false;
+
+      function toggleForwarderVisibility() {
+        const showForwarder = consignedToSelect.value === "forwarder";
+        forwarderWrapper.classList.toggle("d-none", !showForwarder);
+        forwarderSelect.required = showForwarder && !creatingForwarder;
+
+        if (!showForwarder) {
+          creatingForwarder = false;
+          forwarderSelect.classList.remove("d-none");
+          forwarderSelect.value = "";
+          newForwarderFields.classList.add("d-none");
+          newForwarderFields.querySelectorAll("input").forEach(function (input) {
+            input.required = false;
+            input.value = "";
+          });
+          toggleForwarderBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nuevo forwarder';
+        }
+      }
+
+      consignedToSelect.addEventListener("change", toggleForwarderVisibility);
+      toggleForwarderVisibility();
+
+      toggleForwarderBtn.addEventListener("click", function () {
+        creatingForwarder = !creatingForwarder;
+
+        forwarderSelect.classList.toggle("d-none", creatingForwarder);
+        forwarderSelect.required = !creatingForwarder;
+        forwarderSelect.value = "";
+
+        newForwarderFields.classList.toggle("d-none", !creatingForwarder);
+        newForwarderFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingForwarder;
+          input.value = "";
+        });
+
+        toggleForwarderBtn.innerHTML = creatingForwarder
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo forwarder';
       });
 
       // El campo libre solo aparece cuando la autoridad no esta en el catalogo.
