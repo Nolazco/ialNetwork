@@ -94,10 +94,28 @@ class Delivery
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
     private ?User $failureReportedBy = null;
 
+    /**
+     * Transportista que devolvera los contenedores vacios, si es distinto
+     * del que entrego. Nullable: por defecto es el mismo (ver getTransport()
+     * en DashboardDeliveries::registerEmptyReturn(), que hace el fallback).
+     */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?FreightHauler $returnTransport = null;
+
+    /**
+     * Traspasos locales que salieron de este despacho (ver LocalTransfer).
+     *
+     * @var Collection<int, LocalTransfer>
+     */
+    #[ORM\OneToMany(targetEntity: LocalTransfer::class, mappedBy: 'fromDelivery')]
+    private Collection $transfersOut;
+
     public function __construct()
     {
         $this->containers = new ArrayCollection();
         $this->references = new ArrayCollection();
+        $this->transfersOut = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -288,6 +306,89 @@ class Delivery
         return $this;
     }
 
+    public function getReturnTransport(): ?FreightHauler
+    {
+        return $this->returnTransport;
+    }
+
+    public function setReturnTransport(?FreightHauler $returnTransport): static
+    {
+        $this->returnTransport = $returnTransport;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, LocalTransfer>
+     */
+    public function getTransfersOut(): Collection
+    {
+        return $this->transfersOut;
+    }
+
+    /**
+     * ¿Este despacho todavia le debe algo (un contenedor, o su lugar de
+     * carga suelta) al expediente indicado? Es la unidad correcta para
+     * decidir avance, no "isDelivered()/isFailed()" a secas: un despacho
+     * compartido de carga suelta puede haber traspasado la parte de UN
+     * expediente y seguir debiendole la entrega al otro, y eso no lo dice
+     * ningun timestamp del despacho completo.
+     */
+    public function stillOwes(ImportRequest $reference): bool
+    {
+        if (!$this->references->contains($reference) || $this->isDelivered() || $this->isFailed()) {
+            return false;
+        }
+
+        if ($reference->getContainers()->isEmpty()) {
+            // Carga suelta: aqui el traspaso es del expediente completo, no
+            // de una parte — si ya hay uno registrado para el, este
+            // despacho ya no le debe nada.
+            foreach ($this->transfersOut as $transfer) {
+                if ($transfer->getReference() === $reference) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Contenerizado: le debe mientras le quede aqui algun contenedor
+        // suyo (los traspasados ya se quitaron de $containers).
+        foreach ($this->containers as $container) {
+            if ($container->getReference()->contains($reference)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Ya salio y ya no le debe nada a ninguno de sus expedientes (todo lo
+     * que traia se traspaso a otras unidades): es un callejon sin salida que
+     * una o mas continuaciones reemplazan, no un despacho que siga "en
+     * transito" de verdad.
+     */
+    public function isHandedOff(): bool
+    {
+        if (!$this->isDeparted() || $this->isDelivered()) {
+            return false;
+        }
+
+        if ($this->transfersOut->isEmpty()) {
+            return false;
+        }
+
+        foreach ($this->references as $reference) {
+            if ($this->stillOwes($reference)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /**
      * Etiqueta del avance de este despacho, para pintarla en los listados.
      */
@@ -296,6 +397,7 @@ class Delivery
         return match (true) {
             $this->isFailed() => 'Fallido',
             $this->isDelivered() => 'Entregado',
+            $this->isHandedOff() => 'Traspasado',
             $this->isDeparted() => 'En tránsito',
             default => 'Asignado',
         };
