@@ -8,6 +8,7 @@ use App\Entity\User;
 use App\Notification\PrevioReportMailer;
 use App\Previo\PrevioReportPdfGenerator;
 use App\Security\CompanyAccess;
+use App\Service\UploadPath;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\InspectionAuthorityCatalog;
 use Doctrine\ORM\EntityManagerInterface;
@@ -49,6 +50,7 @@ class DashboardPrevios extends AbstractController
         private readonly CompanyAccess $companyAccess,
         private readonly PrevioReportPdfGenerator $pdfGenerator,
         private readonly PrevioReportMailer $mailer,
+        private readonly UploadPath $uploadPath,
     ) {
     }
 
@@ -270,10 +272,22 @@ class DashboardPrevios extends AbstractController
             }
         }
 
+        // El PDF si se protege (a diferencia de las fotos/zip de arriba, que
+        // a proposito se quedan bajo public/ para poder descargarse sin
+        // sesion en cualquier momento): se escribe fuera de public/, aunque
+        // el valor guardado en pdfRoute sigue siendo la misma cadena
+        // relativa de siempre (se resuelve contra var/ al servirlo, ver
+        // UploadPath y DashboardCaseFiles::downloadPrevioPdf()).
+        $pdfRelativePath = $folder.'/reporte.pdf';
+        $pdfAbsolutePath = $this->uploadPath->resolve($pdfRelativePath);
+
+        if (!is_dir(dirname($pdfAbsolutePath))) {
+            mkdir(dirname($pdfAbsolutePath), 0777, true);
+        }
+
         $pdfBytes = $this->pdfGenerator->generate($previo, $photoPaths);
-        $pdfPath = $folder.'/reporte.pdf';
-        file_put_contents($pdfPath, $pdfBytes);
-        $previo->setPdfRoute($pdfPath);
+        file_put_contents($pdfAbsolutePath, $pdfBytes);
+        $previo->setPdfRoute($pdfRelativePath);
 
         $this->entityManager->flush();
 
@@ -303,10 +317,12 @@ class DashboardPrevios extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        if ($previo->getPdfRoute() && is_file($previo->getPdfRoute())) {
-            unlink($previo->getPdfRoute());
+        if ($previo->getPdfRoute() && is_file($this->uploadPath->resolve($previo->getPdfRoute()))) {
+            unlink($this->uploadPath->resolve($previo->getPdfRoute()));
         }
 
+        // Las fotos/zip se quedan bajo public/ a proposito (ver create()),
+        // asi que aqui si se borran con la ruta relativa de siempre.
         if ($previo->getPhotosZipRoute() && is_file($previo->getPhotosZipRoute())) {
             unlink($previo->getPhotosZipRoute());
         }

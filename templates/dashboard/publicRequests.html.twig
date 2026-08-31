@@ -37,7 +37,7 @@
                   <td>{{ c.requesterName }} ({{ c.requesterEmail }})</td>
                   <td>
                     {% for a in c.attachments %}
-                      <a href="/{{ a.ruta }}" download title="{{ a.nombre }}"><i class="bi bi-paperclip"></i></a>
+                      <a href="{{ path('legacy_classification_attachment_download', { id: c.id, index: loop.index0 }) }}" download title="{{ a.nombre }}"><i class="bi bi-paperclip"></i></a>
                     {% endfor %}
                   </td>
                 </tr>
@@ -74,7 +74,7 @@
                   <td>{{ p.cliente }} ({{ p.correo }})</td>
                   <td>{{ p.type }}</td>
                   <td>
-                    <a href="/{{ p.pdfRoute }}" class="btn btn-sm btn-outline-secondary" download title="Descargar PDF">
+                    <a href="{{ path('legacy_previo_pdf_download', { id: p.id }) }}" class="btn btn-sm btn-outline-secondary" download title="Descargar PDF">
                       <i class="bi bi-file-earmark-pdf"></i> PDF
                     </a>
                     {% if p.photosZipRoute %}

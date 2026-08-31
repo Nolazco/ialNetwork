@@ -4,6 +4,7 @@ namespace App\Notification;
 
 use App\Entity\ImportRequest;
 use App\Entity\PrevioReport;
+use App\Service\UploadPath;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mailer\MailerInterface;
@@ -37,6 +38,7 @@ final class PrevioReportMailer
         private readonly RecipientResolver $recipients,
         #[Autowire(env: 'MAILER_FROM_ADDRESS')]
         private readonly string $fromAddress,
+        private readonly UploadPath $uploadPath,
     ) {
     }
 
@@ -79,9 +81,11 @@ final class PrevioReportMailer
             $email->cc(...$cc);
         }
 
-        if ($previo->getPdfRoute() && is_file($previo->getPdfRoute())) {
+        $pdfPath = $previo->getPdfRoute() ? $this->uploadPath->resolve($previo->getPdfRoute()) : null;
+
+        if ($pdfPath && is_file($pdfPath)) {
             $email->attachFromPath(
-                $previo->getPdfRoute(),
+                $pdfPath,
                 sprintf('reporte-previo-%s.pdf', $import->getClientReference())
             );
         }

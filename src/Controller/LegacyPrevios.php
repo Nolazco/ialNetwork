@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\LegacyPrevioReport;
 use App\Notification\LegacyPrevioMailer;
 use App\Previo\PrevioReportPdfGenerator;
+use App\Service\UploadPath;
 use App\Workflow\InspectionAuthorityCatalog;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -40,6 +41,7 @@ class LegacyPrevios extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly PrevioReportPdfGenerator $pdfGenerator,
         private readonly LegacyPrevioMailer $mailer,
+        private readonly UploadPath $uploadPath,
     ) {
     }
 
@@ -257,10 +259,21 @@ class LegacyPrevios extends AbstractController
             'type' => $report->getCargoType(),
         ];
 
+        // El PDF si se protege (a diferencia de las fotos/zip de arriba, que
+        // a proposito se quedan bajo public/ para poder descargarse sin
+        // sesion en cualquier momento): se escribe fuera de public/, aunque
+        // el valor guardado en pdfRoute sigue siendo la misma cadena
+        // relativa de siempre (se resuelve contra var/ al servirlo).
+        $pdfRelativePath = $folder.'/reporte.pdf';
+        $pdfAbsolutePath = $this->uploadPath->resolve($pdfRelativePath);
+
+        if (!is_dir(dirname($pdfAbsolutePath))) {
+            mkdir(dirname($pdfAbsolutePath), 0777, true);
+        }
+
         $pdfBytes = $this->pdfGenerator->generateFromArrays($previoData, $importData, $photoPaths);
-        $pdfPath = $folder.'/reporte.pdf';
-        file_put_contents($pdfPath, $pdfBytes);
-        $report->setPdfRoute($pdfPath);
+        file_put_contents($pdfAbsolutePath, $pdfBytes);
+        $report->setPdfRoute($pdfRelativePath);
 
         $this->entityManager->flush();
 

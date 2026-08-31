@@ -32,7 +32,7 @@
               <td>{{ r.requestedBy.name }}</td>
               <td>
                 {% for a in r.attachments %}
-                  <a href="/{{ a.ruta }}" download title="{{ a.nombre }}">
+                  <a href="{{ path('classification_attachment_download', { id: r.id, index: loop.index0 }) }}" download title="{{ a.nombre }}">
                     <i class="bi bi-paperclip"></i>
                   </a>
                 {% endfor %}

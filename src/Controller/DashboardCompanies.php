@@ -7,19 +7,25 @@ use App\Entity\Company;
 use App\Entity\CompanyDocument;
 use App\Entity\User;
 use App\Security\CompanyAccess;
+use App\Service\UploadPath;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardCompanies extends AbstractController{
   use AjaxCsrfTrait;
 
-	public function __construct(private readonly CompanyAccess $companyAccess) {
+	public function __construct(
+		private readonly CompanyAccess $companyAccess,
+		private readonly UploadPath $uploadPath,
+	) {
 	}
 
 	#[Route(name: 'companies', path: '/dashboard/empresas')]
@@ -90,10 +96,11 @@ class DashboardCompanies extends AbstractController{
     $files = $r->files->all();
     $types = $r->request->all('documentTypes');
 
-    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta de carpeta
-    
-    if (!is_dir($route)) {
-      mkdir($route, 0777, true);
+    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta relativa guardada en el documento
+    $folder = $this->uploadPath->resolve($route); // Carpeta física, fuera de public/
+
+    if (!is_dir($folder)) {
+      mkdir($folder, 0777, true);
     }
 
     foreach ($files as $index => $fileGroup) {
@@ -106,7 +113,7 @@ class DashboardCompanies extends AbstractController{
           $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
 
           try {
-            $file->move($route, $newFilename);
+            $file->move($folder, $newFilename);
           } catch (FileException $e) {
             continue;
           }
@@ -272,6 +279,30 @@ class DashboardCompanies extends AbstractController{
     return new JsonResponse(['documents' => $docs]);
   }
 
+  #[Route('/dashboard/empresas/documentos/{id}/archivo', name: 'company_document_download', methods: ['GET'])]
+  public function downloadDocument(int $id, EntityManagerInterface $entityManager): BinaryFileResponse {
+    $document = $entityManager->getRepository(CompanyDocument::class)->find($id);
+
+    if (!$document) {
+      throw $this->createNotFoundException();
+    }
+
+    if (!$this->companyAccess->canAccess($document->getIdCompany())) {
+      throw $this->createAccessDeniedException();
+    }
+
+    $path = $this->uploadPath->resolve($document->getRoute());
+
+    if (!is_file($path)) {
+      throw $this->createNotFoundException();
+    }
+
+    $response = new BinaryFileResponse($path);
+    $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+    return $response;
+  }
+
   #[Route('/dashboard/empresas/{id}/documentos/nuevo', methods: ['POST'])]
   public function addDocument(Request $r, int $id, EntityManagerInterface $entityManager, SluggerInterface $slugger): JsonResponse {
     if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
@@ -295,17 +326,18 @@ class DashboardCompanies extends AbstractController{
       return new JsonResponse(['error' => 'Faltan datos.'], 400);
     }
 
-    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta de carpeta
-    
-    if (!is_dir($route)) {
-      mkdir($route, 0777, true);
+    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta relativa guardada en el documento
+    $folder = $this->uploadPath->resolve($route); // Carpeta física, fuera de public/
+
+    if (!is_dir($folder)) {
+      mkdir($folder, 0777, true);
     }
 
     $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
     $safeFilename = $slugger->slug($originalFilename);
     $newFilename = $safeFilename.'-'.uniqid().'.'.$file->guessExtension();
 
-    $file->move($route, $newFilename);
+    $file->move($folder, $newFilename);
 
     $document = new CompanyDocument();
     $document->setType($type);
@@ -334,7 +366,7 @@ class DashboardCompanies extends AbstractController{
         return new JsonResponse(['error' => 'Ese documento no es de una de tus empresas.'], 403);
       }
 
-      $filePath = $document->getRoute();
+      $filePath = $this->uploadPath->resolve($document->getRoute());
       if (file_exists($filePath)) {
         unlink($filePath);
       }
@@ -371,13 +403,14 @@ class DashboardCompanies extends AbstractController{
     if ($newFile) {
       // Elimina archivo anterior
       $oldPath = $document->getRoute();
-      if ($oldPath && file_exists($oldPath)) {
-        unlink($oldPath);
+      if ($oldPath && file_exists($this->uploadPath->resolve($oldPath))) {
+        unlink($this->uploadPath->resolve($oldPath));
       }
 
       // Guarda el nuevo
       $companyRfc = $document->getIdCompany()->getRfc();
-      $folder = 'uploads/empresas/' . $companyRfc;
+      $route = 'uploads/empresas/' . $companyRfc;
+      $folder = $this->uploadPath->resolve($route);
 
       if (!is_dir($folder)) {
         mkdir($folder, 0777, true);
@@ -388,7 +421,7 @@ class DashboardCompanies extends AbstractController{
       $newFilename = $safeFilename . '-' . uniqid() . '.' . $newFile->guessExtension();
 
       $newFile->move($folder, $newFilename);
-      $document->setRoute($folder . '/' . $newFilename);
+      $document->setRoute($route . '/' . $newFilename);
     }
 
     $entityManager->flush();

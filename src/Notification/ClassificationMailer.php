@@ -3,6 +3,7 @@
 namespace App\Notification;
 
 use App\Entity\ClassificationRequest;
+use App\Service\UploadPath;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mailer\MailerInterface;
@@ -34,6 +35,7 @@ final class ClassificationMailer
         private readonly RecipientResolver $recipients,
         #[Autowire(env: 'MAILER_FROM_ADDRESS')]
         private readonly string $fromAddress,
+        private readonly UploadPath $uploadPath,
     ) {
     }
 
@@ -54,8 +56,10 @@ final class ClassificationMailer
             ->cc(...$cc);
 
         foreach ($request->getAttachments() as $attachment) {
-            if (is_file($attachment['ruta'])) {
-                $email->attachFromPath($attachment['ruta'], $attachment['nombre']);
+            $path = $this->uploadPath->resolve($attachment['ruta']);
+
+            if (is_file($path)) {
+                $email->attachFromPath($path, $attachment['nombre']);
             }
         }
 

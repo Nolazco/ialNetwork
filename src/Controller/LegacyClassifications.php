@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\LegacyClassificationRequest;
 use App\Notification\LegacyClassificationMailer;
+use App\Service\UploadPath;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
@@ -24,6 +25,7 @@ class LegacyClassifications extends AbstractController
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly LegacyClassificationMailer $mailer,
+        private readonly UploadPath $uploadPath,
     ) {
     }
 
@@ -81,8 +83,9 @@ class LegacyClassifications extends AbstractController
         $this->entityManager->flush();
 
         $folder = 'uploads/legacy-clasificaciones/'.$request->getId();
+        $physicalFolder = $this->uploadPath->resolve($folder);
 
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+        if (!is_dir($physicalFolder) && !mkdir($physicalFolder, 0777, true) && !is_dir($physicalFolder)) {
             $this->addFlash('error', 'No se pudo preparar la carpeta de archivos.');
 
             return $this->redirectToRoute('legacy_classification_new');
@@ -108,7 +111,7 @@ class LegacyClassifications extends AbstractController
             $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
 
             try {
-                $file->move($folder, $name);
+                $file->move($physicalFolder, $name);
             } catch (FileException) {
                 $rejected[] = $original;
 

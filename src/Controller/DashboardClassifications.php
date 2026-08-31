@@ -7,12 +7,15 @@ use App\Entity\Company;
 use App\Entity\User;
 use App\Notification\ClassificationMailer;
 use App\Security\CompanyAccess;
+use App\Service\UploadPath;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\ExpressionLanguage\Expression;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Symfony\Component\String\Slugger\SluggerInterface;
@@ -37,6 +40,7 @@ class DashboardClassifications extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly CompanyAccess $companyAccess,
         private readonly ClassificationMailer $mailer,
+        private readonly UploadPath $uploadPath,
     ) {
     }
 
@@ -145,8 +149,9 @@ class DashboardClassifications extends AbstractController
         $this->entityManager->flush();
 
         $folder = 'uploads/clasificaciones/'.$classificationRequest->getId();
+        $physicalFolder = $this->uploadPath->resolve($folder);
 
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+        if (!is_dir($physicalFolder) && !mkdir($physicalFolder, 0777, true) && !is_dir($physicalFolder)) {
             $this->addFlash('error', 'No se pudo preparar la carpeta de archivos.');
 
             return $this->redirectToRoute('classification_new');
@@ -172,7 +177,7 @@ class DashboardClassifications extends AbstractController
             $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
 
             try {
-                $file->move($folder, $name);
+                $file->move($physicalFolder, $name);
             } catch (FileException) {
                 $rejected[] = $original;
 
@@ -210,6 +215,37 @@ class DashboardClassifications extends AbstractController
         $this->addFlash('success', 'Solicitud de clasificación enviada.');
 
         return $this->redirectToRoute('classifications');
+    }
+
+    #[Route('/dashboard/clasificaciones/{id}/adjuntos/{index}', name: 'classification_attachment_download', methods: ['GET'])]
+    public function downloadAttachment(int $id, int $index): BinaryFileResponse
+    {
+        $classificationRequest = $this->entityManager->getRepository(ClassificationRequest::class)->find($id);
+
+        if (!$classificationRequest) {
+            throw $this->createNotFoundException();
+        }
+
+        if (!$this->companyAccess->canAccess($classificationRequest->getCompany())) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $attachment = $classificationRequest->getAttachments()[$index] ?? null;
+
+        if (!$attachment) {
+            throw $this->createNotFoundException();
+        }
+
+        $path = $this->uploadPath->resolve($attachment['ruta']);
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $attachment['nombre'] ?? basename($path));
+
+        return $response;
     }
 
     private function nullableTrim(mixed $value): ?string
