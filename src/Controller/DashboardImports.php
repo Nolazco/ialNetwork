@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Company;
 use App\Entity\Container;
+use App\Entity\DeliveryPoint;
 use App\Entity\Forwarder;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
@@ -85,6 +86,8 @@ class DashboardImports extends AbstractController {
   	// Solo id/nombre llegan a esta plantilla: los forwarders pueden tener
   	// cuentas bancarias, pero eso nunca debe ser visible para el cliente.
   	$forwarders = $entityManager->getRepository(Forwarder::class)->findAll();
+  	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
+  	$deliveryPoints = $entityManager->getRepository(DeliveryPoint::class)->findBy(['company' => $company]);
 
   	return $this->render("/dashboard/newimport.html.twig", [
   		'name' => $user->getName(),
@@ -92,6 +95,7 @@ class DashboardImports extends AbstractController {
   		'rfc' => $rfc,
   		'providers' => $providers,
   		'forwarders' => $forwarders,
+  		'deliveryPoints' => $deliveryPoints,
   		'directions' => ImportRequestWorkflow::DIRECTIONS,
   		'types' => ImportRequestWorkflow::TYPES,
   		'loged' => 'true',
@@ -189,6 +193,41 @@ class DashboardImports extends AbstractController {
   		}
   	}
 
+  	// A donde entregar: domicilio fiscal (default) o un punto del catalogo
+  	// propio de esta empresa, o uno nuevo dado de alta ahi mismo.
+  	$deliverTo = $r->request->get('deliverTo', 'fiscal');
+  	$deliveryPoint = null;
+
+  	if ($deliverTo === 'point') {
+  		$deliveryPointId = $r->request->get('deliveryPointId');
+
+  		if ($deliveryPointId) {
+  			$deliveryPoint = $entityManager->getRepository(DeliveryPoint::class)->find($deliveryPointId);
+
+  			if (!$deliveryPoint || $deliveryPoint->getCompany() !== $company) {
+  				$this->addFlash('error', 'Selecciona un punto de entrega válido.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+  		} else {
+  			$newPointName = trim((string) $r->request->get('newDeliveryPointName'));
+  			$newPointAddress = trim((string) $r->request->get('newDeliveryPointAddress'));
+
+  			if ($newPointName === '' || $newPointAddress === '') {
+  				$this->addFlash('error', 'Selecciona un punto de entrega del catálogo o captura uno nuevo completo.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+
+  			$deliveryPoint = new DeliveryPoint();
+  			$deliveryPoint->setCompany($company);
+  			$deliveryPoint->setName($newPointName);
+  			$deliveryPoint->setAddress($newPointAddress);
+
+  			$entityManager->persist($deliveryPoint);
+  		}
+  	}
+
+  	$deliveryInstructions = trim((string) $r->request->get('deliveryInstructions'));
+
   	// El par direccion + tipo decide la secuencia de estados del expediente, asi
   	// que no puede quedar en cualquier valor.
   	if (!isset(ImportRequestWorkflow::DIRECTIONS[$direction]) || !isset(ImportRequestWorkflow::TYPES[$type])) {
@@ -215,6 +254,8 @@ class DashboardImports extends AbstractController {
   	$import->setIdCompany($company);
   	$import->setIdProvider($provider);
   	$import->setForwarder($forwarder);
+  	$import->setDeliveryPoint($deliveryPoint);
+  	$import->setDeliveryInstructions($deliveryInstructions !== '' ? $deliveryInstructions : null);
   	$import->setGoods($r->request->get('goods'));
   	$import->setImportNumber('Pendiente');
   	$import->setEta(new \DateTimeImmutable($r->request->get('eta')));

@@ -1,0 +1,110 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Puntos de inspección</h2>
+    {% if points %}
+      <a href="/dashboard/puntos-inspeccion/nuevo" class="btn btn-primary">Nuevo punto</a>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Nombre</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in points %}
+            <tr>
+              <td>{{ p.name }}</td>
+              <td>
+                <button
+                  class="btn btn-warning edit-point-btn"
+                  title="Editar punto de inspección"
+                  data-id="{{ p.id }}"
+                  data-name="{{ p.name }}">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin registros</h5>
+          <p class="card-text">Da de alta un punto de inspección nuevo.</p>
+          <a href="/dashboard/puntos-inspeccion/nuevo" class="btn btn-primary">Nuevo punto</a>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      function handleEditClick(e) {
+        const btn = e.currentTarget;
+        const pointId = btn.getAttribute("data-id");
+        const currentName = btn.getAttribute("data-name");
+
+        Swal.fire({
+          title: "Editar punto de inspección",
+          html: `<input id="swal-name" class="swal2-input" placeholder="Nombre" value="${currentName}">`,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          cancelButtonText: "Cancelar",
+          preConfirm: () => {
+            const name = document.getElementById("swal-name").value.trim();
+
+            if (!name) {
+              Swal.showValidationMessage("El nombre es obligatorio");
+              return false;
+            }
+
+            return { name };
+          }
+        }).then(result => {
+          if (result.isConfirmed) {
+            const updatedData = result.value;
+
+            fetch(`/dashboard/puntos-inspeccion/${pointId}/editar`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+              },
+              body: JSON.stringify(updatedData)
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire("¡Actualizado!", "El punto fue editado correctamente.", "success");
+
+                btn.setAttribute("data-name", updatedData.name);
+
+                const row = btn.closest("tr");
+                row.children[0].textContent = updatedData.name;
+              } else {
+                Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll(".edit-point-btn").forEach(btn => {
+        btn.addEventListener("click", handleEditClick);
+      });
+    });
+  </script>
+{% endblock %}

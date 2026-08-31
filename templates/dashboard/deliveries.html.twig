@@ -64,11 +64,15 @@
                 {% for c in d.containers %}
                   <span class="badge text-bg-secondary">{{ c.num }} &middot; {{ c.type }}</span>
                 {% else %}
-                  <span class="text-body-secondary">Carga suelta</span>
+                  {% if d.handedOff %}
+                    <span class="badge text-bg-info">Traspasado</span>
+                  {% else %}
+                    <span class="text-body-secondary">Carga suelta</span>
+                  {% endif %}
                 {% endfor %}
               </td>
               <td>
-                <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
+                <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'Traspasado' ? 'text-bg-info' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary'))) }}">
                   {{ d.stage }}
                 </span>
                 {% if d.departedAt %}
@@ -118,6 +122,11 @@
                     <i class="bi bi-exclamation-triangle"></i>
                   </button>
                 {% endif %}
+                {% if d.departed and not d.delivered and not d.failed %}
+                  <button type="button" class="btn btn-sm btn-outline-secondary js-handoff-toggle" data-target="handoff-{{ d.id }}" title="Traspasar a otro transportista">
+                    <i class="bi bi-arrow-left-right"></i>
+                  </button>
+                {% endif %}
               </td>
             </tr>
             {% if not d.departed and not d.failed %}
@@ -142,6 +151,69 @@
                     <div class="col-md-3">
                       <button type="submit" class="btn btn-sm btn-danger">
                         <i class="bi bi-exclamation-triangle"></i> Marcar como fallido
+                      </button>
+                    </div>
+                  </form>
+                </td>
+              </tr>
+            {% endif %}
+            {% if d.departed and not d.delivered and not d.failed %}
+              <tr id="handoff-{{ d.id }}" class="d-none">
+                <td colspan="{{ isHauler ? 7 : 8 }}">
+                  <form method="POST" action="{{ path('delivery_handoff', { id: d.id }) }}" class="row g-2 align-items-end">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delivery_handoff') }}">
+                    {% if d.containers|length > 0 %}
+                      <div class="col-12">
+                        <label class="form-label small">Contenedores a traspasar</label>
+                        <div class="d-flex flex-wrap gap-3">
+                          {% for c in d.containers %}
+                            <div class="form-check">
+                              <input class="form-check-input" type="checkbox" name="containers[]" value="{{ c.id }}" id="handoff-container-{{ d.id }}-{{ c.id }}">
+                              <label class="form-check-label small" for="handoff-container-{{ d.id }}-{{ c.id }}">{{ c.num }} &middot; {{ c.type }}</label>
+                            </div>
+                          {% endfor %}
+                        </div>
+                      </div>
+                    {% elseif d.references|length > 1 %}
+                      <div class="col-md-3">
+                        <label class="form-label small">Expediente</label>
+                        <select class="form-select form-select-sm" name="reference" required>
+                          <option value="" selected disabled>Selecciona</option>
+                          {% for r in d.references %}
+                            <option value="{{ r.id }}">{{ r.clientReference }}</option>
+                          {% endfor %}
+                        </select>
+                      </div>
+                    {% endif %}
+                    <div class="col-md-3">
+                      <label class="form-label small">Dónde ocurrió</label>
+                      <select class="form-select form-select-sm js-handoff-place" data-target="handoff-{{ d.id }}" name="placeType" required>
+                        <option value="" selected disabled>Selecciona</option>
+                        {% for place in placeTypes %}
+                          <option value="{{ place }}">{{ place }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-md-3 d-none" id="handoff-{{ d.id }}-free">
+                      <label class="form-label small">Lugar</label>
+                      <input type="text" class="form-control form-control-sm" name="place" placeholder="Describe el lugar">
+                    </div>
+                    <div class="col-md-3 d-none" id="handoff-{{ d.id }}-inspection">
+                      <label class="form-label small">Punto de inspección</label>
+                      <select class="form-select form-select-sm" name="inspectionPointId">
+                        <option value="" selected disabled>Selecciona</option>
+                        {% for p in inspectionPoints %}
+                          <option value="{{ p.id }}">{{ p.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Notas (opcional)</label>
+                      <input type="text" class="form-control form-control-sm" name="notes" placeholder="Ej. 2 de 5 bultos">
+                    </div>
+                    <div class="col-12">
+                      <button type="submit" class="btn btn-sm btn-outline-secondary">
+                        <i class="bi bi-arrow-left-right"></i> Confirmar traspaso
                       </button>
                     </div>
                   </form>
@@ -176,6 +248,36 @@
           const isOther = select.value === "__otra__";
           wrapper.classList.toggle("d-none", !isOther);
           wrapper.querySelector("input").required = isOther;
+        });
+      });
+
+      // Misma fila-toggle que "No se pudo cargar", para el traspaso.
+      document.querySelectorAll(".js-handoff-toggle").forEach(function (boton) {
+        boton.addEventListener("click", function () {
+          const fila = document.getElementById(boton.dataset.target);
+          if (fila) {
+            fila.classList.toggle("d-none");
+          }
+        });
+      });
+
+      // Lugar libre o punto de inspección solo aparecen segun lo elegido.
+      const placeFree = {{ placeFree|json_encode|raw }};
+      const placeInspection = {{ placeInspection|json_encode|raw }};
+
+      document.querySelectorAll(".js-handoff-place").forEach(function (select) {
+        select.addEventListener("change", function () {
+          const id = select.dataset.target;
+          const freeWrapper = document.getElementById(id + "-free");
+          const inspectionWrapper = document.getElementById(id + "-inspection");
+          const isFree = select.value === placeFree;
+          const isInspection = select.value === placeInspection;
+
+          freeWrapper.classList.toggle("d-none", !isFree);
+          freeWrapper.querySelector("input").required = isFree;
+
+          inspectionWrapper.classList.toggle("d-none", !isInspection);
+          inspectionWrapper.querySelector("select").required = isInspection;
         });
       });
     });

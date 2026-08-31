@@ -13,6 +13,8 @@
 /.env.dev
 # backup.sql es un dump con datos reales (correos y hashes de contraseñas)
 /backup.sql
+# Mismo motivo: respaldos previos a una purga, tambien con datos reales
+/.purge-backup/
 ###< secretos y datos que no deben versionarse ###
 
 ###> phpunit/phpunit ###

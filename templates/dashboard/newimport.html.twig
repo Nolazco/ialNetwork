@@ -108,6 +108,45 @@
       </p>
       <div class="row mt-3">
         <div class="col">
+          <label class="form-label">Entregar en</label>
+          <select class="form-select" name="deliverTo" id="deliverTo" required>
+            <option value="fiscal" selected>Domicilio fiscal</option>
+            <option value="point">Punto de entrega</option>
+          </select>
+        </div>
+        <div class="col d-none" id="delivery-point-wrapper">
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="deliveryPointId" class="form-label mb-0">Punto de entrega</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-delivery-point">
+              <i class="bi bi-plus-lg"></i> Nuevo punto
+            </button>
+          </div>
+          <select class="form-select" name="deliveryPointId" id="deliveryPointId">
+            <option value="" selected disabled>Seleccione un punto de entrega</option>
+            {% for p in deliveryPoints %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+          <div id="new-delivery-point-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newDeliveryPointName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newDeliveryPointName" name="newDeliveryPointName" placeholder="Ej. Almacén Norte">
+            </div>
+            <div class="mb-0">
+              <label for="newDeliveryPointAddress" class="form-label small mb-1">Dirección</label>
+              <input type="text" class="form-control form-control-sm" id="newDeliveryPointAddress" name="newDeliveryPointAddress" placeholder="Dirección">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="deliveryInstructions" class="form-label">Instrucciones de entrega (opcional)</label>
+          <textarea class="form-control" name="deliveryInstructions" id="deliveryInstructions" rows="2" placeholder="Ej. Entregar 20 bultos en Almacén A y el resto en Almacén B"></textarea>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
           <label for="inspectionAuthority" class="form-label">¿Requiere inspección?</label>
           <select class="form-select" name="inspectionAuthority" id="inspectionAuthority" required>
             <option selected disabled value="">Seleccione una opción</option>
@@ -277,6 +316,55 @@
         toggleForwarderBtn.innerHTML = creatingForwarder
           ? '<i class="bi bi-list"></i> Elegir del catálogo'
           : '<i class="bi bi-plus-lg"></i> Nuevo forwarder';
+      });
+
+      // Igual que el bloque de forwarder: domicilio fiscal vs punto de
+      // entrega del catalogo, y dentro de este ultimo, elegir uno existente
+      // o capturar uno nuevo.
+      const deliverToSelect = document.getElementById("deliverTo");
+      const deliveryPointWrapper = document.getElementById("delivery-point-wrapper");
+      const deliveryPointSelect = document.getElementById("deliveryPointId");
+      const toggleDeliveryPointBtn = document.getElementById("toggle-new-delivery-point");
+      const newDeliveryPointFields = document.getElementById("new-delivery-point-fields");
+      let creatingDeliveryPoint = false;
+
+      function toggleDeliveryPointVisibility() {
+        const showPoint = deliverToSelect.value === "point";
+        deliveryPointWrapper.classList.toggle("d-none", !showPoint);
+        deliveryPointSelect.required = showPoint && !creatingDeliveryPoint;
+
+        if (!showPoint) {
+          creatingDeliveryPoint = false;
+          deliveryPointSelect.classList.remove("d-none");
+          deliveryPointSelect.value = "";
+          newDeliveryPointFields.classList.add("d-none");
+          newDeliveryPointFields.querySelectorAll("input").forEach(function (input) {
+            input.required = false;
+            input.value = "";
+          });
+          toggleDeliveryPointBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nuevo punto';
+        }
+      }
+
+      deliverToSelect.addEventListener("change", toggleDeliveryPointVisibility);
+      toggleDeliveryPointVisibility();
+
+      toggleDeliveryPointBtn.addEventListener("click", function () {
+        creatingDeliveryPoint = !creatingDeliveryPoint;
+
+        deliveryPointSelect.classList.toggle("d-none", creatingDeliveryPoint);
+        deliveryPointSelect.required = !creatingDeliveryPoint;
+        deliveryPointSelect.value = "";
+
+        newDeliveryPointFields.classList.toggle("d-none", !creatingDeliveryPoint);
+        newDeliveryPointFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingDeliveryPoint;
+          input.value = "";
+        });
+
+        toggleDeliveryPointBtn.innerHTML = creatingDeliveryPoint
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo punto';
       });
 
       // El campo libre solo aparece cuando la autoridad no esta en el catalogo.
