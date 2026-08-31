@@ -222,6 +222,43 @@ final class ImportRequestWorkflow
         return $request->getStatus() === self::FINISHED;
     }
 
+    /**
+     * Estatus que solo dependen de documentos o de un formulario propio (no
+     * de un evento externo como la modulacion via SOIA), asi que pueden
+     * avanzar solos en cuanto se cumplen. "Capturado" se excluye a proposito:
+     * aunque tiene entrada en DOCUMENT_GATES, tambien depende de los datos
+     * del alta del pedimento (ver DashboardCaseFiles::capture()), no solo del
+     * documento — avanzarlo aqui dejaria agencyReference/importNumber en
+     * "Pendiente". "Modulado" no aplica nunca: missingRequirements() nunca
+     * regresa vacio para el, solo lo dispara una consulta SOIA exitosa.
+     */
+    private const AUTO_ADVANCE_ON_DOCUMENT = [self::SCHEDULED, self::REVALIDATED, self::PAID, self::OFFSITE_INSPECTION];
+
+    /**
+     * Si el expediente ya cumple lo necesario para el siguiente estatus (de
+     * los que dependen nada mas de documentos/formularios propios), lo
+     * avanza solo. El boton manual "Avanzar" sigue disponible aparte para
+     * casos extraordinarios.
+     *
+     * @return string|null el nuevo estatus si avanzo, null si no habia nada que hacer
+     */
+    public function tryAutoAdvance(ImportRequest $request): ?string
+    {
+        foreach ($this->nextStatuses($request) as $candidate) {
+            if (!in_array($candidate, self::AUTO_ADVANCE_ON_DOCUMENT, true)) {
+                continue;
+            }
+
+            if ($this->missingRequirements($request, $candidate) === []) {
+                $request->setStatus($candidate);
+
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
     public function isOptional(string $status): bool
     {
         return in_array($status, self::OPTIONAL, true);
@@ -267,10 +304,19 @@ final class ImportRequestWorkflow
      * "pendiente") es una de las dos formas de satisfacer ese requisito, asi
      * que hace falta poder hacerlo desde Pagado, no solo cuando el despacho ya
      * es el siguiente paso inmediato.
+     *
+     * Y tambien ya estando en Programado sin despacho todavia: a ese estatus
+     * se puede llegar solo con el comprobante de cita (ver missingRequirements),
+     * sin haber agendado nada de verdad todavia, asi que hace falta seguir
+     * pudiendo asignarlo despues.
      */
     public function canAssignTransport(ImportRequest $request): bool
     {
         if ($this->awaitsTransport($request) || in_array(self::SCHEDULED, $this->nextStatuses($request), true)) {
+            return true;
+        }
+
+        if ($request->getStatus() === self::SCHEDULED && $request->getDeliveries()->isEmpty()) {
             return true;
         }
 
@@ -351,5 +397,48 @@ final class ImportRequestWorkflow
             array_slice($sequence, 0, $position + 1),
             fn (string $step): bool => $this->isOptional($step) && !in_array($step, $taken, true),
         ));
+    }
+
+    /**
+     * La secuencia a mostrar en el roadmap del expediente: igual que
+     * sequenceFor(), pero sin "Inspección fuera de puerto" cuando el cliente
+     * ya avisó desde el alta que no la espera y nunca se termino registrando
+     * una. Es solo para no confundir al cliente con un paso que en la
+     * practica no va a pasar — el aviso del cliente no decide nada por si
+     * solo (ver InspectionAuthorityCatalog), asi que el paso real (avanzarlo
+     * via advance() si el certificado si llega) no se toca aqui, solo su
+     * aparicion en esta lista.
+     *
+     * @return list<string>
+     */
+    public function roadmapSequence(ImportRequest $request): array
+    {
+        if ($this->offsiteInspectionExpected($request)) {
+            return $this->sequenceFor($request);
+        }
+
+        return array_values(array_filter(
+            $this->sequenceFor($request),
+            fn (string $step): bool => $step !== self::OFFSITE_INSPECTION,
+        ));
+    }
+
+    /**
+     * ¿Sigue siendo relevante mostrar/pedir algo de "Inspección fuera de
+     * puerto" para este expediente? No, cuando el cliente ya avisó desde el
+     * alta que no la espera y nunca se termino registrando una — en ese caso
+     * no solo se oculta del roadmap (roadmapSequence()), tampoco tiene caso
+     * seguir avisando "falta el certificado" en el panel de siguiente paso
+     * ni marcarlo como pendiente en la tabla de documentos. El aviso del
+     * cliente no decide nada por si solo (ver InspectionAuthorityCatalog):
+     * si el certificado real llega de todos modos, sigue pudiendo subirse
+     * (la tabla de documentos no oculta el control, solo el aviso), y eso
+     * ya alcanza para que optionalStepsTaken lo registre y esto vuelva a
+     * dar true.
+     */
+    public function offsiteInspectionExpected(ImportRequest $request): bool
+    {
+        return $request->getExpectedInspectionAuthority() !== InspectionAuthorityCatalog::NONE
+            || in_array(self::OFFSITE_INSPECTION, $request->getOptionalStepsTaken(), true);
     }
 }

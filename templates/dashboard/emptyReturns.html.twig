@@ -43,7 +43,7 @@
                   <td>
                     {{ e.eir }}
                     {% if e.eirRoute %}
-                      <a href="/{{ e.eirRoute }}" target="_blank" rel="noopener" title="Ver EIR escaneado">
+                      <a href="{{ path('case_file_empty_return_eir_download', { id: e.reference.id, return: e.id }) }}" target="_blank" rel="noopener" title="Ver EIR escaneado">
                         <i class="bi bi-file-earmark-text"></i>
                       </a>
                     {% else %}
@@ -68,6 +68,7 @@
       </div>
     {% else %}
       {% for c in pending %}
+        {% set scheduled = pendingReturns[c.id] %}
         <div class="card shadow-sm mb-3">
           <div class="card-body">
             <h5 class="card-title mb-3">
@@ -78,19 +79,19 @@
               {% endif %}
             </h5>
 
+            <p class="text-body-secondary mb-3">
+              Programado por el ejecutivo: patio <strong>{{ scheduled.yard.name }}</strong>,
+              cita el <strong>{{ scheduled.appointmentDate|date('d/m/Y') }}</strong>
+              {% if scheduled.slipRoute %}
+                &middot; <a href="{{ path('case_file_empty_return_slip_download', { id: scheduled.reference.id, return: scheduled.id }) }}" target="_blank" rel="noopener">
+                  <i class="bi bi-file-earmark-text"></i> Papeleta
+                </a>
+              {% endif %}
+            </p>
+
             <form method="POST" enctype="multipart/form-data" class="row g-2 align-items-end"
                   action="{{ path('delivery_empty_return', { id: delivery.id, container: c.id }) }}">
               <input type="hidden" name="_token" value="{{ csrf_token('delivery_empty_return') }}">
-
-              <div class="col-md-3">
-                <label for="yard-{{ c.id }}" class="form-label">Patio</label>
-                <select class="form-select" name="yard" id="yard-{{ c.id }}" required>
-                  <option selected disabled value="">Seleccione el patio</option>
-                  {% for y in yards %}
-                    <option value="{{ y.id }}">{{ y.name }} (CR {{ y.cr }})</option>
-                  {% endfor %}
-                </select>
-              </div>
 
               <div class="col-md-2">
                 <label for="type-{{ c.id }}" class="form-label">Tipo</label>
@@ -108,7 +109,7 @@
                        value="{{ "now"|date('Y-m-d') }}" required>
               </div>
 
-              <div class="col-md-2">
+              <div class="col-md-3">
                 <label for="eir-{{ c.id }}" class="form-label">Folio EIR</label>
                 <input type="text" class="form-control" name="eir" id="eir-{{ c.id }}"
                        placeholder="Folio" required>

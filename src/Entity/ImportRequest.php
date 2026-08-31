@@ -31,6 +31,21 @@ class ImportRequest
     #[ORM\JoinColumn(nullable: true)]
     private ?Forwarder $forwarder = null;
 
+    // Nullable: null significa domicilio fiscal (Company::address), el caso
+    // mas comun. Si no es nulo, es un almacen del catalogo propio de la
+    // empresa (ver DeliveryPoint).
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?DeliveryPoint $deliveryPoint = null;
+
+    /**
+     * Instrucciones libres de entrega (ej. repartos entre varios puntos).
+     * A proposito no se modela el reparto con datos duros: son casos raros
+     * y muy variados como para justificar una estructura fija.
+     */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $deliveryInstructions = null;
+
     #[ORM\Column(length: 255)]
     private ?string $clientReference = null;
 
@@ -50,6 +65,15 @@ class ImportRequest
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE)]
     private ?\DateTimeImmutable $eta = null;
+
+    /**
+     * La fecha de arribo que captura el cliente suele ser un estimado, no la
+     * definitiva. Mientras esto sea false, cliente y ejecutivo pueden
+     * corregirla; una vez confirmada, solo el ejecutivo puede seguir
+     * editándola (ver DashboardCaseFiles::updateEta()).
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $etaConfirmed = false;
 
     // Nullable a proposito: el cliente no suele saber a que recinto va a
     // llegar su mercancia, asi que ya no lo elige al dar de alta la
@@ -236,6 +260,30 @@ class ImportRequest
         return $this;
     }
 
+    public function getDeliveryPoint(): ?DeliveryPoint
+    {
+        return $this->deliveryPoint;
+    }
+
+    public function setDeliveryPoint(?DeliveryPoint $deliveryPoint): static
+    {
+        $this->deliveryPoint = $deliveryPoint;
+
+        return $this;
+    }
+
+    public function getDeliveryInstructions(): ?string
+    {
+        return $this->deliveryInstructions;
+    }
+
+    public function setDeliveryInstructions(?string $deliveryInstructions): static
+    {
+        $this->deliveryInstructions = $deliveryInstructions;
+
+        return $this;
+    }
+
     public function getClientReference(): ?string
     {
         return $this->clientReference;
@@ -304,6 +352,18 @@ class ImportRequest
     public function setEta(\DateTimeImmutable $eta): static
     {
         $this->eta = $eta;
+
+        return $this;
+    }
+
+    public function isEtaConfirmed(): bool
+    {
+        return $this->etaConfirmed;
+    }
+
+    public function setEtaConfirmed(bool $etaConfirmed): static
+    {
+        $this->etaConfirmed = $etaConfirmed;
 
         return $this;
     }

@@ -74,7 +74,12 @@
         {% else %}
           <div class="d-flex gap-2 flex-wrap">
             {% for status in nextStatuses %}
-              {% if not is_granted('ROLE_EXECUTIVE') %}
+              {% if status == 'Inspección fuera de puerto' and not offsiteInspectionExpected %}
+                {# El cliente ya avisó que no la espera y nunca se registró
+                   una: no tiene caso avisar que "falta" un certificado que
+                   en la práctica no va a llegar (ver
+                   ImportRequestWorkflow::offsiteInspectionExpected()). #}
+              {% elseif not is_granted('ROLE_EXECUTIVE') %}
                 <span class="text-body-secondary">Siguiente paso: {{ status }}</span>
               {% elseif status == 'Vacío devuelto' and containersPendingReturn|length %}
                 {# Lo dispara el transportista al registrar el EIR de cada contenedor. #}
@@ -102,6 +107,16 @@
                     <i class="bi bi-hourglass-split"></i>
                     Falta el número de pedimento para poder consultar el SOIA.
                   </span>
+                {% endif %}
+                {% if app.environment != 'prod' %}
+                  {# TEMPORAL — SOLO PRUEBAS: quitar este boton y la ruta
+                     case_file_soia_bypass antes de producción. #}
+                  <form method="POST" action="{{ path('case_file_soia_bypass', { id: import.id }) }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('case_file_soia_bypass') }}">
+                    <button type="submit" class="btn btn-outline-warning" title="Salta la consulta real al SOIA — solo para pruebas">
+                      <i class="bi bi-lightning-charge"></i> Bypass SOIA (pruebas)
+                    </button>
+                  </form>
                 {% endif %}
               {% elseif missingByStatus[status] is defined and missingByStatus[status]|length %}
                 <span class="text-body-secondary">
@@ -194,11 +209,41 @@
               <dt class="col-sm-5">Consignado a</dt>
               <dd class="col-sm-7">{{ import.forwarder ? 'Forwarder: ' ~ import.forwarder.name : 'Cliente' }}</dd>
 
+              <dt class="col-sm-5">Entregar en</dt>
+              <dd class="col-sm-7">
+                {% if import.deliveryPoint %}
+                  {{ import.deliveryPoint.name }} ({{ import.deliveryPoint.address }})
+                {% else %}
+                  Domicilio fiscal ({{ import.idCompany.address }})
+                {% endif %}
+                {% if import.deliveryInstructions %}
+                  <div class="small text-body-secondary">{{ import.deliveryInstructions }}</div>
+                {% endif %}
+              </dd>
+
               <dt class="col-sm-5">Mercancía</dt>
               <dd class="col-sm-7">{{ import.goods }}</dd>
 
               <dt class="col-sm-5">Fecha de arribo</dt>
-              <dd class="col-sm-7">{{ import.eta|date('d/m/Y') }}</dd>
+              <dd class="col-sm-7">
+                {% if import.etaConfirmed and not is_granted('ROLE_EXECUTIVE') %}
+                  {{ import.eta|date('d/m/Y') }}
+                  <span class="badge text-bg-success">Confirmada</span>
+                {% else %}
+                  <form method="POST" action="{{ path('case_file_eta', { id: import.id }) }}" class="d-flex gap-2 align-items-center flex-wrap">
+                    <input type="hidden" name="_token" value="{{ csrf_token('case_file_eta') }}">
+                    <input type="date" class="form-control form-control-sm" style="max-width:160px" name="eta" value="{{ import.eta|date('Y-m-d') }}" required>
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="etaConfirmed" value="1" id="etaConfirmed-{{ import.id }}" {{ import.etaConfirmed ? 'checked' : '' }}>
+                      <label class="form-check-label small" for="etaConfirmed-{{ import.id }}">Fecha confirmada</label>
+                    </div>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Guardar</button>
+                  </form>
+                  {% if not import.etaConfirmed %}
+                    <div class="form-text mb-0">Mientras no se confirme, el cliente también puede corregirla.</div>
+                  {% endif %}
+                {% endif %}
+              </dd>
 
               <dt class="col-sm-5">Inspección esperada</dt>
               <dd class="col-sm-7">
@@ -251,7 +296,7 @@
               <td>Proforma del pedimento</td>
               <td>
                 {% if proforma and proforma.route %}
-                  <a href="/{{ proforma.route }}" target="_blank" rel="noopener" download>
+                  <a href="{{ path('case_file_required_document_download', { id: import.id, document: proforma.id }) }}" target="_blank" rel="noopener" download>
                     <i class="bi bi-download"></i> {{ proforma.route|split('/')|last }}
                   </a>
                   <span class="small text-body-secondary">({{ proforma.uploadedAt ? proforma.uploadedAt|date('d/m/Y H:i') : '—' }})</span>
@@ -281,10 +326,17 @@
                   <td>{{ type }}</td>
                   <td>
                     {% if doc and doc.route %}
-                      <a href="/{{ doc.route }}" target="_blank" rel="noopener" download>
+                      <a href="{{ path('case_file_required_document_download', { id: import.id, document: doc.id }) }}" target="_blank" rel="noopener" download>
                         <i class="bi bi-download"></i> {{ doc.route|split('/')|last }}
                       </a>
                       <span class="small text-body-secondary">({{ doc.uploadedAt ? doc.uploadedAt|date('d/m/Y H:i') : '—' }})</span>
+                    {% elseif type == 'Certificado de inspección' and not offsiteInspectionExpected %}
+                      {# El cliente ya avisó que no la espera: no tiene caso
+                         marcarlo como "Falta" (ver
+                         ImportRequestWorkflow::offsiteInspectionExpected()).
+                         El control para subirlo sigue disponible por si de
+                         todos modos llega a aplicar. #}
+                      <span class="badge text-bg-secondary">No aplica</span>
                     {% else %}
                       <span class="badge text-bg-warning">Falta</span>
                     {% endif %}
@@ -316,7 +368,7 @@
               {% for a in advanceRequests %}
                 <tr>
                   <td>
-                    <a href="/{{ a.route }}" target="_blank" rel="noopener" download>
+                    <a href="{{ path('case_file_required_document_download', { id: import.id, document: a.id }) }}" target="_blank" rel="noopener" download>
                       <i class="bi bi-download"></i> {{ a.route|split('/')|last }}
                     </a>
                     <span class="small text-body-secondary">({{ a.uploadedAt ? a.uploadedAt|date('d/m/Y H:i') : '—' }})</span>
@@ -378,7 +430,7 @@
               {% for d in import.importDocuments %}
                 <tr>
                   <td>
-                    <a href="/{{ d.route }}" target="_blank" rel="noopener" download>
+                    <a href="{{ path('case_file_document_download', { id: import.id, document: d.id }) }}" target="_blank" rel="noopener" download>
                       <i class="bi bi-download"></i> {{ d.route|split('/')|last }}
                     </a>
                   </td>
@@ -463,6 +515,17 @@
                     {% else %}
                       <span class="badge text-bg-warning">Transporte pendiente</span>
                     {% endif %}
+                    {% if is_granted('ROLE_EXECUTIVE') and not d.failed %}
+                      <form method="POST" action="{{ path('case_file_transport_return', { id: import.id, delivery: d.id }) }}" class="mt-1">
+                        <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport_return') }}">
+                        <select class="form-select form-select-sm" name="returnTransport" onchange="this.form.requestSubmit()" title="Transportista de devolución">
+                          <option value="" {{ d.returnTransport is null ? 'selected' : '' }}>Devuelve: mismo que entregó</option>
+                          {% for h in haulers %}
+                            <option value="{{ h.id }}" {{ d.returnTransport and d.returnTransport.id == h.id ? 'selected' : '' }}>Devuelve: {{ h.companyName }}</option>
+                          {% endfor %}
+                        </select>
+                      </form>
+                    {% endif %}
                   </td>
                   <td>{{ d.date|date('d/m/Y') }} {{ d.hour|date('H:i') }}</td>
                   <td>
@@ -470,22 +533,43 @@
                     {% for c in ownContainers %}
                       <span class="badge text-bg-secondary">{{ c.num }}</span>
                     {% else %}
-                      <span class="text-body-secondary">Carga suelta</span>
+                      {% if is_granted('ROLE_EXECUTIVE') and d.handedOff %}
+                        <span class="badge text-bg-info">Traspasado</span>
+                      {% else %}
+                        <span class="text-body-secondary">Carga suelta</span>
+                      {% endif %}
                     {% endfor %}
-                    {% set otherContainers = d.containers|length - ownContainers|length %}
-                    {% if otherContainers > 0 %}
-                      <div class="small text-body-secondary">+{{ otherContainers }} de otro expediente</div>
-                    {% endif %}
-                    {% set otherReferences = d.references|filter(r => r.id != import.id)|map(r => r.clientReference) %}
-                    {% if otherReferences|length > 0 %}
-                      <div class="small text-body-secondary">
-                        Compartido con: {{ otherReferences|join(', ') }}
-                      </div>
+                    {% if is_granted('ROLE_EXECUTIVE') %}
+                      {% set otherContainers = d.containers|length - ownContainers|length %}
+                      {% if otherContainers > 0 %}
+                        <div class="small text-body-secondary">+{{ otherContainers }} de otro expediente</div>
+                      {% endif %}
+                      {% set otherReferences = d.references|filter(r => r.id != import.id)|map(r => r.clientReference) %}
+                      {% if otherReferences|length > 0 %}
+                        <div class="small text-body-secondary">
+                          Compartido con: {{ otherReferences|join(', ') }}
+                        </div>
+                      {% endif %}
+                      {% if d.transfersOut|length > 0 %}
+                        <div class="small text-body-secondary mt-1">
+                          {% for t in d.transfersOut %}
+                            <div>
+                              <i class="bi bi-arrow-left-right"></i>
+                              Traspasado el {{ t.at|date('d/m/Y') }}
+                              {%- if t.placeType == 'Punto de inspección' and t.inspectionPoint %} en {{ t.inspectionPoint.name }}
+                              {%- elseif t.placeType == 'Lugar libre' and t.place %} en {{ t.place }}
+                              {%- else %} en {{ t.placeType }}{% endif -%}
+                              {%- if t.containers|length > 0 %}: {{ t.containers|map(c => c.num)|join(', ') }}{% endif %}
+                            </div>
+                          {% endfor %}
+                        </div>
+                      {% endif %}
                     {% endif %}
                   </td>
                   <td>
-                    <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
-                      {{ d.stage }}
+                    {% set shownStage = is_granted('ROLE_EXECUTIVE') ? d.stage : (d.stage == 'Traspasado' ? 'En tránsito' : d.stage) %}
+                    <span class="badge {{ shownStage == 'Fallido' ? 'text-bg-danger' : (shownStage == 'Entregado' ? 'text-bg-success' : (shownStage == 'Traspasado' ? 'text-bg-info' : (shownStage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary'))) }}">
+                      {{ shownStage }}
                     </span>
                     {% if d.departedAt %}
                       <div class="small text-body-secondary">Salida {{ d.departedAt|date('d/m/Y H:i') }}</div>
@@ -494,7 +578,7 @@
                       <div class="small text-body-secondary">
                         Entrega {{ d.deliveredAt|date('d/m/Y H:i') }}
                         {% if d.proofRoute %}
-                          <a href="/{{ d.proofRoute }}" target="_blank" rel="noopener" title="Ver prueba de entrega">
+                          <a href="{{ path('case_file_delivery_proof_download', { id: import.id, delivery: d.id }) }}" target="_blank" rel="noopener" title="Ver prueba de entrega">
                             <i class="bi bi-paperclip"></i>
                           </a>
                         {% endif %}
@@ -670,7 +754,7 @@
             {% endif %}
           </div>
 
-          {% if import.emptyReturns|length %}
+          {% if executedReturns|length %}
             <table class="table table-sm align-middle">
               <thead>
                 <tr>
@@ -683,7 +767,7 @@
                 </tr>
               </thead>
               <tbody>
-                {% for e in import.emptyReturns %}
+                {% for e in executedReturns %}
                   <tr>
                     <td>{{ e.container.num }} <span class="text-body-secondary">&middot; {{ e.container.type }}</span></td>
                     <td>{{ e.yard.name }}</td>
@@ -693,7 +777,7 @@
                     <td>
                       {{ e.eir }}
                       {% if e.eirRoute %}
-                        <a href="/{{ e.eirRoute }}" target="_blank" rel="noopener" title="Ver EIR escaneado">
+                        <a href="{{ path('case_file_empty_return_eir_download', { id: import.id, return: e.id }) }}" target="_blank" rel="noopener" title="Ver EIR escaneado">
                           <i class="bi bi-file-earmark-text"></i>
                         </a>
                       {% else %}
@@ -706,11 +790,92 @@
             </table>
           {% endif %}
 
-          {% if containersPendingReturn|length %}
+          {% if scheduledReturns|length %}
+            <h6 class="mb-2">Programados, esperando devolución</h6>
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th scope="col">Contenedor</th>
+                  <th scope="col">Patio</th>
+                  <th scope="col">Cita</th>
+                  <th scope="col">Papeleta</th>
+                  {% if is_granted('ROLE_EXECUTIVE') %}<th scope="col">EIR</th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for e in scheduledReturns %}
+                  <tr>
+                    <td>{{ e.container.num }} <span class="text-body-secondary">&middot; {{ e.container.type }}</span></td>
+                    <td>{{ e.yard.name }}</td>
+                    <td>{{ e.appointmentDate|date('d/m/Y') }}</td>
+                    <td>
+                      {% if e.slipRoute %}
+                        <a href="{{ path('case_file_empty_return_slip_download', { id: import.id, return: e.id }) }}" target="_blank" rel="noopener" title="Ver papeleta">
+                          <i class="bi bi-file-earmark-text"></i>
+                        </a>
+                      {% endif %}
+                    </td>
+                    {% if is_granted('ROLE_EXECUTIVE') %}
+                      <td>
+                        <form method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center"
+                              action="{{ path('case_file_empty_return_eir_upload', { id: import.id, return: e.id }) }}">
+                          <input type="hidden" name="_token" value="{{ csrf_token('case_file_empty_return_eir_upload') }}">
+                          <input type="file" class="form-control form-control-sm" name="eirFile" style="max-width:180px" required>
+                          <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
+                            {{ e.eirRoute ? 'Reemplazar' : 'Adjuntar' }}
+                          </button>
+                        </form>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
+
+          {% if is_granted('ROLE_EXECUTIVE') and containersPendingSchedule|length %}
+            <h6 class="mb-2">Sin programar</h6>
+            {% for c in containersPendingSchedule %}
+              <form method="POST" enctype="multipart/form-data" class="row g-2 align-items-end mb-2"
+                    action="{{ path('case_file_empty_return_schedule', { id: import.id, container: c.id }) }}">
+                <input type="hidden" name="_token" value="{{ csrf_token('case_file_empty_return_schedule') }}">
+
+                <div class="col-md-2">
+                  <span class="fw-semibold"><i class="bi bi-box-seam"></i> {{ c.num }}</span>
+                </div>
+
+                <div class="col-md-3">
+                  <label for="return-yard-{{ c.id }}" class="form-label">Patio</label>
+                  <select class="form-select form-select-sm" name="yard" id="return-yard-{{ c.id }}" required>
+                    <option selected disabled value="">Seleccione el patio</option>
+                    {% for y in yards %}
+                      <option value="{{ y.id }}">{{ y.name }} (CR {{ y.cr }})</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <div class="col-md-2">
+                  <label for="appointmentDate-{{ c.id }}" class="form-label">Fecha de la cita</label>
+                  <input type="date" class="form-control form-control-sm" name="appointmentDate" id="appointmentDate-{{ c.id }}" required>
+                </div>
+
+                <div class="col-md-3">
+                  <label for="slip-{{ c.id }}" class="form-label">Papeleta del patio</label>
+                  <input type="file" class="form-control form-control-sm" name="slip" id="slip-{{ c.id }}" required>
+                </div>
+
+                <div class="col-md-2">
+                  <button type="submit" class="btn btn-sm btn-primary">
+                    <i class="bi bi-calendar-check"></i> Programar
+                  </button>
+                </div>
+              </form>
+            {% endfor %}
+          {% elseif containersPendingSchedule|length %}
             <p class="mb-0 text-body-secondary">
               <i class="bi bi-hourglass-split"></i>
-              Falta que el transportista devuelva:
-              {% for c in containersPendingReturn %}
+              Esperando a que el ejecutivo programe la devolución de:
+              {% for c in containersPendingSchedule %}
                 <span class="badge text-bg-secondary">{{ c.num }}</span>
               {% endfor %}
             </p>
@@ -745,7 +910,7 @@
                 <tr>
                   <td>{{ e.concept }}</td>
                   <td>
-                    <a href="/{{ e.route }}" target="_blank" rel="noopener" download>
+                    <a href="{{ path('case_file_expense_download', { id: import.id, invoice: e.id }) }}" target="_blank" rel="noopener" download>
                       <i class="bi bi-download"></i> {{ e.route|split('/')|last }}
                     </a>
                   </td>
@@ -846,7 +1011,7 @@
                   <td>{{ previo.type }}</td>
                   <td>{{ previo.authority ?: '—' }}</td>
                   <td class="text-end">
-                    <a href="/{{ previo.pdfRoute }}" class="btn btn-sm btn-outline-secondary" download title="Descargar PDF">
+                    <a href="{{ path('case_file_previo_pdf_download', { id: import.id, previo: previo.id }) }}" class="btn btn-sm btn-outline-secondary" download title="Descargar PDF">
                       <i class="bi bi-file-earmark-pdf"></i> PDF
                     </a>
                     {% if previo.photosZipRoute %}

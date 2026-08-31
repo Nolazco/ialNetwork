@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Entity\Delivery;
 use App\Entity\Container;
 use App\Entity\ContainerYard;
+use App\Entity\EmptyReturn;
 use App\Entity\FreightHauler;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
@@ -14,6 +15,7 @@ use App\Entity\PrevioReport;
 use App\Entity\RequiredDocument;
 use App\Entity\User;
 use App\Security\CompanyAccess;
+use App\Service\UploadPath;
 use App\Soia\ModuladoConfirmer;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
@@ -21,9 +23,12 @@ use App\Workflow\RequiredDocumentType;
 use App\Workflow\TransportCoordinator;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
@@ -55,6 +60,9 @@ class DashboardCaseFiles extends AbstractController
         private readonly TransportCoordinator $transport,
         private readonly CompanyAccess $companyAccess,
         private readonly ModuladoConfirmer $moduladoConfirmer,
+        private readonly UploadPath $uploadPath,
+        #[Autowire('%kernel.environment%')]
+        private readonly string $environment,
     ) {
     }
 
@@ -65,6 +73,17 @@ class DashboardCaseFiles extends AbstractController
     private function canView(ImportRequest $import): bool
     {
         return $this->companyAccess->canAccess($import->getIdCompany());
+    }
+
+    /**
+     * Para la prueba de entrega y el EIR: ademas del cliente/ejecutivo que ya
+     * ve el expediente (canView), el transportista dueño de ESE despacho en
+     * concreto tambien debe poder verlos, aunque no tenga acceso al resto del
+     * expediente (proforma, facturas, etc.).
+     */
+    private function haulerFor(User $user): ?FreightHauler
+    {
+        return $this->entityManager->getRepository(FreightHauler::class)->findOneBy(['id_user' => $user]);
     }
 
     #[Route('/dashboard/pedimentos/expediente/{id}', name: 'case_file', requirements: ['id' => '\d+'], methods: ['GET'])]
@@ -110,11 +129,20 @@ class DashboardCaseFiles extends AbstractController
                 continue;
             }
 
-            $shareableImports[] = $candidate;
-
             if ($candidate->getType() === ImportRequestWorkflow::TYPE_CONTAINER) {
-                $shareableContainers[$candidate->getId()] = $this->transport->unassignedContainers($candidate);
+                $candidateContainers = $this->transport->unassignedContainers($candidate);
+
+                // Sin contenedores libres no aporta nada a la unidad: listarlo
+                // de todos modos solo confunde (parece un tercer contenedor
+                // seleccionable cuando en realidad no hay nada que agregar).
+                if ($candidateContainers === []) {
+                    continue;
+                }
+
+                $shareableContainers[$candidate->getId()] = $candidateContainers;
             }
+
+            $shareableImports[] = $candidate;
         }
 
         return $this->render('/dashboard/caseFile.html.twig', [
@@ -122,7 +150,8 @@ class DashboardCaseFiles extends AbstractController
             'role' => $user->getRoles()[0],
             'loged' => 'true',
             'import' => $import,
-            'sequence' => $this->workflow->sequenceFor($import),
+            'sequence' => $this->workflow->roadmapSequence($import),
+            'offsiteInspectionExpected' => $this->workflow->offsiteInspectionExpected($import),
             'completed' => $this->workflow->completedStatuses($import),
             'skipped' => $this->workflow->skippedStatuses($import),
             'nextStatuses' => $nextStatuses,
@@ -144,6 +173,9 @@ class DashboardCaseFiles extends AbstractController
             'shareableContainers' => $shareableContainers,
             'requiresEmptyReturn' => $this->workflow->requiresEmptyReturn($import),
             'containersPendingReturn' => $this->transport->containersPendingReturn($import),
+            'containersPendingSchedule' => $this->transport->containersPendingSchedule($import),
+            'scheduledReturns' => array_filter($import->getEmptyReturns()->toArray(), static fn (EmptyReturn $return): bool => !$return->isExecuted()),
+            'executedReturns' => array_filter($import->getEmptyReturns()->toArray(), static fn (EmptyReturn $return): bool => $return->isExecuted()),
             'previoReports' => $this->entityManager->getRepository(PrevioReport::class)
                 ->findBy(['reference' => $import], ['date' => 'DESC', 'id' => 'DESC']),
             'expenses' => $import->getInternInvoices(),
@@ -184,8 +216,9 @@ class DashboardCaseFiles extends AbstractController
         $files = $r->files->all('documents');
 
         $folder = 'uploads/empresas/'.$import->getIdCompany()->getRfc().$import->getClientReference();
+        $absoluteFolder = $this->uploadPath->resolve($folder);
 
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+        if (!is_dir($absoluteFolder) && !mkdir($absoluteFolder, 0777, true) && !is_dir($absoluteFolder)) {
             $this->addFlash('error', 'No se pudo preparar la carpeta de documentos.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -202,8 +235,8 @@ class DashboardCaseFiles extends AbstractController
             $original = $file->getClientOriginalName();
             $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
 
-            // Lista blanca: los archivos caen bajo public/, asi que nada que un
-            // servidor pueda interpretar entra aqui.
+            // Lista blanca: aunque ya no caen bajo public/, sigue sin haber
+            // motivo para aceptar nada ejecutable.
             if (!in_array($extension, self::EXPENSE_EXTENSIONS, true)) {
                 $rejected[] = $original;
 
@@ -219,7 +252,7 @@ class DashboardCaseFiles extends AbstractController
             $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
 
             try {
-                $file->move($folder, $name);
+                $file->move($absoluteFolder, $name);
             } catch (FileException) {
                 $rejected[] = $original;
 
@@ -255,6 +288,83 @@ class DashboardCaseFiles extends AbstractController
                 implode(', ', self::EXPENSE_EXTENSIONS)
             ));
         }
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Descarga un documento del aviso. Antes era un link estatico bajo
+     * public/, descargable por cualquiera con la URL sin necesidad de
+     * sesion — ahora exige la misma regla de acceso que ya usa el
+     * expediente (canView).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/documentos/{document}/archivo', name: 'case_file_document_download', requirements: ['id' => '\d+', 'document' => '\d+'], methods: ['GET'])]
+    public function downloadDocument(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'document')] ImportDocument $document): BinaryFileResponse
+    {
+        if (!$this->canView($import) || $document->getReference() !== $import) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $document->getRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * La fecha de arribo que captura el cliente al dar de alta suele ser un
+     * estimado, no la definitiva: por eso cliente y ejecutivo pueden
+     * corregirla despues. Una vez marcada "confirmada", solo el ejecutivo
+     * puede seguir editandola (el cliente ni siquiera ve el formulario, ver
+     * caseFile.html.twig, pero se blinda tambien aqui).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/eta', name: 'case_file_eta', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updateEta(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        if (!$this->isCsrfTokenValid('case_file_eta', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($import->isEtaConfirmed() && !$this->isGranted('ROLE_EXECUTIVE')) {
+            $this->addFlash('error', 'La fecha de arribo ya está confirmada; solo la agencia puede corregirla.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $eta = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('eta'));
+
+        if (!$eta) {
+            $this->addFlash('error', 'La fecha de arribo es obligatoria.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $import->setEta($eta);
+
+        $confirmed = (bool) $r->request->get('etaConfirmed');
+
+        // Un cliente puede confirmarla, pero no quitarle la confirmacion una
+        // vez puesta: eso queda solo para el ejecutivo, por si hay que
+        // corregir un error.
+        if ($this->isGranted('ROLE_EXECUTIVE') || $confirmed) {
+            $import->setEtaConfirmed($confirmed);
+        }
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Fecha de arribo actualizada.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
@@ -300,8 +410,9 @@ class DashboardCaseFiles extends AbstractController
         }
 
         $folder = 'uploads/requisitos/'.$import->getId();
+        $absoluteFolder = $this->uploadPath->resolve($folder);
 
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+        if (!is_dir($absoluteFolder) && !mkdir($absoluteFolder, 0777, true) && !is_dir($absoluteFolder)) {
             $this->addFlash('error', 'No se pudo preparar la carpeta de documentos.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -310,7 +421,7 @@ class DashboardCaseFiles extends AbstractController
         $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
 
         try {
-            $file->move($folder, $name);
+            $file->move($absoluteFolder, $name);
         } catch (FileException) {
             $this->addFlash('error', 'No se pudo guardar el archivo, intenta de nuevo.');
 
@@ -332,8 +443,8 @@ class DashboardCaseFiles extends AbstractController
             $document->setType($type);
             $import->addRequiredDocument($document);
             $this->entityManager->persist($document);
-        } elseif ($document->getRoute() && is_file($document->getRoute())) {
-            unlink($document->getRoute());
+        } elseif ($document->getRoute() && is_file($this->uploadPath->resolve($document->getRoute()))) {
+            unlink($this->uploadPath->resolve($document->getRoute()));
         }
 
         $document->setRoute($folder.'/'.$name);
@@ -341,7 +452,15 @@ class DashboardCaseFiles extends AbstractController
 
         $this->entityManager->flush();
 
-        $this->addFlash('success', sprintf('"%s" anexado.', $type));
+        $advancedTo = $this->workflow->tryAutoAdvance($import);
+
+        if ($advancedTo !== null) {
+            $this->entityManager->flush();
+        }
+
+        $this->addFlash('success', $advancedTo !== null
+            ? sprintf('"%s" anexado. El expediente pasó a "%s".', $type, $advancedTo)
+            : sprintf('"%s" anexado.', $type));
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
@@ -379,8 +498,9 @@ class DashboardCaseFiles extends AbstractController
         }
 
         $folder = 'uploads/requisitos/'.$import->getId();
+        $absoluteFolder = $this->uploadPath->resolve($folder);
 
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+        if (!is_dir($absoluteFolder) && !mkdir($absoluteFolder, 0777, true) && !is_dir($absoluteFolder)) {
             $this->addFlash('error', 'No se pudo preparar la carpeta de documentos.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -389,7 +509,7 @@ class DashboardCaseFiles extends AbstractController
         $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
 
         try {
-            $file->move($folder, $name);
+            $file->move($absoluteFolder, $name);
         } catch (FileException) {
             $this->addFlash('error', 'No se pudo guardar el archivo, intenta de nuevo.');
 
@@ -426,8 +546,8 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        if ($document->getRoute() && is_file($document->getRoute())) {
-            unlink($document->getRoute());
+        if ($document->getRoute() && is_file($this->uploadPath->resolve($document->getRoute()))) {
+            unlink($this->uploadPath->resolve($document->getRoute()));
         }
 
         $this->entityManager->remove($document);
@@ -436,6 +556,32 @@ class DashboardCaseFiles extends AbstractController
         $this->addFlash('success', 'Solicitud de anticipo eliminada.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Descarga un documento del ejecutivo (proforma, BL, pedimentos,
+     * comprobante de cita, certificado de inspección o solicitud de
+     * anticipo). Antes era un link estatico bajo public/, descargable por
+     * cualquiera con la URL sin sesion — ahora exige la misma regla de
+     * acceso que ya usa el expediente (canView).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/requisitos/{document}/archivo', name: 'case_file_required_document_download', requirements: ['id' => '\d+', 'document' => '\d+'], methods: ['GET'])]
+    public function downloadRequiredDocument(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'document')] RequiredDocument $document): BinaryFileResponse
+    {
+        if (!$this->canView($import) || $document->getReference() !== $import) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $document->getRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
     }
 
     /**
@@ -513,8 +659,12 @@ class DashboardCaseFiles extends AbstractController
 
         $delivery = new Delivery();
 
+        // addDelivery (no addReference directo) para que tambien quede
+        // sincronizado el lado inverso en memoria: tryAutoAdvance(), mas
+        // abajo, necesita ver ya reflejado este despacho en
+        // $imp->getDeliveries() dentro de esta misma peticion.
         foreach ($allImports as $imp) {
-            $delivery->addReference($imp);
+            $imp->addDelivery($delivery);
         }
 
         $delivery->setTransport($hauler);
@@ -562,11 +712,24 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->persist($delivery);
         $this->entityManager->flush();
 
+        $advanced = [];
+
+        foreach ($allImports as $imp) {
+            if ($status = $this->workflow->tryAutoAdvance($imp)) {
+                $advanced[] = sprintf('%s pasó a "%s"', $imp->getClientReference(), $status);
+            }
+        }
+
+        if ($advanced !== []) {
+            $this->entityManager->flush();
+        }
+
         $this->addFlash('success', sprintf(
-            'Cita registrada para el %s con %s%s.',
+            'Cita registrada para el %s con %s%s.%s',
             $date->format('d/m/Y'),
             $hauler ? $hauler->getCompanyName() : 'transporte pendiente por asignar',
-            count($allImports) > 1 ? sprintf(' (compartida con %d expediente(s) más)', count($allImports) - 1) : ''
+            count($allImports) > 1 ? sprintf(' (compartida con %d expediente(s) más)', count($allImports) - 1) : '',
+            $advanced !== [] ? ' '.implode(', ', $advanced).'.' : ''
         ));
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -634,6 +797,52 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Despacho actualizado.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Asigna un transportista distinto para la devolucion de vacios (caso
+     * real: A entrega la mercancía, B devuelve el contenedor vacío). A
+     * diferencia de editTransport(), esto se puede hacer aunque el despacho
+     * ya haya salido o hasta ya entregado — la necesidad de un transportista
+     * distinto para la devolución normalmente se detecta hasta entonces.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/transporte/{delivery}/devolucion', name: 'case_file_transport_return', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['POST'])]
+    public function assignReturnTransport(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_transport_return', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (!$delivery->getReferences()->contains($import)) {
+            $this->addFlash('error', 'Ese despacho no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $transportId = (string) $r->request->get('returnTransport');
+        $hauler = null;
+
+        if ($transportId !== '') {
+            $hauler = $this->entityManager->getRepository(FreightHauler::class)->find($transportId);
+
+            if (!$hauler) {
+                $this->addFlash('error', 'Selecciona un transportista válido.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        }
+
+        $delivery->setReturnTransport($hauler);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', $hauler
+            ? sprintf('%s hará la devolución de vacíos de este despacho.', $hauler->getCompanyName())
+            : 'La devolución de vacíos vuelve a quedar a cargo de quien entregó.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
@@ -864,6 +1073,43 @@ class DashboardCaseFiles extends AbstractController
     }
 
     /**
+     * TEMPORAL — SOLO PARA PRUEBAS. Salta la consulta real al SOIA y marca
+     * "Modulado" directamente, para no depender del portal mientras se
+     * prueba el resto del flujo. Quitar este metodo, su ruta y el boton en
+     * caseFile.html.twig antes de pasar a producción — por eso esta
+     * bloqueado fuera de %kernel.environment% dev/test como segundo candado,
+     * ademas de recordarlo aqui.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/soia-bypass', name: 'case_file_soia_bypass', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function bypassSoia(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if ($this->environment === 'prod') {
+            throw $this->createNotFoundException();
+        }
+
+        if (!$this->isCsrfTokenValid('case_file_soia_bypass', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (!$this->workflow->canTransitionTo($import, ImportRequestWorkflow::MODULATED)) {
+            $this->addFlash('error', sprintf('El expediente no puede pasar a "Modulado" estando en "%s".', $import->getStatus()));
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $import->setModuladoAt(new \DateTimeImmutable());
+        $import->setStatus(ImportRequestWorkflow::MODULATED);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Modulación simulada (bypass de pruebas, sin consultar el SOIA real). El expediente pasó a "Modulado".');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
      * Registra una maniobra sobre el expediente.
      */
     #[IsGranted('ROLE_EXECUTIVE')]
@@ -951,8 +1197,9 @@ class DashboardCaseFiles extends AbstractController
         $files = $r->files->all('documents');
 
         $folder = 'uploads/gastos/'.$import->getId();
+        $absoluteFolder = $this->uploadPath->resolve($folder);
 
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+        if (!is_dir($absoluteFolder) && !mkdir($absoluteFolder, 0777, true) && !is_dir($absoluteFolder)) {
             $this->addFlash('error', 'No se pudo preparar la carpeta de la cuenta de gastos.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
@@ -969,8 +1216,8 @@ class DashboardCaseFiles extends AbstractController
             $original = $file->getClientOriginalName();
             $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
 
-            // Lista blanca: los archivos caen bajo public/, asi que nada que un
-            // servidor pueda interpretar entra aqui.
+            // Lista blanca: aunque ya no caen bajo public/, sigue sin haber
+            // motivo para aceptar nada ejecutable.
             if (!in_array($extension, self::EXPENSE_EXTENSIONS, true)) {
                 $rejected[] = $original;
 
@@ -986,7 +1233,7 @@ class DashboardCaseFiles extends AbstractController
             $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
 
             try {
-                $file->move($folder, $name);
+                $file->move($absoluteFolder, $name);
             } catch (FileException) {
                 $rejected[] = $original;
 
@@ -1047,14 +1294,348 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        if (is_file($invoice->getRoute())) {
-            unlink($invoice->getRoute());
+        if ($invoice->getRoute() && is_file($this->uploadPath->resolve($invoice->getRoute()))) {
+            unlink($this->uploadPath->resolve($invoice->getRoute()));
         }
 
         $this->entityManager->remove($invoice);
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Documento eliminado de la cuenta de gastos.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Descarga un documento de la cuenta de gastos. Antes era un link
+     * estatico bajo public/, descargable por cualquiera con la URL sin
+     * sesion — ahora exige la misma regla de acceso que ya usa el
+     * expediente (canView).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/gastos/{invoice}/archivo', name: 'case_file_expense_download', requirements: ['id' => '\d+', 'invoice' => '\d+'], methods: ['GET'])]
+    public function downloadExpense(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'invoice')] InternInvoice $invoice): BinaryFileResponse
+    {
+        if (!$this->canView($import) || $invoice->getReference() !== $import) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $invoice->getRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * Descarga el PDF de un reporte de previo. El ZIP de fotos (photosZipRoute)
+     * a propósito NO se protege: debe poder descargarse en cualquier momento
+     * sin sesión, así que se queda como link estático bajo public/ (ver
+     * DashboardPrevios::create()). El PDF sí queda protegido igual que el
+     * resto de documentos del expediente.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/previos/{previo}/pdf', name: 'case_file_previo_pdf_download', requirements: ['id' => '\d+', 'previo' => '\d+'], methods: ['GET'])]
+    public function downloadPrevioPdf(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'previo')] PrevioReport $previo): BinaryFileResponse
+    {
+        if (!$this->canView($import) || $previo->getReference() !== $import) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $previo->getPdfRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * Descarga la prueba de entrega de un despacho. La ve quien ya ve el
+     * expediente (cliente/ejecutivo) o el transportista dueño de ese despacho
+     * en concreto — este ultimo no tiene canView() sobre el resto del
+     * expediente, y no debe tenerlo (no debe ver proforma, facturas, etc.).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/despachos/{delivery}/prueba-entrega', name: 'case_file_delivery_proof_download', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['GET'])]
+    public function downloadDeliveryProof(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery): BinaryFileResponse
+    {
+        if (!$delivery->getReferences()->contains($import)) {
+            throw $this->createNotFoundException();
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+        $hauler = $this->haulerFor($user);
+        $ownsDelivery = $hauler !== null && $delivery->getTransport() === $hauler;
+
+        if (!$this->canView($import) && !$ownsDelivery) {
+            throw $this->createAccessDeniedException('Ese despacho no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $delivery->getProofRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * Descarga el EIR escaneado de una devolucion de vacio. Mismo criterio
+     * que la prueba de entrega: cliente/ejecutivo via canView(), o el
+     * transportista al que se le asigno esa devolucion en concreto (ver
+     * Delivery::$returnTransport, un despacho puede devolverlo alguien
+     * distinto a quien entrego).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/vacios/{return}/eir', name: 'case_file_empty_return_eir_download', requirements: ['id' => '\d+', 'return' => '\d+'], methods: ['GET'])]
+    public function downloadEmptyReturnEir(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'return')] EmptyReturn $return): BinaryFileResponse
+    {
+        if ($return->getReference() !== $import) {
+            throw $this->createNotFoundException();
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->canView($import) && !$this->haulerOwnsReturn($return, $user)) {
+            throw $this->createAccessDeniedException('Esa devolución no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $return->getEirRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * Descarga la papeleta del patio que el ejecutivo adjunta al programar
+     * la cita. Mismo criterio de acceso que el EIR: cliente/ejecutivo, o el
+     * transportista al que le toca esa devolucion (antes de que exista un
+     * EIR, se resuelve via el despacho, no via EmptyReturn::transport, que
+     * todavia no se fija).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/vacios/{return}/papeleta', name: 'case_file_empty_return_slip_download', requirements: ['id' => '\d+', 'return' => '\d+'], methods: ['GET'])]
+    public function downloadEmptyReturnSlip(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'return')] EmptyReturn $return): BinaryFileResponse
+    {
+        if ($return->getReference() !== $import) {
+            throw $this->createNotFoundException();
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->canView($import) && !$this->haulerOwnsReturn($return, $user)) {
+            throw $this->createAccessDeniedException('Esa devolución no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $return->getSlipRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * ¿El transportista logeado es a quien le toca esta devolucion? Antes de
+     * que se ejecute (EmptyReturn::transport todavia null), se resuelve via
+     * el despacho vigente del contenedor, igual que registerEmptyReturn() en
+     * DashboardDeliveries; ya ejecutada, se compara directo contra quien
+     * quedo registrado (puede ya no coincidir con el despacho si este se
+     * reasigno despues).
+     */
+    private function haulerOwnsReturn(EmptyReturn $return, User $user): bool
+    {
+        $hauler = $this->haulerFor($user);
+
+        if ($hauler === null) {
+            return false;
+        }
+
+        if ($return->getTransport() !== null) {
+            return $return->getTransport() === $hauler;
+        }
+
+        $delivery = $this->transport->deliveryFor($return->getContainer());
+
+        return $delivery !== null && ($delivery->getReturnTransport() ?? $delivery->getTransport()) === $hauler;
+    }
+
+    /**
+     * El ejecutivo programa (o corrige, mientras no se haya ejecutado) la
+     * devolucion de vacio de un contenedor: patio, fecha de la cita y la
+     * papeleta que autoriza recibirlo ahi. Ya no lo elige el transportista —
+     * depende de las instrucciones de la naviera, que solo tiene el
+     * ejecutivo. Requiere que el contenedor ya tenga transporte asignado
+     * (ver assignTransport()): sin eso no hay a quien avisarle la cita.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/vacios/{container}/programar', name: 'case_file_empty_return_schedule', requirements: ['id' => '\d+', 'container' => '\d+'], methods: ['POST'])]
+    public function scheduleEmptyReturn(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'container')] Container $container, Request $r, SluggerInterface $slugger): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_empty_return_schedule', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (!$container->getReference()->contains($import)) {
+            $this->addFlash('error', 'Ese contenedor no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $return = $this->transport->emptyReturnFor($container);
+
+        if ($return !== null && $return->isExecuted()) {
+            $this->addFlash('error', 'Ese contenedor ya tiene registrada su devolución, no se puede reprogramar.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $delivery = $this->transport->deliveryFor($container);
+
+        if ($delivery === null || $delivery->getTransport() === null) {
+            $this->addFlash('error', 'Asigna primero el transporte de este contenedor (Avisar al transporte) antes de programar la devolución de vacío.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $yard = $this->entityManager->getRepository(ContainerYard::class)->find($r->request->get('yard'));
+        $appointmentDate = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('appointmentDate'));
+        $slipFile = $r->files->get('slip');
+
+        if (!$yard || !$appointmentDate) {
+            $this->addFlash('error', 'El patio y la fecha de la cita son obligatorios.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($return === null && !$slipFile) {
+            $this->addFlash('error', 'Adjunta la papeleta del patio.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($return === null) {
+            $return = new EmptyReturn();
+            $return->setContainer($container);
+            $import->addEmptyReturn($return);
+            $this->entityManager->persist($return);
+        }
+
+        $return->setYard($yard);
+        $return->setAppointmentDate($appointmentDate->setTime(0, 0));
+
+        if ($slipFile && $slipFile->isValid()) {
+            $route = 'uploads/papeletas/'.$import->getId();
+            $folder = $this->uploadPath->resolve($route);
+
+            if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+                $this->addFlash('error', 'No se pudo preparar la carpeta de la papeleta.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $name = $slugger->slug($container->getNum()).'-'.uniqid().'.'.$slipFile->guessExtension();
+
+            try {
+                $slipFile->move($folder, $name);
+                $return->setSlipRoute($route.'/'.$name);
+            } catch (FileException) {
+                $this->addFlash('error', 'No se pudo guardar la papeleta.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        }
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', sprintf('Devolución de %s programada para el %s en %s.', $container->getNum(), $appointmentDate->format('d/m/Y'), $yard->getName()));
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * El EIR normalmente lo sube el transportista al registrar la
+     * devolucion (ver DashboardDeliveries::registerEmptyReturn()), pero el
+     * patio a veces lo emite despues: esto deja que el ejecutivo lo adjunte
+     * o reemplace en cualquier momento, ya programada la devolucion.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/vacios/{return}/eir/adjuntar', name: 'case_file_empty_return_eir_upload', requirements: ['id' => '\d+', 'return' => '\d+'], methods: ['POST'])]
+    public function uploadEmptyReturnEir(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'return')] EmptyReturn $return, Request $r, SluggerInterface $slugger): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_empty_return_eir_upload', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($return->getReference() !== $import) {
+            $this->addFlash('error', 'Esa devolución no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $file = $r->files->get('eirFile');
+
+        if (!$file || !$file->isValid()) {
+            $this->addFlash('error', 'Selecciona el EIR escaneado.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $route = 'uploads/eir/'.$import->getId();
+        $folder = $this->uploadPath->resolve($route);
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            $this->addFlash('error', 'No se pudo preparar la carpeta del EIR.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $name = $slugger->slug($return->getContainer()->getNum()).'-'.uniqid().'.'.$file->guessExtension();
+
+        try {
+            $file->move($folder, $name);
+        } catch (FileException) {
+            $this->addFlash('error', 'No se pudo guardar el EIR.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $oldPath = $return->getEirRoute() ? $this->uploadPath->resolve($return->getEirRoute()) : null;
+
+        if ($oldPath && is_file($oldPath)) {
+            unlink($oldPath);
+        }
+
+        $return->setEirRoute($route.'/'.$name);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'EIR adjuntado.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }

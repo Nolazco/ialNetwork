@@ -21,6 +21,92 @@ final class TransportCoordinator
     }
 
     /**
+     * Motivos por los que este despacho todavia no puede salir: alguno de
+     * sus expedientes no ha llegado al punto donde le toca salir (ej. sigue
+     * sin modular). Es una sola unidad fisica: no puede salir del recinto
+     * con carga mixta (una parte liberada, otra no), asi que basta con que
+     * uno no este listo para bloquear todo el despacho. Vacio significa que
+     * ya se puede confirmar.
+     *
+     * @return list<string>
+     */
+    public function departureBlockers(Delivery $delivery): array
+    {
+        $blockers = [];
+
+        foreach ($delivery->getReferences() as $request) {
+            $target = $this->workflow->departureStatus($request);
+
+            // "!==" y no solo canTransitionTo: un segundo camion del mismo
+            // expediente puede confirmar su salida cuando el expediente ya
+            // va "En transito" por el primero — eso no es un bloqueo.
+            if ($target !== null && $request->getStatus() !== $target && !$this->workflow->canTransitionTo($request, $target)) {
+                $blockers[] = sprintf('%s sigue en "%s"; todavía no puede salir del recinto.', $request->getClientReference(), $request->getStatus());
+            }
+        }
+
+        return $blockers;
+    }
+
+    /**
+     * Motivos por los que este despacho todavia no puede entregarse. Mismo
+     * criterio de "todo o nada" que departureBlockers(). Vacio significa que
+     * ya se puede confirmar.
+     *
+     * @return list<string>
+     */
+    public function arrivalBlockers(Delivery $delivery): array
+    {
+        $blockers = [];
+
+        foreach ($delivery->getReferences() as $request) {
+            // Otros despachos del mismo expediente que sigan pendientes (sin
+            // contar este) no son un bloqueo: es legitimo que este camion
+            // llegue aunque el expediente en conjunto no cierre todavia.
+            $otherPending = 0;
+
+            foreach ($request->getDeliveries() as $other) {
+                if ($other === $delivery) {
+                    continue;
+                }
+
+                if ($other->stillOwes($request)) {
+                    ++$otherPending;
+                }
+            }
+
+            if ($otherPending > 0) {
+                continue;
+            }
+
+            $departure = $this->workflow->departureStatus($request);
+            $arrival = $this->workflow->arrivalStatus($request);
+
+            if ($departure === null) {
+                // Exportacion: no hay salida que confirmar, la llegada es el
+                // unico paso.
+                if (!$this->workflow->canTransitionTo($request, $arrival)) {
+                    $blockers[] = sprintf('%s sigue en "%s"; todavía no puede pasar a "%s".', $request->getClientReference(), $request->getStatus(), $arrival);
+                }
+
+                continue;
+            }
+
+            // Importacion: confirmar entrega puede confirmar la salida de
+            // forma implicita si todavia no se hizo (esto ya lo hace el
+            // controlador), asi que basta con que la salida sea valida ahora
+            // o ya haya pasado.
+            $readyForDeparture = $request->getStatus() === $departure || $this->workflow->canTransitionTo($request, $departure);
+
+            if (!$readyForDeparture) {
+                $blockers[] = sprintf('%s sigue en "%s"; todavía no puede salir del recinto.', $request->getClientReference(), $request->getStatus());
+            }
+        }
+
+        return $blockers;
+    }
+
+    /**
      * El transportista confirma que salio. Un despacho compartido entre
      * varios expedientes (mismo cliente, misma unidad) los mueve a todos de
      * forma independiente: cada uno avanza solo si a el le toca.
@@ -69,11 +155,24 @@ final class TransportCoordinator
      */
     public function confirmArrival(Delivery $delivery, \DateTimeImmutable $at): array
     {
+        // Se calcula ANTES de marcar la entrega: una vez marcada,
+        // stillOwes() ya no puede distinguir a quien de verdad le tocaba
+        // esta entrega. Un despacho compartido de carga suelta que ya le
+        // traspaso su parte a un expediente no debe "entregarsela" de nuevo
+        // solo porque el despacho en general se acaba de marcar entregado.
+        $owed = [];
+
+        foreach ($delivery->getReferences() as $request) {
+            if ($delivery->stillOwes($request)) {
+                $owed[] = $request;
+            }
+        }
+
         $delivery->setDeliveredAt($at);
 
         $moved = [];
 
-        foreach ($delivery->getReferences() as $request) {
+        foreach ($owed as $request) {
             $status = $this->confirmArrivalFor($request);
 
             if ($status !== null) {
@@ -90,6 +189,15 @@ final class TransportCoordinator
             return null;
         }
 
+        // Un contenedor traspasado que todavia no tiene una continuacion
+        // asignada no cuenta como "despacho pendiente" (ver
+        // Delivery::stillOwes()), pero tampoco esta entregado: sigue
+        // flotando en el punto de traspaso, sin camion. No aplica a carga
+        // suelta (nunca tiene contenedores que revisar aqui).
+        if ($this->unassignedContainers($request) !== []) {
+            return null;
+        }
+
         $arrival = $this->workflow->arrivalStatus($request);
 
         if (!$this->workflow->canTransitionTo($request, $arrival)) {
@@ -103,15 +211,19 @@ final class TransportCoordinator
 
     /**
      * Despachos del expediente que todavia no llegan a su destino.
+     *
+     * No es "cuantos no estan entregados/fallidos": un despacho compartido
+     * de carga suelta puede haberle traspasado su parte a ESTE expediente y
+     * seguir debiendole la suya al otro — por eso se pregunta puntualmente
+     * si a este expediente en concreto le sigue debiendo algo (ver
+     * Delivery::stillOwes()), no solo por su propio estado general.
      */
     public function pendingDeliveries(ImportRequest $request): int
     {
         $pending = 0;
 
         foreach ($request->getDeliveries() as $delivery) {
-            // Un despacho fallido nunca se va a entregar: es un callejon sin
-            // salida que una nueva cita reemplaza, no algo que siga pendiente.
-            if (!$delivery->isDelivered() && !$delivery->isFailed()) {
+            if ($delivery->stillOwes($request)) {
                 ++$pending;
             }
         }
@@ -143,7 +255,8 @@ final class TransportCoordinator
     }
 
     /**
-     * Contenedores del expediente que aun no se devuelven al patio.
+     * Contenedores del expediente que aun no se devuelven al patio de
+     * verdad, este o no ya programada su cita (ver EmptyReturn::isExecuted()).
      *
      * @return list<Container>
      */
@@ -153,16 +266,18 @@ final class TransportCoordinator
             return [];
         }
 
-        $returned = [];
+        $executed = [];
 
         foreach ($request->getEmptyReturns() as $return) {
-            $returned[$return->getContainer()->getId()] = true;
+            if ($return->isExecuted()) {
+                $executed[$return->getContainer()->getId()] = true;
+            }
         }
 
         $pending = [];
 
         foreach ($request->getContainers() as $container) {
-            if (!isset($returned[$container->getId()])) {
+            if (!isset($executed[$container->getId()])) {
                 $pending[] = $container;
             }
         }
@@ -171,7 +286,75 @@ final class TransportCoordinator
     }
 
     /**
-     * Contenedores de este despacho que el transportista todavia debe devolver.
+     * Contenedores del expediente a los que el ejecutivo todavia no les
+     * programa cita de devolucion (ni siquiera existe el registro). Antes de
+     * esto, el transportista no tiene nada que hacer: no elige el patio, lo
+     * asigna el ejecutivo segun instrucciones de la naviera.
+     *
+     * @return list<Container>
+     */
+    public function containersPendingSchedule(ImportRequest $request): array
+    {
+        if (!$this->workflow->requiresEmptyReturn($request)) {
+            return [];
+        }
+
+        $scheduled = [];
+
+        foreach ($request->getEmptyReturns() as $return) {
+            $scheduled[$return->getContainer()->getId()] = true;
+        }
+
+        $pending = [];
+
+        foreach ($request->getContainers() as $container) {
+            if (!isset($scheduled[$container->getId()])) {
+                $pending[] = $container;
+            }
+        }
+
+        return $pending;
+    }
+
+    /**
+     * El registro de devolucion (programada por el ejecutivo) de un
+     * contenedor, si ya existe.
+     */
+    public function emptyReturnFor(Container $container): ?EmptyReturn
+    {
+        foreach ($container->getReference() as $request) {
+            foreach ($request->getEmptyReturns() as $return) {
+                if ($return->getContainer() === $container) {
+                    return $return;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * El despacho vigente de un contenedor (el que no quedo descartado por
+     * un despacho fallido, ver unassignedContainers()). Sirve para saber
+     * quien es "el transporte ya asignado" antes de programar su devolucion
+     * de vacio.
+     */
+    public function deliveryFor(Container $container): ?Delivery
+    {
+        foreach ($container->getDeliveries() as $delivery) {
+            if (!$delivery->isFailed()) {
+                return $delivery;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Contenedores de este despacho cuya devolucion ya esta programada (el
+     * ejecutivo ya le asigno patio y cita) pero el transportista todavia no
+     * la ejecuta. Antes de programarse, el contenedor no aparece aqui: nada
+     * que hacer todavia.
      *
      * @return list<Container>
      */
@@ -188,7 +371,7 @@ final class TransportCoordinator
         $pending = [];
 
         foreach ($delivery->getContainers() as $container) {
-            if (isset($pendingByRequest[$container->getId()])) {
+            if (isset($pendingByRequest[$container->getId()]) && $this->emptyReturnFor($container) !== null) {
                 $pending[] = $container;
             }
         }
