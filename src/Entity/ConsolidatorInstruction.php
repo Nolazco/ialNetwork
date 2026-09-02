@@ -63,6 +63,14 @@ class ConsolidatorInstruction
     #[ORM\Column(length: 255)]
     private ?string $unidad = null;
 
+    /**
+     * Día en que se entregaría la mercancía en XCF. Nullable a propósito: se
+     * puede avisar la instrucción sin tener todavía la cita — es solo un
+     * estimado para que XCF se organice, no un compromiso en firme.
+     */
+    #[ORM\Column(type: 'date_immutable', nullable: true)]
+    private ?\DateTimeImmutable $deliveryDate = null;
+
     #[ORM\Column]
     private bool $estibable = false;
 
@@ -188,6 +196,18 @@ class ConsolidatorInstruction
     public function setUnidad(string $unidad): static
     {
         $this->unidad = $unidad;
+
+        return $this;
+    }
+
+    public function getDeliveryDate(): ?\DateTimeImmutable
+    {
+        return $this->deliveryDate;
+    }
+
+    public function setDeliveryDate(?\DateTimeImmutable $deliveryDate): static
+    {
+        $this->deliveryDate = $deliveryDate;
 
         return $this;
     }

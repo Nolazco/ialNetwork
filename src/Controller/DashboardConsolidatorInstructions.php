@@ -145,6 +145,7 @@ class DashboardConsolidatorInstructions extends AbstractController
         $instruction->setEstibable($merchandiseProfile?->isEstibable() ?? ($r->request->get('estibable') === '1'));
         $instruction->setQuantity($quantity);
         $instruction->setWeightKg($weightKg);
+        $instruction->setDeliveryDate($this->parseDeliveryDate($r));
         $instruction->setBilledToClient($r->request->get('billedToClient') === '1');
         $instruction->setCreatedAt(new \DateTimeImmutable());
         $instruction->setCreatedBy($user);
@@ -315,6 +316,23 @@ class DashboardConsolidatorInstructions extends AbstractController
         $this->entityManager->persist($profile);
 
         return $profile;
+    }
+
+    /**
+     * Fecha estimada de entrega en XCF: opcional, se puede mandar la
+     * instrucción sin tener todavía la cita agendada.
+     */
+    private function parseDeliveryDate(Request $r): ?\DateTimeImmutable
+    {
+        $value = trim((string) $r->request->get('deliveryDate'));
+
+        if ($value === '') {
+            return null;
+        }
+
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', $value);
+
+        return $date ? $date->setTime(0, 0) : null;
     }
 
     private function composeAddress(string $street, ?string $extNumber, string $neighborhood, string $municipality, string $state, string $zipCode): string

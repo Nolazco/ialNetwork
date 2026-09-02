@@ -36,6 +36,12 @@
                   <td style="color:#909090;">Destinatario</td>
                   <td><strong>{{ instruction.deliveryPoint.name ?? (import.idCompany.name ~ ' (domicilio fiscal)') }}</strong></td>
                 </tr>
+                {% if instruction.deliveryDate %}
+                  <tr>
+                    <td style="color:#909090;">Fecha estimada de entrega</td>
+                    <td><strong>{{ instruction.deliveryDate|date('d/m/Y') }}</strong></td>
+                  </tr>
+                {% endif %}
                 <tr>
                   <td style="color:#909090;">Transporte</td>
                   <td><strong>{{ instruction.transport.companyName }} (CAAT {{ instruction.transport.caat }})</strong></td>

@@ -1208,6 +1208,7 @@
                   <th scope="col">Destinatario</th>
                   <th scope="col">Mercancía</th>
                   <th scope="col">Transporte</th>
+                  <th scope="col">Entrega estimada</th>
                   <th scope="col" class="text-end">Descarga</th>
                 </tr>
               </thead>
@@ -1218,6 +1219,13 @@
                     <td>{{ instruction.deliveryPoint.name ?? (instruction.reference.idCompany.name ~ ' (domicilio fiscal)') }}</td>
                     <td>{{ instruction.quantity }} {{ instruction.unidad }} · {{ instruction.weightKg }} KG</td>
                     <td>{{ instruction.transport.companyName }}</td>
+                    <td>
+                      {% if instruction.deliveryDate %}
+                        {{ instruction.deliveryDate|date('d/m/Y') }}
+                      {% else %}
+                        <span class="text-body-secondary">Sin definir</span>
+                      {% endif %}
+                    </td>
                     <td class="text-end">
                       <a href="{{ path('consolidator_instruction_download', { id: import.id, instruction: instruction.id }) }}" class="btn btn-sm btn-outline-secondary" download title="Descargar Excel">
                         <i class="bi bi-file-earmark-excel"></i> Excel
