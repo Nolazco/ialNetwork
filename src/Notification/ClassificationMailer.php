@@ -3,6 +3,7 @@
 namespace App\Notification;
 
 use App\Entity\ClassificationRequest;
+use App\Repository\NotificationRecipientsRepository;
 use App\Service\UploadPath;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -15,24 +16,16 @@ use Symfony\Component\Mailer\MailerInterface;
 final class ClassificationMailer
 {
     /**
-     * Equipo fijo que clasifica. Heredado del sistema anterior
-     * (clas.php/clasMateria.php); no corresponde a ningún ejecutivo o cliente
-     * de esta app, así que no se resuelve de la base de datos.
-     *
-     * Público: LegacyClassificationMailer lo reutiliza para no duplicar la lista.
-     *
-     * @var list<string>
+     * Claves de NotificationRecipients (editable desde /admin). Públicas:
+     * LegacyClassificationMailer las reutiliza para no duplicar el string.
      */
-    public const CLASSIFIERS = [
-        'maria.santiago@vca.mx',
-        'mcamacho@valxglobalservices.com',
-        'ing.bueno@ialnetwork.com',
-        'zyf1967_2025@outlook.com',
-    ];
+    public const TO_KEY = 'classification_to';
+    public const CC_KEY = 'classification_cc';
 
     public function __construct(
         private readonly MailerInterface $mailer,
         private readonly RecipientResolver $recipients,
+        private readonly NotificationRecipientsRepository $notificationRecipients,
         #[Autowire(env: 'MAILER_FROM_ADDRESS')]
         private readonly string $fromAddress,
         private readonly UploadPath $uploadPath,
@@ -45,6 +38,7 @@ final class ClassificationMailer
             [$request->getRequestedBy()->getEmail()],
             $this->recipients->executiveEmails(),
             array_filter([$request->getCompany()->getClassificationContactEmail()]),
+            $this->notificationRecipients->emailsFor(self::CC_KEY),
         ));
 
         $email = (new TemplatedEmail())
@@ -52,7 +46,7 @@ final class ClassificationMailer
             ->subject(sprintf('Solicitud de Clasificación de Mercancía // %s // %s', $request->getMerchandiseName(), $request->getCompany()->getName()))
             ->htmlTemplate('emails/classification.html.twig')
             ->context(['request' => $request])
-            ->to(...self::CLASSIFIERS)
+            ->to(...$this->notificationRecipients->emailsFor(self::TO_KEY))
             ->cc(...$cc);
 
         foreach ($request->getAttachments() as $attachment) {

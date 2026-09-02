@@ -4,6 +4,7 @@ namespace App\Notification;
 
 use App\Entity\ImportRequest;
 use App\Entity\PrevioReport;
+use App\Repository\NotificationRecipientsRepository;
 use App\Service\UploadPath;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -19,23 +20,16 @@ use Symfony\Component\Mailer\MailerInterface;
 final class PrevioReportMailer
 {
     /**
-     * Direcciones fijas del sistema anterior. No se resuelven de la base de
-     * datos porque no corresponden a ningún cliente o ejecutivo de esta app.
-     *
-     * Públicas: LegacyPrevioMailer las reutiliza para no duplicar las listas.
-     *
-     * @var list<string>
+     * Claves de NotificationRecipients (editable desde /admin). Públicas:
+     * LegacyPrevioMailer las reutiliza para no duplicar el string.
      */
-    public const FIXED_TO = ['maria.santiago@vca.mx', 'mcamacho@valxglobalservices.com'];
-
-    /**
-     * @var list<string>
-     */
-    public const FIXED_CC = ['carlos.nolazco@vca.mx', 'adair.fernandez@vca.mx', 'aux.trafico2@vca.mx'];
+    public const TO_KEY = 'previo_to';
+    public const CC_KEY = 'previo_cc';
 
     public function __construct(
         private readonly MailerInterface $mailer,
         private readonly RecipientResolver $recipients,
+        private readonly NotificationRecipientsRepository $notificationRecipients,
         #[Autowire(env: 'MAILER_FROM_ADDRESS')]
         private readonly string $fromAddress,
         private readonly UploadPath $uploadPath,
@@ -49,18 +43,21 @@ final class PrevioReportMailer
     {
         return $this->dedupe(array_merge(
             $this->recipients->clientEmails($import),
-            self::FIXED_TO,
+            $this->notificationRecipients->emailsFor(self::TO_KEY),
         ));
     }
 
     /**
+     * Vista previa del cc para el formulario, sin saber todavía quién va a
+     * quedar como autor del reporte (eso se agrega en notify()).
+     *
      * @return list<string>
      */
     public function resolveCc(): array
     {
         return $this->dedupe(array_merge(
             $this->recipients->executiveEmails(),
-            self::FIXED_CC,
+            $this->notificationRecipients->emailsFor(self::CC_KEY),
         ));
     }
 
@@ -68,7 +65,10 @@ final class PrevioReportMailer
     {
         $import = $previo->getReference();
         $to = $this->resolveTo($import);
-        $cc = $this->resolveCc();
+        $cc = $this->dedupe(array_merge(
+            $this->resolveCc(),
+            array_filter([$previo->getCreatedBy()?->getEmail()]),
+        ));
 
         $email = (new TemplatedEmail())
             ->from($this->fromAddress)

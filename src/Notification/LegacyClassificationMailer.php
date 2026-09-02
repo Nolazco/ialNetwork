@@ -3,6 +3,7 @@
 namespace App\Notification;
 
 use App\Entity\LegacyClassificationRequest;
+use App\Repository\NotificationRecipientsRepository;
 use App\Service\UploadPath;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -17,6 +18,7 @@ final class LegacyClassificationMailer
     public function __construct(
         private readonly MailerInterface $mailer,
         private readonly RecipientResolver $recipients,
+        private readonly NotificationRecipientsRepository $notificationRecipients,
         #[Autowire(env: 'MAILER_FROM_ADDRESS')]
         private readonly string $fromAddress,
         private readonly UploadPath $uploadPath,
@@ -28,6 +30,7 @@ final class LegacyClassificationMailer
         $cc = $this->dedupe(array_merge(
             [$request->getRequesterEmail()],
             $this->recipients->executiveEmails(),
+            $this->notificationRecipients->emailsFor(ClassificationMailer::CC_KEY),
         ));
 
         $email = (new TemplatedEmail())
@@ -35,7 +38,7 @@ final class LegacyClassificationMailer
             ->subject(sprintf('Solicitud de Clasificación de Mercancía // %s // %s', $request->getMerchandiseName(), $request->getCompanyName()))
             ->htmlTemplate('emails/legacyClassification.html.twig')
             ->context(['request' => $request])
-            ->to(...ClassificationMailer::CLASSIFIERS)
+            ->to(...$this->notificationRecipients->emailsFor(ClassificationMailer::TO_KEY))
             ->cc(...$cc);
 
         foreach ($request->getAttachments() as $attachment) {

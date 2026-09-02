@@ -3,6 +3,7 @@
 namespace App\Notification;
 
 use App\Entity\LegacyPrevioReport;
+use App\Repository\NotificationRecipientsRepository;
 use App\Service\UploadPath;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -17,6 +18,7 @@ final class LegacyPrevioMailer
     public function __construct(
         private readonly MailerInterface $mailer,
         private readonly RecipientResolver $recipients,
+        private readonly NotificationRecipientsRepository $notificationRecipients,
         #[Autowire(env: 'MAILER_FROM_ADDRESS')]
         private readonly string $fromAddress,
         private readonly UploadPath $uploadPath,
@@ -27,12 +29,12 @@ final class LegacyPrevioMailer
     {
         $to = $this->dedupe(array_merge(
             [$report->getCorreo()],
-            PrevioReportMailer::FIXED_TO,
+            $this->notificationRecipients->emailsFor(PrevioReportMailer::TO_KEY),
         ));
 
         $cc = $this->dedupe(array_merge(
             $this->recipients->executiveEmails(),
-            PrevioReportMailer::FIXED_CC,
+            $this->notificationRecipients->emailsFor(PrevioReportMailer::CC_KEY),
         ));
 
         $email = (new TemplatedEmail())
