@@ -64,6 +64,11 @@
                           <i class="bi bi-save"></i> Guardar
                         </button>
                       </div>
+                      <div class="col-12">
+                        <label class="form-label small">Correos de contacto para el aviso de transporte (uno por línea, opcional)</label>
+                        <textarea class="form-control form-control-sm" name="contactEmails" rows="2" placeholder="trafico@empresa.com">{{ h.contactEmails|join("\n") }}</textarea>
+                        <div class="form-text">El correo de tu cuenta ({{ h.idUser.email }}) siempre recibe el aviso; estos son adicionales.</div>
+                      </div>
                     </form>
                   </td>
                 </tr>
@@ -95,6 +100,11 @@
             <button type="submit" class="btn btn-primary w-100" title="Agregar empresa">
               <i class="bi bi-plus-lg"></i>
             </button>
+          </div>
+          <div class="col-12">
+            <label for="contactEmails" class="form-label">Correos de contacto para el aviso de transporte (uno por línea, opcional)</label>
+            <textarea class="form-control" name="contactEmails" id="contactEmails" rows="2" placeholder="trafico@empresa.com"></textarea>
+            <div class="form-text">El correo de tu cuenta siempre recibe el aviso; estos son adicionales.</div>
           </div>
         </form>
       </div>

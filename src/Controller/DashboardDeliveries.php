@@ -239,6 +239,7 @@ class DashboardDeliveries extends AbstractController
         $hauler->setCompanyName($companyName);
         $hauler->setCaat($caat);
         $hauler->setRfc($rfc);
+        $hauler->setContactEmails($this->parseContactEmails($r));
 
         $this->entityManager->persist($hauler);
         $this->entityManager->flush();
@@ -278,6 +279,7 @@ class DashboardDeliveries extends AbstractController
         $hauler->setCompanyName($companyName);
         $hauler->setCaat($caat);
         $hauler->setRfc($rfc);
+        $hauler->setContactEmails($this->parseContactEmails($r));
 
         $this->entityManager->flush();
 
@@ -1186,5 +1188,30 @@ class DashboardDeliveries extends AbstractController
     private function isValidCfdiFolio(string $folio): bool
     {
         return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $folio) === 1;
+    }
+
+    /**
+     * El textarea de "Correos de contacto" trae uno por línea (o separados
+     * por coma). Los que no tengan forma de correo se descartan en silencio
+     * en vez de rechazar todo el formulario: quien lo llena es el
+     * transportista, no alguien capacitado en el resto de la app, y un typo
+     * en un correo no debería impedirle guardar los demás datos.
+     *
+     * @return list<string>
+     */
+    private function parseContactEmails(Request $r): array
+    {
+        $raw = (string) $r->request->get('contactEmails');
+        $emails = [];
+
+        foreach (preg_split('/[\r\n,]+/', $raw) as $candidate) {
+            $candidate = trim($candidate);
+
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_EMAIL)) {
+                $emails[$candidate] = true;
+            }
+        }
+
+        return array_keys($emails);
     }
 }

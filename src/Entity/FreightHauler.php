@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\FreightHaulerRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: FreightHaulerRepository::class)]
@@ -31,6 +32,18 @@ class FreightHauler
 
     #[ORM\Column(length: 255)]
     private ?string $rfc = null;
+
+    /**
+     * Correos adicionales que deben enterarse del aviso de transporte (ver
+     * DeliveryMailer), además del correo de la cuenta del dueño
+     * ($id_user->getEmail()), que siempre recibe el aviso sin necesidad de
+     * agregarlo aquí. Nullable a propósito: la mayoría de los transportistas
+     * no necesita ninguno adicional.
+     *
+     * @var list<string>|null
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $contactEmails = null;
 
     /**
      * @var Collection<int, Delivery>
@@ -99,6 +112,24 @@ class FreightHauler
     public function setRfc(string $rfc): static
     {
         $this->rfc = $rfc;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getContactEmails(): array
+    {
+        return $this->contactEmails ?? [];
+    }
+
+    /**
+     * @param list<string> $contactEmails
+     */
+    public function setContactEmails(array $contactEmails): static
+    {
+        $this->contactEmails = array_values($contactEmails);
 
         return $this;
     }
