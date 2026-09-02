@@ -46,6 +46,7 @@ security:
         - { path: ^/login$, roles: PUBLIC_ACCESS }
         - { path: ^/register$, roles: PUBLIC_ACCESS }
         - { path: ^/user/new$, roles: PUBLIC_ACCESS }
+        - { path: ^/reset-password, roles: PUBLIC_ACCESS }
         # puente temporal sin login para clientes que aun no se cambian al flujo nuevo
         - { path: ^/legacy, roles: PUBLIC_ACCESS }
         # user administration is admin-only (must be listed before the broader /dashboard rule)

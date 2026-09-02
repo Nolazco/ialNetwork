@@ -1,0 +1,23 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Revisa tu correo{% endblock %}
+
+{% block body %}
+	<div class="auth-page">
+		<div class="auth-card">
+			<div class="auth-brand">
+				<img src="/index/img/IAL NETWORK.png" alt="Logo IAL Network" class="auth-logo">
+			</div>
+			<h1 class="auth-title">Revisa tu correo</h1>
+			<p class="text-body-secondary small mb-2">
+				Si ese correo tiene una cuenta con nosotros, te acabamos de mandar un enlace para restablecer tu contraseña.
+				El enlace expira en {{ resetToken.expirationMessageKey|trans(resetToken.expirationMessageData, 'ResetPasswordBundle') }}.
+			</p>
+			<p class="text-body-secondary small mb-4">
+				Si no te llega, revisa la carpeta de spam o
+				<a href="{{ path('app_forgot_password_request') }}">intenta de nuevo</a>.
+			</p>
+			<a href="{{ path('login') }}" class="btn btn-primary auth-submit">Volver a iniciar sesión</a>
+		</div>
+	</div>
+{% endblock %}

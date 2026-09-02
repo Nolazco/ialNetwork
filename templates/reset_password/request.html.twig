@@ -1,0 +1,28 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Recuperar contraseña{% endblock %}
+
+{% block body %}
+	<div class="auth-page">
+		<div class="auth-card">
+			<a href="{{ path('login') }}" class="auth-back">
+				<i class="bi bi-arrow-left"></i> Volver a iniciar sesión
+			</a>
+			<div class="auth-brand">
+				<img src="/index/img/IAL NETWORK.png" alt="Logo IAL Network" class="auth-logo">
+			</div>
+			<h1 class="auth-title">Recuperar contraseña</h1>
+			<p class="text-body-secondary small mb-3">
+				Captura el correo con el que inicias sesión y te mandaremos un enlace para elegir una nueva contraseña.
+			</p>
+			{{ form_start(requestForm) }}
+				<div class="mb-3">
+					{{ form_label(requestForm.email, null, { label_attr: { class: 'form-label' } }) }}
+					{{ form_widget(requestForm.email, { attr: { class: 'form-control' } }) }}
+					{{ form_errors(requestForm.email) }}
+				</div>
+				<button type="submit" class="btn btn-primary auth-submit">Enviar enlace</button>
+			{{ form_end(requestForm) }}
+		</div>
+	</div>
+{% endblock %}

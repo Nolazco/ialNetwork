@@ -1,0 +1,27 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Elegir nueva contraseña{% endblock %}
+
+{% block body %}
+	<div class="auth-page">
+		<div class="auth-card">
+			<div class="auth-brand">
+				<img src="/index/img/IAL NETWORK.png" alt="Logo IAL Network" class="auth-logo">
+			</div>
+			<h1 class="auth-title">Elige tu nueva contraseña</h1>
+			{{ form_start(resetForm) }}
+				<div class="mb-3">
+					{{ form_label(resetForm.plainPassword.first, null, { label_attr: { class: 'form-label' } }) }}
+					{{ form_widget(resetForm.plainPassword.first, { attr: { class: 'form-control' } }) }}
+					{{ form_errors(resetForm.plainPassword.first) }}
+				</div>
+				<div class="mb-3">
+					{{ form_label(resetForm.plainPassword.second, null, { label_attr: { class: 'form-label' } }) }}
+					{{ form_widget(resetForm.plainPassword.second, { attr: { class: 'form-control' } }) }}
+					{{ form_errors(resetForm.plainPassword.second) }}
+				</div>
+				<button type="submit" class="btn btn-primary auth-submit">Guardar nueva contraseña</button>
+			{{ form_end(resetForm) }}
+		</div>
+	</div>
+{% endblock %}
