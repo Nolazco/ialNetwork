@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Notification\NewUserMailer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,7 +14,7 @@ use Symfony\Component\Routing\Attribute\Route;
 class UserManagement extends AbstractController{
 
 	#[Route('/user/new', name: 'user_new', methods: ['POST'])]
-	public function create(Request $r, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher): Response{
+	public function create(Request $r, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher, NewUserMailer $newUserMailer): Response{
 		if (!$this->isCsrfTokenValid('register', $r->request->get('_token'))) {
 			$this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
 			return $this->redirectToRoute("register");
@@ -48,6 +49,8 @@ class UserManagement extends AbstractController{
 
 		$entityManager->persist($user);
 		$entityManager->flush();
+
+		$newUserMailer->notify($user);
 
 		$this->addFlash('success', 'Cuenta creada, espere su validacion.');
 		return $this->redirectToRoute("register");
