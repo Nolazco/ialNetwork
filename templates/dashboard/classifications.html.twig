@@ -59,7 +59,9 @@
                 {% elseif is_granted('ROLE_EXECUTIVE') %}
                   <form method="POST" action="{{ path('classification_confirm', { id: r.id }) }}" class="d-flex gap-1">
                     <input type="hidden" name="_token" value="{{ csrf_token('classification_confirm') }}">
-                    <input type="text" name="confirmedTariffFraction" class="form-control form-control-sm" placeholder="Ej. 2924.29.99" style="width: 140px;" required>
+                    <input type="text" name="confirmedTariffFraction" class="form-control form-control-sm"
+                           placeholder="8471.30.01.99" title="Fracción a 10 dígitos: XXXX.XX.XX.XX"
+                           pattern="\d{4}\.\d{2}\.\d{2}\.\d{2}" style="width: 170px;" required>
                     <button type="submit" class="btn btn-sm btn-outline-primary">Confirmar</button>
                   </form>
                 {% else %}
@@ -67,16 +69,48 @@
                 {% endif %}
               </td>
               <td>
-                {% for a in r.attachments %}
-                  <a href="{{ path('classification_attachment_download', { id: r.id, index: loop.index0 }) }}" download title="{{ a.nombre }}">
-                    <i class="bi bi-paperclip"></i>
-                  </a>
-                {% endfor %}
+                {% if r.attachments|length %}
+                  <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#docsModal{{ r.id }}">
+                    <i class="bi bi-folder2-open"></i> Ver documentos ({{ r.attachments|length }})
+                  </button>
+                {% else %}
+                  <span class="text-body-secondary">Sin documentos</span>
+                {% endif %}
               </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
+
+      {% for r in requests %}
+        {% if r.attachments|length %}
+          <div class="modal fade" id="docsModal{{ r.id }}" tabindex="-1" aria-labelledby="docsModalLabel{{ r.id }}" aria-hidden="true">
+            <div class="modal-dialog">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="docsModalLabel{{ r.id }}">Documentos · {{ r.merchandiseName }}</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                  <ul class="list-group mb-3">
+                    {% for a in r.attachments %}
+                      <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
+                        <span class="text-truncate"><i class="bi bi-file-earmark"></i> {{ a.nombre }}</span>
+                        <a href="{{ path('classification_attachment_download', { id: r.id, index: loop.index0 }) }}" class="btn btn-sm btn-outline-primary flex-shrink-0" download title="Descargar {{ a.nombre }}">
+                          <i class="bi bi-download"></i>
+                        </a>
+                      </li>
+                    {% endfor %}
+                  </ul>
+                  <a href="{{ path('classification_attachments_zip', { id: r.id }) }}" class="btn btn-primary w-100">
+                    <i class="bi bi-file-earmark-zip"></i> Descargar todo (ZIP)
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
     {% elseif q %}
       <div class="card text-center">
         <div class="card-header">Aviso</div>

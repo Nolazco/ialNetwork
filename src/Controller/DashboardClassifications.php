@@ -146,8 +146,8 @@ class DashboardClassifications extends AbstractController
 
         $fraction = trim((string) $r->request->get('confirmedTariffFraction'));
 
-        if ($fraction === '') {
-            $this->addFlash('error', 'Captura la fracción arancelaria confirmada.');
+        if (!$this->isValidTariffFraction($fraction)) {
+            $this->addFlash('error', 'La fracción arancelaria va a 10 dígitos, con el formato XXXX.XX.XX.XX (ej. 8471.30.01.99).');
 
             return $this->redirectToRoute('classifications');
         }
@@ -331,6 +331,85 @@ class DashboardClassifications extends AbstractController
         $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, $attachment['nombre'] ?? basename($path));
 
         return $response;
+    }
+
+    /**
+     * Todos los adjuntos de la solicitud en un solo ZIP, armado al vuelo (no
+     * se guarda en disco): es más facil de revisar de un jalon que descargar
+     * archivo por archivo, y evita la desconfianza de solo ver clips sueltos.
+     */
+    #[Route('/dashboard/clasificaciones/{id}/adjuntos.zip', name: 'classification_attachments_zip', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function downloadAttachmentsZip(#[MapEntity(id: 'id')] ClassificationRequest $classificationRequest): BinaryFileResponse
+    {
+        if (!$this->companyAccess->canAccess($classificationRequest->getCompany())) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $attachments = $classificationRequest->getAttachments();
+
+        if ($attachments === []) {
+            throw $this->createNotFoundException();
+        }
+
+        $zipPath = tempnam(sys_get_temp_dir(), 'clasificacion_');
+        $zip = new \ZipArchive();
+
+        if ($zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE) !== true) {
+            throw $this->createNotFoundException('No se pudo armar el ZIP.');
+        }
+
+        // Dos adjuntos pueden compartir el mismo nombre original (ej. dos
+        // "MSDS.pdf" de proveedores distintos); sin desempatar, el ZIP se
+        // quedaria solo con el ultimo que se le agrego con ese nombre.
+        $usedNames = [];
+
+        foreach ($attachments as $attachment) {
+            $path = $this->uploadPath->resolve($attachment['ruta']);
+
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $name = $attachment['nombre'] ?? basename($path);
+            $entryName = $name;
+            $suffix = 1;
+
+            while (isset($usedNames[$entryName])) {
+                $extension = pathinfo($name, PATHINFO_EXTENSION);
+                $base = pathinfo($name, PATHINFO_FILENAME);
+                $entryName = $extension !== '' ? sprintf('%s (%d).%s', $base, ++$suffix, $extension) : sprintf('%s (%d)', $base, ++$suffix);
+            }
+
+            $usedNames[$entryName] = true;
+            $zip->addFile($path, $entryName);
+        }
+
+        $zip->close();
+
+        $downloadName = $this->slugForZip($classificationRequest->getMerchandiseName()).'.zip';
+
+        $response = new BinaryFileResponse($zipPath);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $downloadName);
+        $response->deleteFileAfterSend(true);
+
+        return $response;
+    }
+
+    private function slugForZip(string $name): string
+    {
+        $slug = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '-', $name) ?? '', '-'));
+
+        return $slug !== '' ? 'documentos-'.$slug : 'documentos';
+    }
+
+    /**
+     * La fracción arancelaria mexicana va a 10 dígitos: 8 de la fracción
+     * internacional/nacional (XXXX.XX.XX) más 2 del NICO (identificación
+     * comercial), ej. 8471.30.01.99.
+     */
+    private function isValidTariffFraction(string $fraction): bool
+    {
+        return preg_match('/^\d{4}\.\d{2}\.\d{2}\.\d{2}$/', $fraction) === 1;
     }
 
     private function nullableTrim(mixed $value): ?string
