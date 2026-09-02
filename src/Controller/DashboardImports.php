@@ -11,6 +11,7 @@ use App\Entity\ImportRequest;
 use App\Entity\Provider;
 use App\Entity\User;
 use App\Security\CompanyAccess;
+use App\Service\UploadPath;
 use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\EmailListParser;
 use App\Workflow\ImportRequestWorkflow;
@@ -28,6 +29,7 @@ class DashboardImports extends AbstractController {
 	public function __construct(
 		private readonly CompanyAccess $companyAccess,
 		private readonly InspectionAuthorityCatalog $inspectionCatalog,
+		private readonly UploadPath $uploadPath,
 	) {
 	}
 
@@ -307,10 +309,17 @@ class DashboardImports extends AbstractController {
   	$files = $r->files->all();
   	$types = $r->request->all('documentTypes');
 
-  	$route = 'uploads/empresas/' . $company->getRfc() . $r->request->get('ref'); // Ruta de carpeta
-  	
-  	if (!is_dir($route)) {
-  	  mkdir($route, 0777, true);
+  	// Ruta relativa que se guarda en el documento; la carpeta fisica real
+  	// vive fuera de public/ (ver UploadPath) para que solo se pueda
+  	// descargar via DashboardCaseFiles::downloadDocument(), que si revisa
+  	// quien lo pide — antes se guardaba directo bajo public/, descargable
+  	// por cualquiera con la URL sin sesion.
+  	$route = 'uploads/empresas/' . $company->getRfc() . $r->request->get('ref');
+  	$folder = $this->uploadPath->resolve($route);
+
+  	if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+  	  $this->addFlash('error', 'No se pudo preparar la carpeta de documentos.');
+  	  return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
   	}
 
   	foreach ($files as $index => $fileGroup) {
@@ -323,7 +332,7 @@ class DashboardImports extends AbstractController {
   	      $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
 
   	      try {
-  	        $file->move($route, $newFilename);
+  	        $file->move($folder, $newFilename);
   	      } catch (FileException $e) {
   	        continue;
   	      }
