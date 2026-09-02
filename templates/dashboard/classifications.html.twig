@@ -12,6 +12,20 @@
       </a>
     </div>
 
+    <form method="GET" action="{{ path('classifications') }}" class="mb-4">
+      <div class="input-group" style="max-width: 480px;">
+        <span class="input-group-text"><i class="bi bi-search"></i></span>
+        <input type="text" class="form-control" name="q" value="{{ q }}"
+               placeholder="Buscar por mercancía, nombre químico, CAS o fracción...">
+        {% if q %}
+          <a href="{{ path('classifications') }}" class="btn btn-outline-secondary" title="Quitar búsqueda">
+            <i class="bi bi-x-lg"></i>
+          </a>
+        {% endif %}
+        <button type="submit" class="btn btn-outline-secondary">Buscar</button>
+      </div>
+    </form>
+
     {% if requests %}
       <table class="table table-striped align-middle">
         <thead>
@@ -20,6 +34,7 @@
             <th scope="col">Empresa</th>
             <th scope="col">Mercancía</th>
             <th scope="col">Solicitante</th>
+            <th scope="col">Fracción arancelaria</th>
             <th scope="col">Archivos</th>
           </tr>
         </thead>
@@ -28,8 +43,29 @@
             <tr>
               <td>{{ r.createdAt|date('d/m/Y H:i') }}</td>
               <td>{{ r.company.name }}</td>
-              <td>{{ r.merchandiseName }}</td>
+              <td>
+                {{ r.merchandiseName }}
+                {% if r.chemicalName or r.casNumber %}
+                  <div class="text-body-secondary small">
+                    {{ r.chemicalName }}{% if r.chemicalName and r.casNumber %} · {% endif %}{% if r.casNumber %}CAS {{ r.casNumber }}{% endif %}
+                  </div>
+                {% endif %}
+              </td>
               <td>{{ r.requestedBy.name }}</td>
+              <td>
+                {% if r.isConfirmed %}
+                  <span class="badge text-bg-success">{{ r.confirmedTariffFraction }}</span>
+                  <div class="text-body-secondary small">{{ r.confirmedBy.name }} · {{ r.confirmedAt|date('d/m/Y') }}</div>
+                {% elseif is_granted('ROLE_EXECUTIVE') %}
+                  <form method="POST" action="{{ path('classification_confirm', { id: r.id }) }}" class="d-flex gap-1">
+                    <input type="hidden" name="_token" value="{{ csrf_token('classification_confirm') }}">
+                    <input type="text" name="confirmedTariffFraction" class="form-control form-control-sm" placeholder="Ej. 2924.29.99" style="width: 140px;" required>
+                    <button type="submit" class="btn btn-sm btn-outline-primary">Confirmar</button>
+                  </form>
+                {% else %}
+                  <span class="badge text-bg-warning">Pendiente</span>
+                {% endif %}
+              </td>
               <td>
                 {% for a in r.attachments %}
                   <a href="{{ path('classification_attachment_download', { id: r.id, index: loop.index0 }) }}" download title="{{ a.nombre }}">
@@ -41,6 +77,15 @@
           {% endfor %}
         </tbody>
       </table>
+    {% elseif q %}
+      <div class="card text-center">
+        <div class="card-header">Aviso</div>
+        <div class="card-body">
+          <h5 class="card-title">Sin resultados</h5>
+          <p class="card-text">Nada coincide con "{{ q }}".</p>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
     {% else %}
       <div class="card text-center">
         <div class="card-header">Aviso</div>

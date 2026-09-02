@@ -43,6 +43,24 @@ class ClassificationRequest
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
 
+    /**
+     * Fracción arancelaria que confirmó el equipo de clasificadores. Nullable
+     * a propósito: la respuesta llega por su propio correo (ver
+     * ClassificationMailer), no por la app, así que un ejecutivo la captura
+     * aquí cuando llega — mientras sea null, la solicitud sigue pendiente.
+     * Es lo que permite buscar mercancía ya clasificada y no repetir el
+     * trabajo con el clasificador.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $confirmedTariffFraction = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?User $confirmedBy = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $confirmedAt = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -160,5 +178,46 @@ class ClassificationRequest
         $this->createdAt = $createdAt;
 
         return $this;
+    }
+
+    public function getConfirmedTariffFraction(): ?string
+    {
+        return $this->confirmedTariffFraction;
+    }
+
+    public function setConfirmedTariffFraction(?string $confirmedTariffFraction): static
+    {
+        $this->confirmedTariffFraction = $confirmedTariffFraction;
+
+        return $this;
+    }
+
+    public function getConfirmedBy(): ?User
+    {
+        return $this->confirmedBy;
+    }
+
+    public function setConfirmedBy(?User $confirmedBy): static
+    {
+        $this->confirmedBy = $confirmedBy;
+
+        return $this;
+    }
+
+    public function getConfirmedAt(): ?\DateTimeImmutable
+    {
+        return $this->confirmedAt;
+    }
+
+    public function setConfirmedAt(?\DateTimeImmutable $confirmedAt): static
+    {
+        $this->confirmedAt = $confirmedAt;
+
+        return $this;
+    }
+
+    public function isConfirmed(): bool
+    {
+        return $this->confirmedTariffFraction !== null;
     }
 }

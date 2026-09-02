@@ -9,10 +9,12 @@ use App\Notification\ClassificationMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\ExpressionLanguage\Expression;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
@@ -24,8 +26,11 @@ use Symfony\Component\String\Slugger\SluggerInterface;
  * Solicitudes de clasificación de mercancía: el cliente (o el ejecutivo, en su
  * nombre) comparte los datos del producto y sus archivos de soporte, la app
  * manda todo al equipo de clasificadores y ellos contestan desde su propio
- * correo — la app no hace seguimiento de la respuesta, solo deja constancia
- * de que la solicitud se mandó.
+ * correo. La app no hace seguimiento automático de esa respuesta, pero el
+ * ejecutivo puede capturar la fracción arancelaria que confirmaron (ver
+ * confirmTariffFraction()) — eso es lo único que queda registrado del
+ * resultado, y lo que permite buscar mercancía ya clasificada (ver search())
+ * para no repetirle el trabajo al clasificador.
  *
  * Visible para cualquier rol salvo transportista, que no tiene nada que
  * clasificar.
@@ -58,27 +63,107 @@ class DashboardClassifications extends AbstractController
         return $companyRepo->findAssociatedCompanies($user);
     }
 
+    /**
+     * A qué empresas debe limitarse una búsqueda: null significa "todas" (el
+     * ejecutivo puede ver mercancía clasificada de cualquier cliente, ya que
+     * la fracción depende del producto, no de quién lo importa); el cliente
+     * solo ve las suyas.
+     *
+     * @return list<Company>|null
+     */
+    private function searchScopeFor(User $user): ?array
+    {
+        return $this->isGranted('ROLE_EXECUTIVE') ? null : $this->allowedCompanies($user);
+    }
+
     #[Route('/dashboard/clasificaciones', name: 'classifications')]
-    public function classifications(): Response
+    public function classifications(Request $r): Response
     {
         /** @var User $user */
         $user = $this->getUser();
 
-        if ($this->isGranted('ROLE_EXECUTIVE')) {
-            $requests = $this->entityManager->getRepository(ClassificationRequest::class)
-                ->findBy([], ['createdAt' => 'DESC']);
-        } else {
-            $companies = $this->allowedCompanies($user);
-            $requests = $companies === [] ? [] : $this->entityManager->getRepository(ClassificationRequest::class)
-                ->findBy(['company' => $companies], ['createdAt' => 'DESC']);
-        }
+        $q = trim((string) $r->query->get('q'));
+
+        $requests = $this->entityManager->getRepository(ClassificationRequest::class)
+            ->search($q !== '' ? $q : null, $this->searchScopeFor($user));
 
         return $this->render('/dashboard/classifications.html.twig', [
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
             'loged' => 'true',
             'requests' => $requests,
+            'q' => $q,
         ]);
+    }
+
+    /**
+     * Búsqueda en vivo (AJAX) de mercancía ya clasificada — la usa el
+     * formulario de "Nueva solicitud" para avisar, antes de mandarla, si ese
+     * producto ya se clasificó. Es de solo lectura, así que no exige CSRF
+     * (igual que cualquier otro GET de la app).
+     */
+    #[Route('/dashboard/clasificaciones/buscar', name: 'classification_search', methods: ['GET'])]
+    public function search(Request $r): JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $q = trim((string) $r->query->get('q'));
+
+        if (mb_strlen($q) < 3) {
+            return new JsonResponse(['results' => []]);
+        }
+
+        $requests = $this->entityManager->getRepository(ClassificationRequest::class)
+            ->search($q, $this->searchScopeFor($user), 8);
+
+        $results = array_map(static fn (ClassificationRequest $c): array => [
+            'merchandiseName' => $c->getMerchandiseName(),
+            'chemicalName' => $c->getChemicalName(),
+            'casNumber' => $c->getCasNumber(),
+            'company' => $c->getCompany()?->getName(),
+            'confirmedTariffFraction' => $c->getConfirmedTariffFraction(),
+            'createdAt' => $c->getCreatedAt()?->format('d/m/Y'),
+        ], $requests);
+
+        return new JsonResponse(['results' => $results]);
+    }
+
+    /**
+     * El ejecutivo captura la fracción que el equipo de clasificadores ya
+     * confirmó por su propio correo. Es la única forma en que ese resultado
+     * queda en el sistema (ver docblock de la clase).
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/clasificaciones/{id}/confirmar', name: 'classification_confirm', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function confirmTariffFraction(#[MapEntity(id: 'id')] ClassificationRequest $classificationRequest, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('classification_confirm', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('classifications');
+        }
+
+        $fraction = trim((string) $r->request->get('confirmedTariffFraction'));
+
+        if ($fraction === '') {
+            $this->addFlash('error', 'Captura la fracción arancelaria confirmada.');
+
+            return $this->redirectToRoute('classifications');
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $classificationRequest->setConfirmedTariffFraction($fraction);
+        $classificationRequest->setConfirmedBy($user);
+        $classificationRequest->setConfirmedAt(new \DateTimeImmutable());
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Fracción arancelaria confirmada y guardada.');
+
+        return $this->redirectToRoute('classifications');
     }
 
     #[Route('/dashboard/clasificaciones/nueva', name: 'classification_new', methods: ['GET'])]

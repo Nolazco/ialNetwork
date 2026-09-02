@@ -17,6 +17,17 @@
         No tienes ninguna empresa afiliada y aprobada todavía. Afíliate a una empresa antes de solicitar una clasificación.
       </div>
     {% else %}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title">¿Ya se clasificó algo similar?</h5>
+          <p class="text-body-secondary small mb-3">
+            Busca por nombre comercial, nombre químico o número de CAS antes de mandar una solicitud nueva: si ya existe, ahórrate el trámite con el clasificador.
+          </p>
+          <input type="text" class="form-control" id="priorSearch" placeholder="Escribe al menos 3 letras...">
+          <div id="priorSearchResults" class="mt-2"></div>
+        </div>
+      </div>
+
       <form method="POST" enctype="multipart/form-data" action="{{ path('classification_create') }}">
         <input type="hidden" name="_token" value="{{ csrf_token('classification_create') }}">
 
@@ -88,6 +99,74 @@
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       initMultiFileInput({ inputId: "documents", listId: "documents-list" });
+
+      const input = document.getElementById("priorSearch");
+      const results = document.getElementById("priorSearchResults");
+
+      if (!input) {
+        return;
+      }
+
+      let timer = null;
+
+      input.addEventListener("input", function () {
+        clearTimeout(timer);
+        const q = input.value.trim();
+
+        if (q.length < 3) {
+          results.innerHTML = "";
+          return;
+        }
+
+        timer = setTimeout(function () {
+          fetch("{{ path('classification_search') }}?q=" + encodeURIComponent(q))
+            .then(function (r) { return r.json(); })
+            .then(function (data) { renderResults(data.results); })
+            .catch(function () { results.innerHTML = ""; });
+        }, 300);
+      });
+
+      function renderResults(items) {
+        if (!items.length) {
+          results.innerHTML = '<p class="text-body-secondary small mb-0">Sin coincidencias.</p>';
+          return;
+        }
+
+        results.innerHTML = '<ul class="list-group"></ul>';
+        const list = results.querySelector("ul");
+
+        items.forEach(function (item) {
+          const li = document.createElement("li");
+          li.className = "list-group-item d-flex justify-content-between align-items-start flex-wrap gap-2";
+
+          const info = document.createElement("div");
+
+          const name = document.createElement("strong");
+          name.textContent = item.merchandiseName;
+          info.appendChild(name);
+
+          const details = [item.chemicalName, item.casNumber ? "CAS " + item.casNumber : null].filter(Boolean).join(" · ");
+          if (details) {
+            const detailsLine = document.createElement("div");
+            detailsLine.className = "text-body-secondary small";
+            detailsLine.textContent = details;
+            info.appendChild(detailsLine);
+          }
+
+          const metaLine = document.createElement("div");
+          metaLine.className = "text-body-secondary small";
+          metaLine.textContent = item.company + " · " + item.createdAt;
+          info.appendChild(metaLine);
+
+          const badge = document.createElement("span");
+          badge.className = "badge " + (item.confirmedTariffFraction ? "text-bg-success" : "text-bg-warning") + " align-self-center";
+          badge.textContent = item.confirmedTariffFraction || "Pendiente";
+
+          li.appendChild(info);
+          li.appendChild(badge);
+          list.appendChild(li);
+        });
+      }
     });
   </script>
 {% endblock %}
