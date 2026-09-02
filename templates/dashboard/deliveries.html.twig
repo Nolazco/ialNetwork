@@ -31,6 +31,7 @@
         </div>
       </div>
     {% else %}
+      <div class="table-responsive">
       <table class="table table-striped align-middle">
         <thead>
           <tr>
@@ -111,47 +112,82 @@
                   </div>
                 {% endif %}
               </td>
-              <td class="text-end text-nowrap">
-                {% if isHauler and not d.failed %}
-                  {% if not d.departed %}
-                    <form method="POST" class="d-inline" action="{{ path('delivery_departure', { id: d.id }) }}">
-                      <input type="hidden" name="_token" value="{{ csrf_token('delivery_departure') }}">
-                      <button type="submit" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-truck"></i> Salida
-                      </button>
-                    </form>
-                  {% endif %}
-                  {% if not d.delivered %}
-                    <form method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center" action="{{ path('delivery_arrival', { id: d.id }) }}">
-                      <input type="hidden" name="_token" value="{{ csrf_token('delivery_arrival') }}">
-                      <input type="file" class="form-control form-control-sm" name="proof" style="max-width:140px" title="Prueba de entrega (opcional)">
-                      <button type="submit" class="btn btn-sm btn-primary text-nowrap">
-                        <i class="bi bi-check2"></i> Entrega
-                      </button>
-                    </form>
-                  {% elseif pendingReturns[d.id] > 0 %}
-                    <a href="{{ path('delivery_empty_returns', { id: d.id }) }}" class="btn btn-sm btn-warning">
-                      <i class="bi bi-box-arrow-in-left"></i>
-                      Devolver vacío{{ pendingReturns[d.id] > 1 ? 's' : '' }} ({{ pendingReturns[d.id] }})
-                    </a>
-                  {% else %}
-                    <span class="text-body-secondary"><i class="bi bi-check2-all"></i></span>
-                  {% endif %}
-                {% endif %}
-                {% if isHauler and d.transport and vehiclesByHauler[d.transport.id] is defined and not d.departed and not d.failed %}
-                  <button type="button" class="btn btn-sm btn-outline-secondary js-assign-vehicle-toggle" data-target="assign-vehicle-{{ d.id }}" title="{{ d.vehicle ? 'Corregir unidad y chofer' : 'Unidad y chofer' }}">
-                    <i class="bi bi-clipboard-check"></i>
-                  </button>
-                {% endif %}
-                {% if not d.departed and not d.failed %}
-                  <button type="button" class="btn btn-sm btn-outline-danger js-report-failure-toggle" data-target="report-failure-{{ d.id }}" title="No se pudo cargar">
-                    <i class="bi bi-exclamation-triangle"></i>
-                  </button>
-                {% endif %}
-                {% if d.departed and not d.delivered and not d.failed %}
-                  <button type="button" class="btn btn-sm btn-outline-secondary js-handoff-toggle" data-target="handoff-{{ d.id }}" title="Traspasar a otro transportista">
-                    <i class="bi bi-arrow-left-right"></i>
-                  </button>
+              {% set canDepart = isHauler and not d.failed and not d.departed %}
+              {% set canArrive = isHauler and not d.failed and not d.delivered %}
+              {% set canReturnEmpty = isHauler and not d.failed and d.delivered and pendingReturns[d.id] > 0 %}
+              {% set allDone = isHauler and not d.failed and d.delivered and pendingReturns[d.id] == 0 %}
+              {% set canAssignVehicle = isHauler and d.transport and vehiclesByHauler[d.transport.id] is defined and not d.departed and not d.failed %}
+              {% set canReportFailure = not d.departed and not d.failed %}
+              {% set canHandoff = d.departed and not d.delivered and not d.failed %}
+              {% set hasAnyAction = canDepart or canArrive or canReturnEmpty or canAssignVehicle or canReportFailure or canHandoff %}
+              <td class="text-end">
+                {% if hasAnyAction %}
+                  <div class="dropdown">
+                    {# El menu se posiciona con Popper "fixed" (relativo a la ventana, no
+                       al contenedor con scroll) porque .table-responsive de mas abajo le
+                       pone overflow-x:auto a la tabla — con la posicion "absolute" que usa
+                       Popper por defecto, ese overflow recorta el menu en cuanto se abre. #}
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false">
+                      Opciones
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" style="min-width: 260px;">
+                      {% if canDepart %}
+                        <li>
+                          <form method="POST" action="{{ path('delivery_departure', { id: d.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('delivery_departure') }}">
+                            <button type="submit" class="dropdown-item">
+                              <i class="bi bi-truck"></i> Salida
+                            </button>
+                          </form>
+                        </li>
+                      {% endif %}
+                      {% if canArrive %}
+                        <li>
+                          <form method="POST" enctype="multipart/form-data" action="{{ path('delivery_arrival', { id: d.id }) }}" class="px-3 py-2">
+                            <input type="hidden" name="_token" value="{{ csrf_token('delivery_arrival') }}">
+                            <label class="form-label small mb-1">Prueba de entrega (opcional)</label>
+                            <input type="file" class="form-control form-control-sm mb-2" name="proof">
+                            <button type="submit" class="btn btn-sm btn-primary w-100">
+                              <i class="bi bi-check2"></i> Confirmar entrega
+                            </button>
+                          </form>
+                        </li>
+                      {% elseif canReturnEmpty %}
+                        <li>
+                          <a href="{{ path('delivery_empty_returns', { id: d.id }) }}" class="dropdown-item">
+                            <i class="bi bi-box-arrow-in-left"></i>
+                            Devolver vacío{{ pendingReturns[d.id] > 1 ? 's' : '' }} ({{ pendingReturns[d.id] }})
+                          </a>
+                        </li>
+                      {% endif %}
+                      {% if canAssignVehicle or canReportFailure or canHandoff %}
+                        <li><hr class="dropdown-divider"></li>
+                      {% endif %}
+                      {% if canAssignVehicle %}
+                        <li>
+                          <button type="button" class="dropdown-item js-assign-vehicle-toggle" data-target="assign-vehicle-{{ d.id }}">
+                            <i class="bi bi-clipboard-check"></i> {{ d.vehicle ? 'Corregir unidad y chofer' : 'Unidad y chofer' }}
+                          </button>
+                        </li>
+                      {% endif %}
+                      {% if canReportFailure %}
+                        <li>
+                          <button type="button" class="dropdown-item text-danger js-report-failure-toggle" data-target="report-failure-{{ d.id }}">
+                            <i class="bi bi-exclamation-triangle"></i> No se pudo cargar
+                          </button>
+                        </li>
+                      {% endif %}
+                      {% if canHandoff %}
+                        <li>
+                          <button type="button" class="dropdown-item js-handoff-toggle" data-target="handoff-{{ d.id }}">
+                            <i class="bi bi-arrow-left-right"></i> Traspasar a otro transportista
+                          </button>
+                        </li>
+                      {% endif %}
+                    </ul>
+                  </div>
+                {% elseif allDone %}
+                  <span class="text-body-secondary" title="Sin pendientes"><i class="bi bi-check2-all"></i></span>
                 {% endif %}
               </td>
             </tr>
@@ -293,6 +329,7 @@
           {% endfor %}
         </tbody>
       </table>
+      </div>
     {% endif %}
   </div>
 {% endblock %}
