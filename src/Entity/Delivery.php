@@ -47,6 +47,64 @@ class Delivery
     private ?FreightHauler $transport = null;
 
     /**
+     * Unidad y chofer que se van a presentar — nullable igual que $transport:
+     * mientras no haya transportista elegido tampoco puede haber unidad ni
+     * chofer (ambos son de su propia flota, ver Vehicle/Driver).
+     */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Vehicle $vehicle = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Driver $driver = null;
+
+    /**
+     * Folio (UUID) del CFDI que el transportista debe darnos junto con la
+     * unidad y el chofer — la agencia lo necesita para adjuntarlo a un
+     * documento propio. Nullable igual que $vehicle/$driver: solo aplica
+     * cuando ya hay transportista elegido.
+     */
+    #[ORM\Column(length: 36, nullable: true)]
+    private ?string $cfdiFolio = null;
+
+    /**
+     * Ficha de la mercancia que se le manda al transportista junto con el
+     * aviso — mismos datos que XCF pide en ConsolidatorInstruction, pero
+     * aqui aplican a cualquier despacho, no solo a los que van a XCF.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $claveSat = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $descripcion = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $embalaje = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?int $bultos = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?float $weightKg = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?float $cubicaje = null;
+
+    /** Documento del pedimento simplificado, adjunto al aviso. */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $pedimentoSimplificadoRoute = null;
+
+    /**
+     * Folio que XCF genera al recibir las instrucciones (ver
+     * ConsolidatorMailer) — el transportista lo debe presentar ahi. Solo
+     * aplica si el expediente viaja con el consolidador de carga (ver
+     * ImportRequest::travelsWithConsolidator()).
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $xcfFolio = null;
+
+    /**
      * Contenedores que carga este camion. Vacio cuando es carga suelta.
      *
      * @var Collection<int, Container>
@@ -155,6 +213,138 @@ class Delivery
     public function setTransport(?FreightHauler $transport): static
     {
         $this->transport = $transport;
+
+        return $this;
+    }
+
+    public function getVehicle(): ?Vehicle
+    {
+        return $this->vehicle;
+    }
+
+    public function setVehicle(?Vehicle $vehicle): static
+    {
+        $this->vehicle = $vehicle;
+
+        return $this;
+    }
+
+    public function getDriver(): ?Driver
+    {
+        return $this->driver;
+    }
+
+    public function setDriver(?Driver $driver): static
+    {
+        $this->driver = $driver;
+
+        return $this;
+    }
+
+    public function getCfdiFolio(): ?string
+    {
+        return $this->cfdiFolio;
+    }
+
+    public function setCfdiFolio(?string $cfdiFolio): static
+    {
+        $this->cfdiFolio = $cfdiFolio;
+
+        return $this;
+    }
+
+    public function getClaveSat(): ?string
+    {
+        return $this->claveSat;
+    }
+
+    public function setClaveSat(?string $claveSat): static
+    {
+        $this->claveSat = $claveSat;
+
+        return $this;
+    }
+
+    public function getDescripcion(): ?string
+    {
+        return $this->descripcion;
+    }
+
+    public function setDescripcion(?string $descripcion): static
+    {
+        $this->descripcion = $descripcion;
+
+        return $this;
+    }
+
+    public function getEmbalaje(): ?string
+    {
+        return $this->embalaje;
+    }
+
+    public function setEmbalaje(?string $embalaje): static
+    {
+        $this->embalaje = $embalaje;
+
+        return $this;
+    }
+
+    public function getBultos(): ?int
+    {
+        return $this->bultos;
+    }
+
+    public function setBultos(?int $bultos): static
+    {
+        $this->bultos = $bultos;
+
+        return $this;
+    }
+
+    public function getWeightKg(): ?float
+    {
+        return $this->weightKg;
+    }
+
+    public function setWeightKg(?float $weightKg): static
+    {
+        $this->weightKg = $weightKg;
+
+        return $this;
+    }
+
+    public function getCubicaje(): ?float
+    {
+        return $this->cubicaje;
+    }
+
+    public function setCubicaje(?float $cubicaje): static
+    {
+        $this->cubicaje = $cubicaje;
+
+        return $this;
+    }
+
+    public function getPedimentoSimplificadoRoute(): ?string
+    {
+        return $this->pedimentoSimplificadoRoute;
+    }
+
+    public function setPedimentoSimplificadoRoute(?string $pedimentoSimplificadoRoute): static
+    {
+        $this->pedimentoSimplificadoRoute = $pedimentoSimplificadoRoute;
+
+        return $this;
+    }
+
+    public function getXcfFolio(): ?string
+    {
+        return $this->xcfFolio;
+    }
+
+    public function setXcfFolio(?string $xcfFolio): static
+    {
+        $this->xcfFolio = $xcfFolio;
 
         return $this;
     }

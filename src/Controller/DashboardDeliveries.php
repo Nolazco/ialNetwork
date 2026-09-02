@@ -4,12 +4,14 @@ namespace App\Controller;
 
 use App\Entity\Container;
 use App\Entity\Delivery;
+use App\Entity\Driver;
 use App\Entity\EmptyReturn;
 use App\Entity\FreightHauler;
 use App\Entity\ImportRequest;
 use App\Entity\InspectionPoint;
 use App\Entity\LocalTransfer;
 use App\Entity\User;
+use App\Entity\Vehicle;
 use App\Notification\ForwarderMailer;
 use App\Service\UploadPath;
 use App\Workflow\DeliveryFailureCatalog;
@@ -61,19 +63,23 @@ class DashboardDeliveries extends AbstractController
 
         $repository = $this->entityManager->getRepository(Delivery::class);
 
-        // El transportista solo ve lo suyo; la agencia ve todo.
+        // El transportista solo ve lo suyo (de cualquiera de sus empresas); la
+        // agencia ve todo.
+        $vehiclesByHauler = [];
+        $driversByHauler = [];
+
         if ($this->isGranted('ROLE_EXECUTIVE')) {
             $deliveries = $repository->findBy([], ['date' => 'ASC', 'hour' => 'ASC']);
-            $hauler = null;
+            $haulers = [];
         } else {
-            $hauler = $this->haulerFor($user);
+            $haulers = $this->haulersFor($user);
 
-            if ($hauler) {
+            if ($haulers !== []) {
                 // Ademas de lo que le toca entregar, un transportista puede
                 // tener asignada solo la devolucion de vacios de un despacho
                 // que entrego alguien mas (ver Delivery::$returnTransport).
-                $delivered = $repository->findBy(['transport' => $hauler]);
-                $returning = $repository->findBy(['returnTransport' => $hauler]);
+                $delivered = $repository->findBy(['transport' => $haulers]);
+                $returning = $repository->findBy(['returnTransport' => $haulers]);
 
                 $byId = [];
 
@@ -83,6 +89,13 @@ class DashboardDeliveries extends AbstractController
 
                 $deliveries = array_values($byId);
                 usort($deliveries, static fn (Delivery $a, Delivery $b): int => [$a->getDate(), $a->getHour()] <=> [$b->getDate(), $b->getHour()]);
+
+                // Flota de cada una de sus empresas, para el formulario de
+                // "Unidad y chofer" del despacho (ver assignVehicle()).
+                foreach ($haulers as $hauler) {
+                    $vehiclesByHauler[$hauler->getId()] = $this->entityManager->getRepository(Vehicle::class)->findBy(['hauler' => $hauler], ['plates' => 'ASC']);
+                    $driversByHauler[$hauler->getId()] = $this->entityManager->getRepository(Driver::class)->findBy(['hauler' => $hauler], ['name' => 'ASC']);
+                }
             } else {
                 $deliveries = [];
             }
@@ -101,7 +114,9 @@ class DashboardDeliveries extends AbstractController
             'role' => $user->getRoles()[0],
             'loged' => 'true',
             'deliveries' => $deliveries,
-            'hauler' => $hauler,
+            'haulers' => $haulers,
+            'vehiclesByHauler' => $vehiclesByHauler,
+            'driversByHauler' => $driversByHauler,
             'isHauler' => !$this->isGranted('ROLE_EXECUTIVE'),
             'directions' => ImportRequestWorkflow::DIRECTIONS,
             'pendingReturns' => $pendingReturns,
@@ -111,6 +126,405 @@ class DashboardDeliveries extends AbstractController
             'placeInspection' => LocalTransferPlaceCatalog::INSPECTION_POINT,
             'inspectionPoints' => $this->entityManager->getRepository(InspectionPoint::class)->findBy([], ['name' => 'ASC']),
         ]);
+    }
+
+    /**
+     * El transportista responde al aviso con la unidad, el chofer y el folio
+     * del CFDI que la agencia necesita adjuntar a su documento — el ejecutivo
+     * solo avisa la cita (fecha/hora), esto ya no es cosa suya. Editable
+     * mientras el despacho no haya salido, por si hay que corregir algo.
+     */
+    #[Route('/dashboard/despachos/{id}/unidad', name: 'delivery_assign_vehicle', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function assignVehicle(#[MapEntity(id: 'id')] Delivery $delivery, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('delivery_assign_vehicle', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        if (!$this->ownsDelivery($delivery)) {
+            $this->addFlash('error', 'Ese despacho no está asignado a tu cuenta.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        if ($delivery->isDeparted()) {
+            $this->addFlash('error', 'Ese despacho ya salió, no se puede corregir la unidad.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        if ($delivery->isFailed()) {
+            $this->addFlash('error', 'Ese despacho está marcado como fallido.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        $hauler = $delivery->getTransport();
+        $vehicle = $this->entityManager->getRepository(Vehicle::class)->find($r->request->get('vehicle'));
+        $driver = $this->entityManager->getRepository(Driver::class)->find($r->request->get('driver'));
+
+        if (!$vehicle || $vehicle->getHauler() !== $hauler || !$driver || $driver->getHauler() !== $hauler) {
+            $this->addFlash('error', 'Selecciona una unidad y un chofer de tu flota.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        $cfdiFolio = trim((string) $r->request->get('cfdiFolio'));
+
+        if (!$this->isValidCfdiFolio($cfdiFolio)) {
+            $this->addFlash('error', 'Captura el folio del CFDI (formato UUID).');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        $delivery->setVehicle($vehicle);
+        $delivery->setDriver($driver);
+        $delivery->setCfdiFolio($cfdiFolio);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Unidad, chofer y folio CFDI enviados a la agencia.');
+
+        return $this->redirectToRoute('deliveries');
+    }
+
+    /**
+     * Empresas de transporte del usuario logeado: quien tiene ROLE_FH da de
+     * alta y corrige sus propias empresas (razón social, CAAT, RFC) — la
+     * agencia sigue pudiendo hacerlo tambien desde /admin, pero ya no es la
+     * unica responsable de estos datos. Un mismo transportista puede operar
+     * mas de una empresa, cada una con su propia flota y despachos.
+     */
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/empresas', name: 'hauler_companies', methods: ['GET'])]
+    public function companies(): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        return $this->render('/dashboard/haulerCompanies.html.twig', [
+            'name' => $user->getName(),
+            'role' => $user->getRoles()[0],
+            'loged' => 'true',
+            'haulers' => $this->haulersFor($user),
+        ]);
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/empresas', name: 'hauler_companies_add', methods: ['POST'])]
+    public function addCompany(Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!$this->isCsrfTokenValid('hauler_companies_add', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_companies');
+        }
+
+        $companyName = trim((string) $r->request->get('companyName'));
+        $caat = trim((string) $r->request->get('caat'));
+        $rfc = trim((string) $r->request->get('rfc'));
+
+        if ($companyName === '' || $caat === '' || $rfc === '') {
+            $this->addFlash('error', 'Razón social, CAAT y RFC son obligatorios.');
+
+            return $this->redirectToRoute('hauler_companies');
+        }
+
+        $hauler = new FreightHauler();
+        $hauler->setIdUser($user);
+        $hauler->setCompanyName($companyName);
+        $hauler->setCaat($caat);
+        $hauler->setRfc($rfc);
+
+        $this->entityManager->persist($hauler);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Empresa de transporte agregada.');
+
+        return $this->redirectToRoute('hauler_companies');
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/empresas/{id}/editar', name: 'hauler_companies_edit', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function editCompany(#[MapEntity(id: 'id')] FreightHauler $hauler, Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Esa empresa no es tuya.');
+        }
+
+        if (!$this->isCsrfTokenValid('hauler_companies_edit', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_companies');
+        }
+
+        $companyName = trim((string) $r->request->get('companyName'));
+        $caat = trim((string) $r->request->get('caat'));
+        $rfc = trim((string) $r->request->get('rfc'));
+
+        if ($companyName === '' || $caat === '' || $rfc === '') {
+            $this->addFlash('error', 'Razón social, CAAT y RFC son obligatorios.');
+
+            return $this->redirectToRoute('hauler_companies');
+        }
+
+        $hauler->setCompanyName($companyName);
+        $hauler->setCaat($caat);
+        $hauler->setRfc($rfc);
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Empresa de transporte actualizada.');
+
+        return $this->redirectToRoute('hauler_companies');
+    }
+
+    /**
+     * Flota de una empresa de transporte (unidades y choferes): la captura el
+     * transportista mismo, no la agencia — es quien conoce sus propios datos.
+     */
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/flota/{hauler}', name: 'hauler_fleet', requirements: ['hauler' => '\d+'], methods: ['GET'])]
+    public function fleet(#[MapEntity(id: 'hauler')] FreightHauler $hauler): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Esa empresa no es tuya.');
+        }
+
+        return $this->render('/dashboard/haulerFleet.html.twig', [
+            'name' => $user->getName(),
+            'role' => $user->getRoles()[0],
+            'loged' => 'true',
+            'hauler' => $hauler,
+            'vehicles' => $this->entityManager->getRepository(Vehicle::class)->findBy(['hauler' => $hauler], ['plates' => 'ASC']),
+            'drivers' => $this->entityManager->getRepository(Driver::class)->findBy(['hauler' => $hauler], ['name' => 'ASC']),
+        ]);
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/flota/{hauler}/unidades', name: 'hauler_fleet_add_vehicle', requirements: ['hauler' => '\d+'], methods: ['POST'])]
+    public function addVehicle(#[MapEntity(id: 'hauler')] FreightHauler $hauler, Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Esa empresa no es tuya.');
+        }
+
+        if (!$this->isCsrfTokenValid('hauler_fleet_add_vehicle', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $plates = trim((string) $r->request->get('plates'));
+
+        if ($plates === '') {
+            $this->addFlash('error', 'Las placas son obligatorias.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $vehicle = new Vehicle();
+        $vehicle->setHauler($hauler);
+        $vehicle->setPlates($plates);
+        $vehicle->setEconomicNumber($this->nullableTrim($r->request->get('economicNumber')));
+        $vehicle->setType($this->nullableTrim($r->request->get('type')));
+
+        $this->entityManager->persist($vehicle);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Unidad agregada.');
+
+        return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/flota/unidades/{id}/editar', name: 'hauler_fleet_edit_vehicle', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function editVehicle(#[MapEntity(id: 'id')] Vehicle $vehicle, Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $hauler = $vehicle->getHauler();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Esa unidad no es de tu flota.');
+        }
+
+        if (!$this->isCsrfTokenValid('hauler_fleet_edit_vehicle', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $plates = trim((string) $r->request->get('plates'));
+
+        if ($plates === '') {
+            $this->addFlash('error', 'Las placas son obligatorias.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $vehicle->setPlates($plates);
+        $vehicle->setEconomicNumber($this->nullableTrim($r->request->get('economicNumber')));
+        $vehicle->setType($this->nullableTrim($r->request->get('type')));
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Unidad actualizada.');
+
+        return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/flota/unidades/{id}/eliminar', name: 'hauler_fleet_delete_vehicle', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function deleteVehicle(#[MapEntity(id: 'id')] Vehicle $vehicle, Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $hauler = $vehicle->getHauler();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Esa unidad no es de tu flota.');
+        }
+
+        if (!$this->isCsrfTokenValid('hauler_fleet_delete_vehicle', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        if ($this->entityManager->getRepository(Delivery::class)->count(['vehicle' => $vehicle]) > 0) {
+            $this->addFlash('error', 'Esa unidad ya está asignada a un despacho, no se puede eliminar.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $this->entityManager->remove($vehicle);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Unidad eliminada.');
+
+        return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/flota/{hauler}/choferes', name: 'hauler_fleet_add_driver', requirements: ['hauler' => '\d+'], methods: ['POST'])]
+    public function addDriver(#[MapEntity(id: 'hauler')] FreightHauler $hauler, Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Esa empresa no es tuya.');
+        }
+
+        if (!$this->isCsrfTokenValid('hauler_fleet_add_driver', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $name = trim((string) $r->request->get('name'));
+
+        if ($name === '') {
+            $this->addFlash('error', 'El nombre del chofer es obligatorio.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $driver = new Driver();
+        $driver->setHauler($hauler);
+        $driver->setName($name);
+        $driver->setPhone($this->nullableTrim($r->request->get('phone')));
+        $driver->setLicense($this->nullableTrim($r->request->get('license')));
+
+        $this->entityManager->persist($driver);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Chofer agregado.');
+
+        return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/flota/choferes/{id}/editar', name: 'hauler_fleet_edit_driver', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function editDriver(#[MapEntity(id: 'id')] Driver $driver, Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $hauler = $driver->getHauler();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Ese chofer no es de tu flota.');
+        }
+
+        if (!$this->isCsrfTokenValid('hauler_fleet_edit_driver', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $name = trim((string) $r->request->get('name'));
+
+        if ($name === '') {
+            $this->addFlash('error', 'El nombre del chofer es obligatorio.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $driver->setName($name);
+        $driver->setPhone($this->nullableTrim($r->request->get('phone')));
+        $driver->setLicense($this->nullableTrim($r->request->get('license')));
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Chofer actualizado.');
+
+        return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+    }
+
+    #[IsGranted('ROLE_FH')]
+    #[Route('/dashboard/despachos/flota/choferes/{id}/eliminar', name: 'hauler_fleet_delete_driver', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function deleteDriver(#[MapEntity(id: 'id')] Driver $driver, Request $r): Response
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        $hauler = $driver->getHauler();
+
+        if (!in_array($hauler, $this->haulersFor($user), true)) {
+            throw $this->createAccessDeniedException('Ese chofer no es de tu flota.');
+        }
+
+        if (!$this->isCsrfTokenValid('hauler_fleet_delete_driver', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        if ($this->entityManager->getRepository(Delivery::class)->count(['driver' => $driver]) > 0) {
+            $this->addFlash('error', 'Ese chofer ya está asignado a un despacho, no se puede eliminar.');
+
+            return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
+        }
+
+        $this->entityManager->remove($driver);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Chofer eliminado.');
+
+        return $this->redirectToRoute('hauler_fleet', ['hauler' => $hauler->getId()]);
     }
 
     /**
@@ -703,9 +1117,8 @@ class DashboardDeliveries extends AbstractController
     {
         /** @var User $user */
         $user = $this->getUser();
-        $hauler = $this->haulerFor($user);
 
-        return $hauler !== null && $delivery->getTransport() === $hauler;
+        return in_array($delivery->getTransport(), $this->haulersFor($user), true);
     }
 
     /**
@@ -718,9 +1131,8 @@ class DashboardDeliveries extends AbstractController
     {
         /** @var User $user */
         $user = $this->getUser();
-        $hauler = $this->haulerFor($user);
 
-        return $hauler !== null && ($delivery->getReturnTransport() ?? $delivery->getTransport()) === $hauler;
+        return in_array($delivery->getReturnTransport() ?? $delivery->getTransport(), $this->haulersFor($user), true);
     }
 
     /**
@@ -751,8 +1163,28 @@ class DashboardDeliveries extends AbstractController
         return implode(' ', $parts);
     }
 
-    private function haulerFor(User $user): ?FreightHauler
+    /**
+     * @return list<FreightHauler>
+     */
+    private function haulersFor(User $user): array
     {
-        return $this->entityManager->getRepository(FreightHauler::class)->findOneBy(['id_user' => $user]);
+        return $this->entityManager->getRepository(FreightHauler::class)->findBy(['id_user' => $user]);
+    }
+
+    private function nullableTrim(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    /**
+     * El folio del CFDI es un UUID (ej. 051A1466-0732-4F9C-9192-56A9736A2DD4)
+     * — se valida el formato, no que exista de verdad ante el SAT: eso
+     * queda fuera del alcance de la app.
+     */
+    private function isValidCfdiFolio(string $folio): bool
+    {
+        return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $folio) === 1;
     }
 }

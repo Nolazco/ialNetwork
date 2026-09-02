@@ -46,7 +46,7 @@ class EmptyReturn
 
     #[ORM\ManyToOne(inversedBy: 'emptyReturns')]
     #[ORM\JoinColumn(nullable: false)]
-    private ?ContainerYard $yard = null;
+    private ?EmptyReturnYard $yard = null;
 
     /**
      * Fecha de la cita que agenda el ejecutivo con el patio, segun las
@@ -143,12 +143,12 @@ class EmptyReturn
         return $this;
     }
 
-    public function getYard(): ?ContainerYard
+    public function getYard(): ?EmptyReturnYard
     {
         return $this->yard;
     }
 
-    public function setYard(?ContainerYard $yard): static
+    public function setYard(?EmptyReturnYard $yard): static
     {
         $this->yard = $yard;
 

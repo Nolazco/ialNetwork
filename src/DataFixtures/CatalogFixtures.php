@@ -5,6 +5,7 @@ namespace App\DataFixtures;
 use App\Entity\Associated;
 use App\Entity\Company;
 use App\Entity\ContainerYard;
+use App\Entity\EmptyReturnYard;
 use App\Entity\Provider;
 use App\Entity\User;
 use Doctrine\Bundle\FixturesBundle\Fixture;
@@ -27,6 +28,13 @@ class CatalogFixtures extends Fixture implements DependentFixtureInterface
         $yard->setCr('39');
 
         $manager->persist($yard);
+
+        // Catalogo aparte del recinto de arriba: sin al menos uno, el
+        // formulario de programar devolucion de vacios queda sin opciones.
+        $emptyReturnYard = new EmptyReturnYard();
+        $emptyReturnYard->setName('CIMA');
+
+        $manager->persist($emptyReturnYard);
 
         foreach ([
             ['Proveedor Uno', 'PUN010101AB1', 'Av. Siempre Viva 100, Shanghai'],

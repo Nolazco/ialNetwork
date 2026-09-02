@@ -1,0 +1,119 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Mis empresas transportistas{% endblock %}
+
+{% block body %}
+  <div class="content">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <h2 class="mb-0">Mis empresas transportistas</h2>
+      <a href="{{ path('deliveries') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a mis despachos
+      </a>
+    </div>
+
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle"></i>
+      Puedes operar más de una empresa de transporte — cada una tiene su propia flota (unidades y choferes) y sus propios despachos.
+    </div>
+
+    {% if haulers %}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Razón social</th>
+                <th scope="col">CAAT</th>
+                <th scope="col">RFC</th>
+                <th scope="col" class="text-end">Opciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for h in haulers %}
+                <tr>
+                  <td>{{ h.companyName }}</td>
+                  <td>{{ h.caat }}</td>
+                  <td>{{ h.rfc }}</td>
+                  <td class="text-end text-nowrap">
+                    <a href="{{ path('hauler_fleet', { hauler: h.id }) }}" class="btn btn-sm btn-outline-primary" title="Ver flota">
+                      <i class="bi bi-truck"></i> Flota
+                    </a>
+                    <button type="button" class="btn btn-sm btn-outline-secondary js-edit-company-toggle" data-target="edit-company-{{ h.id }}" title="Editar">
+                      <i class="bi bi-pencil"></i>
+                    </button>
+                  </td>
+                </tr>
+                <tr id="edit-company-{{ h.id }}" class="d-none">
+                  <td colspan="4">
+                    <form method="POST" action="{{ path('hauler_companies_edit', { id: h.id }) }}" class="row g-2 align-items-end">
+                      <input type="hidden" name="_token" value="{{ csrf_token('hauler_companies_edit') }}">
+                      <div class="col-md-4">
+                        <label class="form-label small">Razón social</label>
+                        <input type="text" class="form-control form-control-sm" name="companyName" value="{{ h.companyName }}" required>
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">CAAT</label>
+                        <input type="text" class="form-control form-control-sm" name="caat" value="{{ h.caat }}" required>
+                      </div>
+                      <div class="col-md-3">
+                        <label class="form-label small">RFC</label>
+                        <input type="text" class="form-control form-control-sm" name="rfc" value="{{ h.rfc }}" required>
+                      </div>
+                      <div class="col-md-2">
+                        <button type="submit" class="btn btn-sm btn-primary w-100">
+                          <i class="bi bi-save"></i> Guardar
+                        </button>
+                      </div>
+                    </form>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Nueva empresa de transporte</h5>
+        <form method="POST" action="{{ path('hauler_companies_add') }}" class="row g-2 align-items-end">
+          <input type="hidden" name="_token" value="{{ csrf_token('hauler_companies_add') }}">
+          <div class="col-md-5">
+            <label for="companyName" class="form-label">Razón social</label>
+            <input type="text" class="form-control" name="companyName" id="companyName" required>
+          </div>
+          <div class="col-md-3">
+            <label for="caat" class="form-label">CAAT</label>
+            <input type="text" class="form-control" name="caat" id="caat" required>
+          </div>
+          <div class="col-md-3">
+            <label for="rfc" class="form-label">RFC</label>
+            <input type="text" class="form-control" name="rfc" id="rfc" required>
+          </div>
+          <div class="col-md-1">
+            <button type="submit" class="btn btn-primary w-100" title="Agregar empresa">
+              <i class="bi bi-plus-lg"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll(".js-edit-company-toggle").forEach(function (boton) {
+        boton.addEventListener("click", function () {
+          const fila = document.getElementById(boton.dataset.target);
+          if (fila) {
+            fila.classList.toggle("d-none");
+          }
+        });
+      });
+    });
+  </script>
+{% endblock %}

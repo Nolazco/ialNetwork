@@ -16,8 +16,10 @@ class FreightHauler
     private ?int $id = null;
 
     // Sin cascade remove: dar de baja al transportista no debe borrar la cuenta
-    // de usuario, que es una entidad independiente.
-    #[ORM\OneToOne]
+    // de usuario, que es una entidad independiente. ManyToOne (no OneToOne):
+    // un mismo usuario transportista puede operar varias empresas de
+    // transporte, cada una con su propia flota y despachos.
+    #[ORM\ManyToOne]
     #[ORM\JoinColumn(nullable: false)]
     private ?User $id_user = null;
 

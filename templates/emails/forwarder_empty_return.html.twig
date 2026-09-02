@@ -17,9 +17,13 @@
           <tr>
             <td style="padding:24px;">
               <p style="margin:0 0 16px; font-size:16px; color:#212529;">
-                Se registró la devolución de vacío del contenedor <strong>{{ containerNum }}</strong> del expediente <strong>{{ clientReference }}</strong>.
+                Se registró la devolución de vacío del contenedor <strong>{{ containerNum }}</strong> del pedimento <strong>{{ agencyReference }}</strong>.
               </p>
               <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
+                <tr>
+                  <td style="color:#909090;">Referencia del cliente</td>
+                  <td><strong>{{ clientReference }}</strong></td>
+                </tr>
                 <tr>
                   <td style="color:#909090;">Contenedor</td>
                   <td><strong>{{ containerNum }}{{ containerType ? ' · ' ~ containerType : '' }}</strong></td>

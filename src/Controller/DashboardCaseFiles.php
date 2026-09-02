@@ -4,8 +4,10 @@ namespace App\Controller;
 
 use App\Entity\Delivery;
 use App\Entity\Container;
+use App\Entity\ConsolidatorInstruction;
 use App\Entity\ContainerYard;
 use App\Entity\EmptyReturn;
+use App\Entity\EmptyReturnYard;
 use App\Entity\FreightHauler;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
@@ -14,9 +16,11 @@ use App\Entity\Operation;
 use App\Entity\PrevioReport;
 use App\Entity\RequiredDocument;
 use App\Entity\User;
+use App\Notification\DeliveryMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Soia\ModuladoConfirmer;
+use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
 use App\Workflow\RequiredDocumentType;
@@ -61,6 +65,8 @@ class DashboardCaseFiles extends AbstractController
         private readonly CompanyAccess $companyAccess,
         private readonly ModuladoConfirmer $moduladoConfirmer,
         private readonly UploadPath $uploadPath,
+        private readonly ContainerTypeCatalog $containerTypeCatalog,
+        private readonly DeliveryMailer $deliveryMailer,
         #[Autowire('%kernel.environment%')]
         private readonly string $environment,
     ) {
@@ -81,9 +87,12 @@ class DashboardCaseFiles extends AbstractController
      * concreto tambien debe poder verlos, aunque no tenga acceso al resto del
      * expediente (proforma, facturas, etc.).
      */
-    private function haulerFor(User $user): ?FreightHauler
+    /**
+     * @return list<FreightHauler>
+     */
+    private function haulersFor(User $user): array
     {
-        return $this->entityManager->getRepository(FreightHauler::class)->findOneBy(['id_user' => $user]);
+        return $this->entityManager->getRepository(FreightHauler::class)->findBy(['id_user' => $user]);
     }
 
     #[Route('/dashboard/pedimentos/expediente/{id}', name: 'case_file', requirements: ['id' => '\d+'], methods: ['GET'])]
@@ -118,14 +127,15 @@ class DashboardCaseFiles extends AbstractController
 
         // Otros expedientes con los que se podria compartir una misma unidad
         // (mismo cliente o no, sin restriccion): cualquiera que hoy admita
-        // aviso al transporte, salvo este mismo. Se precalculan sus propios
-        // contenedores sin asignar para que el formulario los muestre/oculte
-        // por JS sin ir de vuelta al servidor.
+        // aviso al transporte, salvo este mismo — pero solo del mismo tipo de
+        // carga: un camion de contenedor no lleva bultos sueltos, y viceversa.
+        // Se precalculan sus propios contenedores sin asignar para que el
+        // formulario los muestre/oculte por JS sin ir de vuelta al servidor.
         $shareableImports = [];
         $shareableContainers = [];
 
         foreach ($this->entityManager->getRepository(ImportRequest::class)->findBy([], ['clientReference' => 'ASC']) as $candidate) {
-            if ($candidate === $import || !$this->workflow->canAssignTransport($candidate)) {
+            if ($candidate === $import || $candidate->getType() !== $import->getType() || !$this->workflow->canAssignTransport($candidate)) {
                 continue;
             }
 
@@ -167,6 +177,8 @@ class DashboardCaseFiles extends AbstractController
             'awaitsTransport' => $this->workflow->awaitsTransport($import),
             'haulers' => $this->entityManager->getRepository(FreightHauler::class)->findBy([], ['companyName' => 'ASC']),
             'yards' => $this->entityManager->getRepository(ContainerYard::class)->findBy([], ['name' => 'ASC']),
+            'emptyReturnYards' => $this->entityManager->getRepository(EmptyReturnYard::class)->findBy([], ['name' => 'ASC']),
+            'containerTypes' => ContainerTypeCatalog::LABELS,
             'unassignedContainers' => $this->transport->unassignedContainers($import),
             'maxContainers' => Delivery::MAX_CONTAINERS,
             'shareableImports' => $shareableImports,
@@ -178,6 +190,8 @@ class DashboardCaseFiles extends AbstractController
             'executedReturns' => array_filter($import->getEmptyReturns()->toArray(), static fn (EmptyReturn $return): bool => $return->isExecuted()),
             'previoReports' => $this->entityManager->getRepository(PrevioReport::class)
                 ->findBy(['reference' => $import], ['date' => 'DESC', 'id' => 'DESC']),
+            'consolidatorInstructions' => $this->entityManager->getRepository(ConsolidatorInstruction::class)
+                ->findBy(['reference' => $import], ['createdAt' => 'DESC']),
             'expenses' => $import->getInternInvoices(),
             'allowedExpenseTypes' => self::EXPENSE_EXTENSIONS,
             'allowedDocumentTypes' => self::EXPENSE_EXTENSIONS,
@@ -365,6 +379,75 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Fecha de arribo actualizada.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * El cliente muchas veces no sabe todavia que tipo de contenedor le va a
+     * tocar cuando da de alta la solicitud (ver DashboardImports::newImport(),
+     * que lo deja en "Desconocido" si no se elige nada) — se corrige aqui
+     * despues, sin restriccion de estatus del expediente: es un dato
+     * descriptivo, no algo que el flujo de despacho dependa de que sea exacto.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/contenedores/{container}/editar', name: 'case_file_container_edit', requirements: ['id' => '\d+', 'container' => '\d+'], methods: ['POST'])]
+    public function editContainer(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'container')] Container $container, Request $r): Response
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        if (!$container->getReference()->contains($import)) {
+            $this->addFlash('error', 'Ese contenedor no pertenece a este expediente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (!$this->isCsrfTokenValid('case_file_container_edit', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $type = (string) $r->request->get('type');
+
+        if (!$this->containerTypeCatalog->isValid($type)) {
+            $this->addFlash('error', 'Selecciona un tipo de contenedor válido.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $container->setType($type);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Tipo de contenedor actualizado.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Si la mercancia viaja o no con el consolidador de carga (XCF). Lo suele
+     * avisar el cliente desde la alta de la solicitud, pero los planes pueden
+     * cambiar, asi que sigue siendo editable despues (ver
+     * ImportRequestWorkflow::canAssignTransport()).
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/consolidador-flag', name: 'case_file_consolidator_flag', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updateTravelsWithConsolidator(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        if (!$this->isCsrfTokenValid('case_file_consolidator_flag', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $import->setTravelsWithConsolidator($r->request->get('travelsWithConsolidator') === '1');
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Actualizado.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
@@ -602,6 +685,12 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        if ($import->travelsWithConsolidator() && $import->getConsolidatorInstructions()->isEmpty()) {
+            $this->addFlash('error', 'Esta mercancía viaja con XCF — manda antes las instrucciones al consolidador para poder avisar al transporte.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
         if (!$this->workflow->canAssignTransport($import)) {
             $this->addFlash('error', sprintf('El expediente no admite aviso al transporte estando en "%s".', $import->getStatus()));
 
@@ -654,7 +743,51 @@ class DashboardCaseFiles extends AbstractController
                 return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
             }
 
+            // Contenedor y carga suelta no se pueden compartir: un camion de
+            // contenedor no lleva bultos sueltos, y viceversa.
+            if ($candidate->getType() !== $import->getType()) {
+                $this->addFlash('error', 'No se puede compartir una unidad entre carga contenerizada y carga suelta.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
             $allImports[] = $candidate;
+        }
+
+        // Ficha de la mercancia que le toca al transportista, ademas de la
+        // cita — se le manda por correo al confirmar (ver DeliveryMailer).
+        $claveSat = trim((string) $r->request->get('claveSat'));
+        $descripcion = trim((string) $r->request->get('descripcion'));
+        $embalaje = trim((string) $r->request->get('embalaje'));
+        $bultos = (int) $r->request->get('bultos');
+        $weightKg = (float) str_replace(',', '.', (string) $r->request->get('weightKg'));
+        $cubicaje = (float) str_replace(',', '.', (string) $r->request->get('cubicaje'));
+        $pedimentoFile = $r->files->get('pedimentoSimplificado');
+
+        if ($claveSat === '' || $descripcion === '' || $embalaje === '' || $bultos < 1 || $weightKg <= 0 || $cubicaje <= 0) {
+            $this->addFlash('error', 'Clave SAT, mercancía, embalaje, bultos, peso y cubicaje son obligatorios.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if (!$pedimentoFile || !$pedimentoFile->isValid()) {
+            $this->addFlash('error', 'Adjunta el pedimento simplificado.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        // Solo aplica si el expediente viaja con XCF: es el folio que ellos
+        // generan al recibir las instrucciones (ver ConsolidatorMailer).
+        $xcfFolio = null;
+
+        if ($import->travelsWithConsolidator()) {
+            $xcfFolio = trim((string) $r->request->get('xcfFolio'));
+
+            if ($xcfFolio === '') {
+                $this->addFlash('error', 'Captura el folio que XCF generó al recibir las instrucciones.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
         }
 
         $delivery = new Delivery();
@@ -670,6 +803,13 @@ class DashboardCaseFiles extends AbstractController
         $delivery->setTransport($hauler);
         $delivery->setDate($date->setTime(0, 0));
         $delivery->setHour($hour);
+        $delivery->setClaveSat($claveSat);
+        $delivery->setDescripcion($descripcion);
+        $delivery->setEmbalaje($embalaje);
+        $delivery->setBultos($bultos);
+        $delivery->setWeightKg($weightKg);
+        $delivery->setCubicaje($cubicaje);
+        $delivery->setXcfFolio($xcfFolio);
 
         $containerizedImports = array_filter($allImports, static fn (ImportRequest $imp) => $imp->getType() === ImportRequestWorkflow::TYPE_CONTAINER);
 
@@ -712,6 +852,31 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->persist($delivery);
         $this->entityManager->flush();
 
+        // Hasta aqui ya tiene id: la carpeta del pedimento simplificado se
+        // nombra con el, igual que uploads/entregas/{id} para la prueba de
+        // entrega (ver DashboardDeliveries::storeProof()).
+        $route = 'uploads/despachos/'.$delivery->getId();
+        $folder = $this->uploadPath->resolve($route);
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            $this->addFlash('error', 'No se pudo preparar la carpeta del pedimento simplificado.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $name = 'pedimento-simplificado-'.uniqid().'.'.$pedimentoFile->guessExtension();
+
+        try {
+            $pedimentoFile->move($folder, $name);
+        } catch (FileException) {
+            $this->addFlash('error', 'No se pudo guardar el pedimento simplificado.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $delivery->setPedimentoSimplificadoRoute($route.'/'.$name);
+        $this->entityManager->flush();
+
         $advanced = [];
 
         foreach ($allImports as $imp) {
@@ -723,6 +888,8 @@ class DashboardCaseFiles extends AbstractController
         if ($advanced !== []) {
             $this->entityManager->flush();
         }
+
+        $this->deliveryMailer->notify($delivery);
 
         $this->addFlash('success', sprintf(
             'Cita registrada para el %s con %s%s.%s',
@@ -790,11 +957,91 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        // Ficha de la mercancia: se vuelve a exigir completa, igual que la
+        // fecha y la hora (ver assignTransport()).
+        $claveSat = trim((string) $r->request->get('claveSat'));
+        $descripcion = trim((string) $r->request->get('descripcion'));
+        $embalaje = trim((string) $r->request->get('embalaje'));
+        $bultos = (int) $r->request->get('bultos');
+        $weightKg = (float) str_replace(',', '.', (string) $r->request->get('weightKg'));
+        $cubicaje = (float) str_replace(',', '.', (string) $r->request->get('cubicaje'));
+
+        if ($claveSat === '' || $descripcion === '' || $embalaje === '' || $bultos < 1 || $weightKg <= 0 || $cubicaje <= 0) {
+            $this->addFlash('error', 'Clave SAT, mercancía, embalaje, bultos, peso y cubicaje son obligatorios.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $xcfFolio = $delivery->getXcfFolio();
+
+        if ($import->travelsWithConsolidator()) {
+            $xcfFolio = trim((string) $r->request->get('xcfFolio'));
+
+            if ($xcfFolio === '') {
+                $this->addFlash('error', 'Captura el folio que XCF generó al recibir las instrucciones.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        }
+
+        // Si cambia el transportista, la unidad/chofer/CFDI que hubiera
+        // quedan invalidos: son de la flota del transportista anterior. Le
+        // toca al nuevo transportista volver a mandarlos (ver
+        // DashboardDeliveries::assignVehicle()).
+        if ($delivery->getTransport() !== $hauler) {
+            $delivery->setVehicle(null);
+            $delivery->setDriver(null);
+            $delivery->setCfdiFolio(null);
+        }
+
         $delivery->setTransport($hauler);
         $delivery->setDate($date->setTime(0, 0));
         $delivery->setHour($hour);
+        $delivery->setClaveSat($claveSat);
+        $delivery->setDescripcion($descripcion);
+        $delivery->setEmbalaje($embalaje);
+        $delivery->setBultos($bultos);
+        $delivery->setWeightKg($weightKg);
+        $delivery->setCubicaje($cubicaje);
+        $delivery->setXcfFolio($xcfFolio);
+
+        // El pedimento simplificado es opcional aqui: si no se adjunta uno
+        // nuevo, se queda el que ya tenia (ver el mismo patron en
+        // uploadEmptyReturnEir()).
+        $pedimentoFile = $r->files->get('pedimentoSimplificado');
+
+        if ($pedimentoFile && $pedimentoFile->isValid()) {
+            $route = 'uploads/despachos/'.$delivery->getId();
+            $folder = $this->uploadPath->resolve($route);
+
+            if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+                $this->addFlash('error', 'No se pudo preparar la carpeta del pedimento simplificado.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $name = 'pedimento-simplificado-'.uniqid().'.'.$pedimentoFile->guessExtension();
+
+            try {
+                $pedimentoFile->move($folder, $name);
+            } catch (FileException) {
+                $this->addFlash('error', 'No se pudo guardar el pedimento simplificado.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $oldPath = $delivery->getPedimentoSimplificadoRoute() ? $this->uploadPath->resolve($delivery->getPedimentoSimplificadoRoute()) : null;
+
+            if ($oldPath && is_file($oldPath)) {
+                unlink($oldPath);
+            }
+
+            $delivery->setPedimentoSimplificadoRoute($route.'/'.$name);
+        }
 
         $this->entityManager->flush();
+
+        $this->deliveryMailer->notify($delivery);
 
         $this->addFlash('success', 'Despacho actualizado.');
 
@@ -937,9 +1184,15 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        // Opcional a proposito: el cliente no la conoce, y no toda mercancia
+        // pasa por el consolidador de carga (unico lugar donde hace falta,
+        // ver ConsolidatorInstruction).
+        $tariffFraction = trim((string) $r->request->get('tariffFraction'));
+
         $import->setAgencyReference($agencyReference);
         $import->setImportNumber($importNumber);
         $import->setCr($yard);
+        $import->setTariffFraction($tariffFraction !== '' ? $tariffFraction : null);
 
         // Dar de alta el pedimento es lo que saca al expediente de "Pendiente".
         // Si ya avanzo mas alla, esto es una correccion y no debe retroceder.
@@ -1372,14 +1625,45 @@ class DashboardCaseFiles extends AbstractController
 
         /** @var User $user */
         $user = $this->getUser();
-        $hauler = $this->haulerFor($user);
-        $ownsDelivery = $hauler !== null && $delivery->getTransport() === $hauler;
+        $ownsDelivery = in_array($delivery->getTransport(), $this->haulersFor($user), true);
 
         if (!$this->canView($import) && !$ownsDelivery) {
             throw $this->createAccessDeniedException('Ese despacho no pertenece a ninguna de tus empresas.');
         }
 
         $path = $this->uploadPath->resolve((string) $delivery->getProofRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * Descarga el pedimento simplificado de un despacho. Mismo criterio de
+     * acceso que la prueba de entrega: cliente/ejecutivo, o el transportista
+     * dueño de ese despacho en concreto.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/despachos/{delivery}/pedimento-simplificado', name: 'case_file_delivery_pedimento_download', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['GET'])]
+    public function downloadDeliveryPedimento(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery): BinaryFileResponse
+    {
+        if (!$delivery->getReferences()->contains($import)) {
+            throw $this->createNotFoundException();
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+        $ownsDelivery = in_array($delivery->getTransport(), $this->haulersFor($user), true);
+
+        if (!$this->canView($import) && !$ownsDelivery) {
+            throw $this->createAccessDeniedException('Ese despacho no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $delivery->getPedimentoSimplificadoRoute());
 
         if (!is_file($path)) {
             throw $this->createNotFoundException();
@@ -1467,19 +1751,19 @@ class DashboardCaseFiles extends AbstractController
      */
     private function haulerOwnsReturn(EmptyReturn $return, User $user): bool
     {
-        $hauler = $this->haulerFor($user);
+        $haulers = $this->haulersFor($user);
 
-        if ($hauler === null) {
+        if ($haulers === []) {
             return false;
         }
 
         if ($return->getTransport() !== null) {
-            return $return->getTransport() === $hauler;
+            return in_array($return->getTransport(), $haulers, true);
         }
 
         $delivery = $this->transport->deliveryFor($return->getContainer());
 
-        return $delivery !== null && ($delivery->getReturnTransport() ?? $delivery->getTransport()) === $hauler;
+        return $delivery !== null && in_array($delivery->getReturnTransport() ?? $delivery->getTransport(), $haulers, true);
     }
 
     /**
@@ -1522,7 +1806,7 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        $yard = $this->entityManager->getRepository(ContainerYard::class)->find($r->request->get('yard'));
+        $yard = $this->entityManager->getRepository(EmptyReturnYard::class)->find($r->request->get('yard'));
         $appointmentDate = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('appointmentDate'));
         $slipFile = $r->files->get('slip');
 

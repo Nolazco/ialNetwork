@@ -4,12 +4,19 @@
 
 {% block body %}
   <div class="content">
-    <h2 class="mb-4">{{ isHauler ? 'Mis despachos' : 'Despachos' }}</h2>
+    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+      <h2 class="mb-0">{{ isHauler ? 'Mis despachos' : 'Despachos' }}</h2>
+      {% if isHauler %}
+        <a href="{{ path('hauler_companies') }}" class="btn btn-outline-primary">
+          <i class="bi bi-truck"></i> Mis empresas transportistas
+        </a>
+      {% endif %}
+    </div>
 
-    {% if isHauler and hauler is null %}
+    {% if isHauler and haulers is empty %}
       <div class="alert alert-warning">
-        Tu cuenta todavía no está ligada a un transportista registrado.
-        Pide a la agencia que la dé de alta para poder recibir despachos.
+        Todavía no das de alta ninguna empresa de transporte.
+        <a href="{{ path('hauler_companies') }}">Da de alta la tuya</a> para poder recibir despachos.
       </div>
     {% elseif deliveries is empty %}
       <div class="card text-center">
@@ -30,7 +37,7 @@
             <th scope="col">Expediente</th>
             <th scope="col">Operación</th>
             <th scope="col">Recinto</th>
-            {% if not isHauler %}<th scope="col">Transportista</th>{% endif %}
+            <th scope="col">Transportista</th>
             <th scope="col">Cita</th>
             <th scope="col">Carga</th>
             <th scope="col">Avance</th>
@@ -56,9 +63,14 @@
                 {% endfor %}
               </td>
               <td>{{ (d.references|first) and (d.references|first).cr ? (d.references|first).cr.name : 'Sin asignar' }}</td>
-              {% if not isHauler %}
-                <td>{{ d.transport ? d.transport.companyName : 'Transporte pendiente' }}</td>
-              {% endif %}
+              <td>
+                {{ d.transport ? d.transport.companyName : 'Transporte pendiente' }}
+                {% if d.vehicle or d.driver %}
+                  <div class="small text-body-secondary">
+                    {{ d.vehicle ? d.vehicle.plates : '' }}{{ d.vehicle and d.driver ? ' · ' : '' }}{{ d.driver ? d.driver.name : '' }}
+                  </div>
+                {% endif %}
+              </td>
               <td>{{ d.date|date('d/m/Y') }} {{ d.hour|date('H:i') }}</td>
               <td>
                 {% for c in d.containers %}
@@ -70,6 +82,15 @@
                     <span class="text-body-secondary">Carga suelta</span>
                   {% endif %}
                 {% endfor %}
+                {% if d.descripcion %}
+                  <div class="small text-body-secondary">
+                    {{ d.descripcion }} · {{ d.embalaje }} · {{ d.bultos }} bultos · {{ d.weightKg }} KG · {{ d.cubicaje }} m³
+                  </div>
+                  <div class="small text-body-secondary">Clave SAT: {{ d.claveSat }}</div>
+                {% endif %}
+                {% if d.xcfFolio %}
+                  <div class="small text-body-secondary">Folio XCF: {{ d.xcfFolio }}</div>
+                {% endif %}
               </td>
               <td>
                 <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'Traspasado' ? 'text-bg-info' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary'))) }}">
@@ -117,6 +138,11 @@
                     <span class="text-body-secondary"><i class="bi bi-check2-all"></i></span>
                   {% endif %}
                 {% endif %}
+                {% if isHauler and d.transport and vehiclesByHauler[d.transport.id] is defined and not d.departed and not d.failed %}
+                  <button type="button" class="btn btn-sm btn-outline-secondary js-assign-vehicle-toggle" data-target="assign-vehicle-{{ d.id }}" title="{{ d.vehicle ? 'Corregir unidad y chofer' : 'Unidad y chofer' }}">
+                    <i class="bi bi-clipboard-check"></i>
+                  </button>
+                {% endif %}
                 {% if not d.departed and not d.failed %}
                   <button type="button" class="btn btn-sm btn-outline-danger js-report-failure-toggle" data-target="report-failure-{{ d.id }}" title="No se pudo cargar">
                     <i class="bi bi-exclamation-triangle"></i>
@@ -129,9 +155,53 @@
                 {% endif %}
               </td>
             </tr>
+            {% if isHauler and d.transport and vehiclesByHauler[d.transport.id] is defined and not d.departed and not d.failed %}
+              <tr id="assign-vehicle-{{ d.id }}" class="d-none">
+                <td colspan="8">
+                  <form method="POST" action="{{ path('delivery_assign_vehicle', { id: d.id }) }}" class="row g-2 align-items-end">
+                    <input type="hidden" name="_token" value="{{ csrf_token('delivery_assign_vehicle') }}">
+                    <div class="col-md-3">
+                      <label class="form-label small">Unidad</label>
+                      <select class="form-select form-select-sm" name="vehicle" required>
+                        <option value="" selected disabled>Seleccione</option>
+                        {% for veh in vehiclesByHauler[d.transport.id]|default([]) %}
+                          <option value="{{ veh.id }}" {{ d.vehicle and d.vehicle.id == veh.id ? 'selected' : '' }}>{{ veh.plates }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label small">Chofer</label>
+                      <select class="form-select form-select-sm" name="driver" required>
+                        <option value="" selected disabled>Seleccione</option>
+                        {% for drv in driversByHauler[d.transport.id]|default([]) %}
+                          <option value="{{ drv.id }}" {{ d.driver and d.driver.id == drv.id ? 'selected' : '' }}>{{ drv.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label small">Folio CFDI</label>
+                      <input type="text" class="form-control form-control-sm" name="cfdiFolio" value="{{ d.cfdiFolio }}" placeholder="Ej. 051a1466-0732-4f9c-9192-56a9736a2dd4" pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" title="Formato UUID, ej. 051a1466-0732-4f9c-9192-56a9736a2dd4" required>
+                    </div>
+                    <div class="col-md-2">
+                      <button type="submit" class="btn btn-sm btn-primary w-100">
+                        <i class="bi bi-save"></i> Enviar
+                      </button>
+                    </div>
+                    {% if vehiclesByHauler[d.transport.id]|default([]) is empty or driversByHauler[d.transport.id]|default([]) is empty %}
+                      <div class="col-12">
+                        <div class="form-text">
+                          Te falta dar de alta unidades o choferes de <strong>{{ d.transport.companyName }}</strong> en
+                          <a href="{{ path('hauler_fleet', { hauler: d.transport.id }) }}">Mi flota</a>.
+                        </div>
+                      </div>
+                    {% endif %}
+                  </form>
+                </td>
+              </tr>
+            {% endif %}
             {% if not d.departed and not d.failed %}
               <tr id="report-failure-{{ d.id }}" class="d-none">
-                <td colspan="{{ isHauler ? 7 : 8 }}">
+                <td colspan="8">
                   <form method="POST" action="{{ path('delivery_failure', { id: d.id }) }}" class="row g-2 align-items-end">
                     <input type="hidden" name="_token" value="{{ csrf_token('delivery_failure') }}">
                     <div class="col-md-4">
@@ -159,7 +229,7 @@
             {% endif %}
             {% if d.departed and not d.delivered and not d.failed %}
               <tr id="handoff-{{ d.id }}" class="d-none">
-                <td colspan="{{ isHauler ? 7 : 8 }}">
+                <td colspan="8">
                   <form method="POST" action="{{ path('delivery_handoff', { id: d.id }) }}" class="row g-2 align-items-end">
                     <input type="hidden" name="_token" value="{{ csrf_token('delivery_handoff') }}">
                     {% if d.containers|length > 0 %}
@@ -231,6 +301,16 @@
   {{ parent() }}
   <script>
     document.addEventListener("DOMContentLoaded", function () {
+      // Misma fila-toggle que las demas, para capturar unidad/chofer/CFDI.
+      document.querySelectorAll(".js-assign-vehicle-toggle").forEach(function (boton) {
+        boton.addEventListener("click", function () {
+          const fila = document.getElementById(boton.dataset.target);
+          if (fila) {
+            fila.classList.toggle("d-none");
+          }
+        });
+      });
+
       // Igual que en el expediente: alterna la fila de captura del motivo.
       document.querySelectorAll(".js-report-failure-toggle").forEach(function (boton) {
         boton.addEventListener("click", function () {

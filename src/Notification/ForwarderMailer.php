@@ -48,6 +48,7 @@ final class ForwarderMailer
             ->subject(sprintf('Devolución de vacío registrada - %s', $return->getContainer()?->getNum()))
             ->htmlTemplate('emails/forwarder_empty_return.html.twig')
             ->context([
+                'agencyReference' => $import->getAgencyReference(),
                 'clientReference' => $import->getClientReference(),
                 'containerNum' => $return->getContainer()?->getNum(),
                 'containerType' => $return->getContainer()?->getType(),

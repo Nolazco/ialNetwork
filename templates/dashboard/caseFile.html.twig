@@ -184,6 +184,12 @@
                   </select>
                 </div>
 
+                <div class="mb-3">
+                  <label for="tariffFraction" class="form-label">Fracción arancelaria <span class="small text-body-secondary fw-normal">(opcional, solo hace falta para instrucciones al consolidador de carga)</span></label>
+                  <input type="text" class="form-control" id="tariffFraction" name="tariffFraction"
+                         value="{{ import.tariffFraction }}" placeholder="Ej. 2922.19.99.99">
+                </div>
+
                 <button type="submit" class="btn btn-primary">
                   <i class="bi bi-save"></i> Guardar
                 </button>
@@ -223,6 +229,22 @@
 
               <dt class="col-sm-5">Mercancía</dt>
               <dd class="col-sm-7">{{ import.goods }}</dd>
+
+              <dt class="col-sm-5">Viaja con XCF</dt>
+              <dd class="col-sm-7">
+                <form method="POST" action="{{ path('case_file_consolidator_flag', { id: import.id }) }}" class="d-flex align-items-center gap-2">
+                  <input type="hidden" name="_token" value="{{ csrf_token('case_file_consolidator_flag') }}">
+                  <div class="form-check mb-0">
+                    <input class="form-check-input" type="checkbox" name="travelsWithConsolidator" value="1" id="travelsWithConsolidator-{{ import.id }}" onchange="this.form.requestSubmit()" {{ import.travelsWithConsolidator ? 'checked' : '' }}>
+                    <label class="form-check-label" for="travelsWithConsolidator-{{ import.id }}">
+                      {{ import.travelsWithConsolidator ? 'Sí' : 'No' }}
+                    </label>
+                  </div>
+                </form>
+                {% if import.travelsWithConsolidator and import.consolidatorInstructions is empty %}
+                  <div class="small text-body-secondary">No se puede avisar al transporte hasta mandar las instrucciones a XCF.</div>
+                {% endif %}
+              </dd>
 
               <dt class="col-sm-5">Fecha de arribo</dt>
               <dd class="col-sm-7">
@@ -266,7 +288,18 @@
               <dt class="col-sm-5">Contenedores</dt>
               <dd class="col-sm-7">
                 {% for c in import.containers %}
-                  <span class="badge text-bg-secondary">{{ c.num }} &middot; {{ c.type }}</span>
+                  <form method="POST" action="{{ path('case_file_container_edit', { id: import.id, container: c.id }) }}" class="d-inline-flex align-items-center gap-1 mb-1 me-2">
+                    <input type="hidden" name="_token" value="{{ csrf_token('case_file_container_edit') }}">
+                    <span class="badge text-bg-secondary">{{ c.num }}</span>
+                    <select class="form-select form-select-sm" name="type" style="width:auto" onchange="this.form.requestSubmit()" title="Tipo de contenedor">
+                      {% if c.type not in containerTypes|keys %}
+                        <option value="{{ c.type }}" selected>{{ c.type }}</option>
+                      {% endif %}
+                      {% for value, label in containerTypes %}
+                        <option value="{{ value }}" {{ c.type == value ? 'selected' : '' }}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </form>
                 {% else %}
                   <span class="text-body-secondary">Carga suelta</span>
                 {% endfor %}
@@ -512,10 +545,34 @@
                   <td>
                     {% if d.transport %}
                       {{ d.transport.companyName }} <span class="text-body-secondary">(CAAT {{ d.transport.caat }})</span>
+                      {% if d.vehicle or d.driver %}
+                        <div class="small text-body-secondary">
+                          {{ d.vehicle ? d.vehicle.plates : '' }}{{ d.vehicle and d.driver ? ' · ' : '' }}{{ d.driver ? d.driver.name : '' }}
+                        </div>
+                      {% endif %}
+                      {% if d.cfdiFolio %}
+                        <div class="small text-body-secondary">CFDI: {{ d.cfdiFolio }}</div>
+                      {% endif %}
+                      {% if d.descripcion %}
+                        <div class="small text-body-secondary">
+                          {{ d.descripcion }} · {{ d.bultos }} bultos · {{ d.weightKg }} KG · {{ d.cubicaje }} m³
+                        </div>
+                      {% endif %}
+                      {% if d.xcfFolio %}
+                        <div class="small text-body-secondary">Folio XCF: {{ d.xcfFolio }}</div>
+                      {% endif %}
+                      {% if d.pedimentoSimplificadoRoute %}
+                        <div class="small">
+                          <a href="{{ path('case_file_delivery_pedimento_download', { id: import.id, delivery: d.id }) }}" target="_blank" rel="noopener">
+                            <i class="bi bi-file-earmark-text"></i> Pedimento simplificado
+                          </a>
+                        </div>
+                      {% endif %}
                     {% else %}
                       <span class="badge text-bg-warning">Transporte pendiente</span>
                     {% endif %}
-                    {% if is_granted('ROLE_EXECUTIVE') and not d.failed %}
+                    {% if is_granted('ROLE_EXECUTIVE') and not d.failed and import.type == 'container' %}
+                      {# Solo aplica a contenedor: la devolución de vacíos no existe en carga suelta. #}
                       <form method="POST" action="{{ path('case_file_transport_return', { id: import.id, delivery: d.id }) }}" class="mt-1">
                         <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport_return') }}">
                         <select class="form-select form-select-sm" name="returnTransport" onchange="this.form.requestSubmit()" title="Transportista de devolución">
@@ -611,7 +668,7 @@
                 {% if not d.departed and not d.failed and is_granted('ROLE_EXECUTIVE') %}
                   <tr id="edit-transport-{{ d.id }}" class="d-none">
                     <td colspan="5">
-                      <form method="POST" action="{{ path('case_file_transport_edit', { id: import.id, delivery: d.id }) }}" class="row g-2 align-items-end">
+                      <form method="POST" enctype="multipart/form-data" action="{{ path('case_file_transport_edit', { id: import.id, delivery: d.id }) }}" class="row g-2 align-items-end">
                         <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport_edit') }}">
                         <div class="col-md-4">
                           <label class="form-label small">Transportista</label>
@@ -631,6 +688,43 @@
                           <input type="time" class="form-control form-control-sm" name="hour" value="{{ d.hour|date('H:i') }}" required>
                         </div>
                         <div class="col-md-3">
+                          <label class="form-label small">Clave SAT</label>
+                          <input type="text" class="form-control form-control-sm" name="claveSat" value="{{ d.claveSat }}" required>
+                        </div>
+                        <div class="col-md-3">
+                          <label class="form-label small">Mercancía</label>
+                          <input type="text" class="form-control form-control-sm" name="descripcion" value="{{ d.descripcion }}" required>
+                        </div>
+                        <div class="col-md-3">
+                          <label class="form-label small">Embalaje</label>
+                          <input type="text" class="form-control form-control-sm" name="embalaje" value="{{ d.embalaje }}" required>
+                        </div>
+                        <div class="col-md-1">
+                          <label class="form-label small">Bultos</label>
+                          <input type="number" min="1" class="form-control form-control-sm" name="bultos" value="{{ d.bultos }}" required>
+                        </div>
+                        <div class="col-md-1">
+                          <label class="form-label small">Peso (KG)</label>
+                          <input type="number" min="0" step="0.01" class="form-control form-control-sm" name="weightKg" value="{{ d.weightKg }}" required>
+                        </div>
+                        <div class="col-md-1">
+                          <label class="form-label small">Cubicaje (m³)</label>
+                          <input type="number" min="0" step="0.01" class="form-control form-control-sm" name="cubicaje" value="{{ d.cubicaje }}" required>
+                        </div>
+                        {% if import.travelsWithConsolidator %}
+                          <div class="col-md-3">
+                            <label class="form-label small">Folio XCF</label>
+                            <input type="text" class="form-control form-control-sm" name="xcfFolio" value="{{ d.xcfFolio }}" required>
+                          </div>
+                        {% endif %}
+                        <div class="col-md-4">
+                          <label class="form-label small">
+                            Pedimento simplificado
+                            {% if d.pedimentoSimplificadoRoute %}<span class="text-body-secondary">(ya adjunto, opcional reemplazar)</span>{% endif %}
+                          </label>
+                          <input type="file" class="form-control form-control-sm" name="pedimentoSimplificado">
+                        </div>
+                        <div class="col-md-2">
                           <button type="submit" class="btn btn-sm btn-primary">
                             <i class="bi bi-save"></i> Actualizar
                           </button>
@@ -650,7 +744,7 @@
               <i class="bi bi-check2-all"></i> Todos los contenedores tienen camión asignado.
             </p>
           {% else %}
-            <form method="POST" action="{{ path('case_file_transport', { id: import.id }) }}" class="row g-2 align-items-end">
+            <form method="POST" enctype="multipart/form-data" action="{{ path('case_file_transport', { id: import.id }) }}" class="row g-2 align-items-end">
               <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport') }}">
 
               <div class="col-md-4">
@@ -687,6 +781,53 @@
                   </div>
                 </div>
               {% endif %}
+
+              <div class="col-12">
+                <hr class="my-2">
+                <p class="mb-2 text-body-secondary small">Ficha de la mercancía para el transportista (se le manda por correo):</p>
+              </div>
+
+              <div class="col-md-3">
+                <label for="claveSat" class="form-label">Clave SAT</label>
+                <input type="text" class="form-control" name="claveSat" id="claveSat" required>
+              </div>
+
+              <div class="col-md-4">
+                <label for="descripcionTransporte" class="form-label">Mercancía</label>
+                <input type="text" class="form-control" name="descripcion" id="descripcionTransporte" value="{{ import.goods }}" required>
+              </div>
+
+              <div class="col-md-3">
+                <label for="embalaje" class="form-label">Embalaje</label>
+                <input type="text" class="form-control" name="embalaje" id="embalaje" placeholder="Ej. Tarimas">
+              </div>
+
+              <div class="col-md-2">
+                <label for="bultos" class="form-label">Bultos</label>
+                <input type="number" min="1" class="form-control" name="bultos" id="bultos" required>
+              </div>
+
+              <div class="col-md-2">
+                <label for="pesoTransporte" class="form-label">Peso (KG)</label>
+                <input type="number" min="0" step="0.01" class="form-control" name="weightKg" id="pesoTransporte" required>
+              </div>
+
+              <div class="col-md-2">
+                <label for="cubicaje" class="form-label">Cubicaje (m³)</label>
+                <input type="number" min="0" step="0.01" class="form-control" name="cubicaje" id="cubicaje" required>
+              </div>
+
+              {% if import.travelsWithConsolidator %}
+                <div class="col-md-3">
+                  <label for="xcfFolio" class="form-label">Folio XCF</label>
+                  <input type="text" class="form-control" name="xcfFolio" id="xcfFolio" placeholder="El que te dio XCF" required>
+                </div>
+              {% endif %}
+
+              <div class="col-md-4">
+                <label for="pedimentoSimplificado" class="form-label">Pedimento simplificado</label>
+                <input type="file" class="form-control" name="pedimentoSimplificado" id="pedimentoSimplificado" required>
+              </div>
 
               {% if shareableImports|length > 0 %}
                 <div class="col-12">
@@ -732,6 +873,13 @@
               </div>
             </form>
           {% endif %}
+        {% elseif import.travelsWithConsolidator and import.consolidatorInstructions is empty %}
+          <p class="mb-0 text-body-secondary">
+            <i class="bi bi-exclamation-triangle"></i>
+            Esta mercancía viaja con XCF — manda antes las
+            <a href="{{ path('consolidator_instruction_new', { id: import.id }) }}">instrucciones al consolidador</a>
+            para poder avisar al transporte.
+          </p>
         {% elseif import.deliveries|length == 0 %}
           <p class="mb-0 text-body-secondary">
             <i class="bi bi-info-circle"></i>
@@ -848,8 +996,8 @@
                   <label for="return-yard-{{ c.id }}" class="form-label">Patio</label>
                   <select class="form-select form-select-sm" name="yard" id="return-yard-{{ c.id }}" required>
                     <option selected disabled value="">Seleccione el patio</option>
-                    {% for y in yards %}
-                      <option value="{{ y.id }}">{{ y.name }} (CR {{ y.cr }})</option>
+                    {% for y in emptyReturnYards %}
+                      <option value="{{ y.id }}">{{ y.name }}</option>
                     {% endfor %}
                   </select>
                 </div>
@@ -1040,6 +1188,51 @@
         {% endif %}
       </div>
     </div>
+
+    {# ---------- Consolidador de carga (XCF) ---------- #}
+    {% if is_granted('ROLE_EXECUTIVE') %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Consolidador de carga (XCF)</h5>
+            <a href="{{ path('consolidator_instruction_new', { id: import.id }) }}" class="btn btn-outline-primary btn-sm">
+              <i class="bi bi-plus-lg"></i> Enviar instrucciones a XCF
+            </a>
+          </div>
+
+          {% if consolidatorInstructions %}
+            <table class="table table-striped align-middle mb-0">
+              <thead>
+                <tr>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Destinatario</th>
+                  <th scope="col">Mercancía</th>
+                  <th scope="col">Transporte</th>
+                  <th scope="col" class="text-end">Descarga</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for instruction in consolidatorInstructions %}
+                  <tr>
+                    <td>{{ instruction.createdAt|date('d/m/Y H:i') }}</td>
+                    <td>{{ instruction.deliveryPoint.name ?? (instruction.reference.idCompany.name ~ ' (domicilio fiscal)') }}</td>
+                    <td>{{ instruction.quantity }} {{ instruction.unidad }} · {{ instruction.weightKg }} KG</td>
+                    <td>{{ instruction.transport.companyName }}</td>
+                    <td class="text-end">
+                      <a href="{{ path('consolidator_instruction_download', { id: import.id, instruction: instruction.id }) }}" class="btn btn-sm btn-outline-secondary" download title="Descargar Excel">
+                        <i class="bi bi-file-earmark-excel"></i> Excel
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="text-body-secondary mb-0">Todavía no se mandan instrucciones a XCF en este expediente.</p>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
 
     {# ---------- Maniobras ---------- #}
     <div class="card shadow-sm mt-4">

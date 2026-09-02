@@ -9,10 +9,13 @@ use App\Entity\Container;
 use App\Entity\ContainerYard;
 use App\Entity\Delivery;
 use App\Entity\EmptyReturn;
+use App\Entity\EmptyReturnYard;
 use App\Entity\FreightHauler;
 use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\InternInvoice;
+use App\Entity\MerchandiseProfile;
+use App\Entity\NotificationRecipients;
 use App\Entity\Operation;
 use App\Entity\Provider;
 use App\Entity\User;
@@ -46,7 +49,8 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkToCrud('Empresas', 'fas fa-user', Company::class);
         yield MenuItem::linkToCrud('Documentos empresas', 'fas fa-user', CompanyDocument::class);
         yield MenuItem::linkToCrud('Contenedores', 'fas fa-user', Container::class);
-        yield MenuItem::linkToCrud('Patios de contenedores', 'fas fa-user', ContainerYard::class);
+        yield MenuItem::linkToCrud('Recintos (CR)', 'fas fa-user', ContainerYard::class);
+        yield MenuItem::linkToCrud('Patios de devolución de vacíos', 'fas fa-user', EmptyReturnYard::class);
         yield MenuItem::linkToCrud('Despachos', 'fas fa-user', Delivery::class);
         yield MenuItem::linkToCrud('Vacios', 'fas fa-user', EmptyReturn::class);
         yield MenuItem::linkToCrud('Transportistas', 'fas fa-user', FreightHauler::class);
@@ -55,5 +59,7 @@ class DashboardController extends AbstractDashboardController
         yield MenuItem::linkToCrud('Facturas', 'fas fa-user', InternInvoice::class);
         yield MenuItem::linkToCrud('Maniobras', 'fas fa-user', Operation::class);
         yield MenuItem::linkToCrud('Proveedores', 'fas fa-user', Provider::class);
+        yield MenuItem::linkToCrud('Perfiles de mercancía', 'fas fa-user', MerchandiseProfile::class);
+        yield MenuItem::linkToCrud('Correos de notificaciones', 'fas fa-envelope', NotificationRecipients::class);
     }
 }

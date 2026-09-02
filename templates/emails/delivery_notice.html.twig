@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Aviso de transporte</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7f9; padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden;">
+          <tr>
+            <td style="background-color:#41b6c8; padding:20px 24px;">
+              <span style="color:#ffffff; font-size:18px; font-weight:bold;">Villanueva Cervantes</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px; font-size:16px; color:#212529;">
+                Aviso de transporte para el <strong>{{ delivery.date|date('d/m/Y') }}</strong> a las <strong>{{ delivery.hour|date('H:i') }}</strong>.
+              </p>
+              <p style="margin:0 0 16px; font-size:14px; color:#404040;">
+                {% for r in delivery.references %}
+                  Pedimento <strong>{{ r.agencyReference }}</strong> — {{ r.idCompany.name }} (referencia del cliente: {{ r.clientReference }}){% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+              </p>
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
+                <tr>
+                  <td style="color:#909090;">Clave SAT</td>
+                  <td><strong>{{ delivery.claveSat }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Mercancía</td>
+                  <td><strong>{{ delivery.descripcion }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Embalaje</td>
+                  <td><strong>{{ delivery.embalaje }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Bultos</td>
+                  <td><strong>{{ delivery.bultos }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Peso</td>
+                  <td><strong>{{ delivery.weightKg }} KG</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Cubicaje</td>
+                  <td><strong>{{ delivery.cubicaje }} m³</strong></td>
+                </tr>
+                {% if delivery.containers|length %}
+                  <tr>
+                    <td style="color:#909090;">Contenedor{{ delivery.containers|length > 1 ? 'es' : '' }}</td>
+                    <td><strong>{{ delivery.containers|map(c => c.num ~ ' (' ~ c.type ~ ')')|join(', ') }}</strong></td>
+                  </tr>
+                {% endif %}
+                {% if delivery.xcfFolio %}
+                  <tr>
+                    <td style="color:#909090;">Folio XCF</td>
+                    <td><strong>{{ delivery.xcfFolio }}</strong></td>
+                  </tr>
+                {% endif %}
+              </table>
+              <p style="margin:24px 0 0; font-size:13px; color:#909090;">
+                Se adjunta el pedimento simplificado.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
