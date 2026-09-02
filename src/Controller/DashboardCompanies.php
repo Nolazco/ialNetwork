@@ -135,6 +135,63 @@ class DashboardCompanies extends AbstractController{
     return $this->redirect('/dashboard/empresas');
   }
 
+  /**
+   * Domicilio fiscal desglosado: solo hace falta para usar el domicilio
+   * fiscal de la empresa como destinatario en instrucciones al consolidador
+   * de carga (ver ConsolidatorInstruction) — antes solo se podia capturar
+   * desde /admin, pero el cliente es quien conoce estos datos.
+   */
+  #[Route('/dashboard/empresas/{id}/domicilio-fiscal', name: 'company_edit_address', methods: ['GET'])]
+  public function editAddress(int $id, EntityManagerInterface $entityManager): Response {
+    $company = $entityManager->getRepository(Company::class)->find($id);
+
+    if (!$company || !$this->companyAccess->canAccess($company)) {
+      throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
+    }
+
+    /** @var User $user */
+    $user = $this->getUser();
+
+    return $this->render('/dashboard/companyAddress.html.twig', [
+      'name' => $user->getName(),
+      'role' => $user->getRoles()[0],
+      'loged' => 'true',
+      'company' => $company,
+    ]);
+  }
+
+  #[Route('/dashboard/empresas/{id}/domicilio-fiscal', name: 'company_edit_address_save', methods: ['POST'])]
+  public function saveAddress(int $id, Request $r, EntityManagerInterface $entityManager): Response {
+    $company = $entityManager->getRepository(Company::class)->find($id);
+
+    if (!$company || !$this->companyAccess->canAccess($company)) {
+      throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
+    }
+
+    if (!$this->isCsrfTokenValid('company_edit_address', $r->request->get('_token'))) {
+      $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+      return $this->redirectToRoute('company_edit_address', ['id' => $company->getId()]);
+    }
+
+    $company->setStreet($this->nullableTrim($r->request->get('street')));
+    $company->setExtNumber($this->nullableTrim($r->request->get('extNumber')));
+    $company->setIntNumber($this->nullableTrim($r->request->get('intNumber')));
+    $company->setNeighborhood($this->nullableTrim($r->request->get('neighborhood')));
+    $company->setLocality($this->nullableTrim($r->request->get('locality')));
+    $company->setMunicipality($this->nullableTrim($r->request->get('municipality')));
+    $company->setState($this->nullableTrim($r->request->get('state')));
+    $company->setCountry($this->nullableTrim($r->request->get('country')));
+    $company->setZipCode($this->nullableTrim($r->request->get('zipCode')));
+    $company->setContactName($this->nullableTrim($r->request->get('contactName')));
+    $company->setContactPhone($this->nullableTrim($r->request->get('contactPhone')));
+    $company->setContactEmail($this->nullableTrim($r->request->get('contactEmail')));
+
+    $entityManager->flush();
+
+    $this->addFlash('success', 'Domicilio fiscal actualizado.');
+    return $this->redirectToRoute('company_edit_address', ['id' => $company->getId()]);
+  }
+
   #[Route('/dashboard/empresas/disponibles', methods: ['GET'])]
   public function availableCompanies(EntityManagerInterface $entityManager): JsonResponse {
     /** @var User $user */

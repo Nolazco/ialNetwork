@@ -55,6 +55,14 @@ class ImportRequest
     #[ORM\Column(length: 255)]
     private ?string $importNumber = null;
 
+    /**
+     * Nullable: igual que $cr, el cliente no suele conocerla; la captura el
+     * ejecutivo en el alta del pedimento. Solo hace falta para mandar las
+     * instrucciones al consolidador de carga (ver ConsolidatorInstruction).
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $tariffFraction = null;
+
     /** "import" o "export": junto con $type determina la secuencia de estados. */
     #[ORM\Column(length: 16)]
     private ?string $direction = null;
@@ -168,6 +176,12 @@ class ImportRequest
     #[ORM\ManyToMany(targetEntity: Delivery::class, mappedBy: 'references')]
     private Collection $deliveries;
 
+    /**
+     * @var Collection<int, ConsolidatorInstruction>
+     */
+    #[ORM\OneToMany(targetEntity: ConsolidatorInstruction::class, mappedBy: 'reference')]
+    private Collection $consolidatorInstructions;
+
     #[ORM\Column(length: 255)]
     private ?string $goods = null;
 
@@ -180,6 +194,16 @@ class ImportRequest
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $expectedInspectionAuthority = null;
 
+    /**
+     * true cuando el cliente avisó, al dar de alta la solicitud (o después,
+     * si cambian los planes), que la mercancía viajará con el consolidador
+     * de carga (XCF). Mientras sea true y no se le hayan mandado
+     * instrucciones (ver $consolidatorInstructions), no se puede avisar al
+     * transporte (ver ImportRequestWorkflow::canAssignTransport()).
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $travelsWithConsolidator = false;
+
     public function __construct()
     {
         $this->importDocuments = new ArrayCollection();
@@ -190,6 +214,7 @@ class ImportRequest
         $this->internInvoices = new ArrayCollection();
         $this->operations = new ArrayCollection();
         $this->deliveries = new ArrayCollection();
+        $this->consolidatorInstructions = new ArrayCollection();
     }
 
     /**
@@ -217,6 +242,14 @@ class ImportRequest
         }
 
         return $this;
+    }
+
+    /**
+     * @return Collection<int, ConsolidatorInstruction>
+     */
+    public function getConsolidatorInstructions(): Collection
+    {
+        return $this->consolidatorInstructions;
     }
 
     public function getId(): ?int
@@ -316,6 +349,18 @@ class ImportRequest
     public function setImportNumber(string $importNumber): static
     {
         $this->importNumber = $importNumber;
+
+        return $this;
+    }
+
+    public function getTariffFraction(): ?string
+    {
+        return $this->tariffFraction;
+    }
+
+    public function setTariffFraction(?string $tariffFraction): static
+    {
+        $this->tariffFraction = $tariffFraction;
 
         return $this;
     }
@@ -670,6 +715,18 @@ class ImportRequest
     public function setExpectedInspectionAuthority(?string $expectedInspectionAuthority): static
     {
         $this->expectedInspectionAuthority = $expectedInspectionAuthority;
+
+        return $this;
+    }
+
+    public function travelsWithConsolidator(): bool
+    {
+        return $this->travelsWithConsolidator;
+    }
+
+    public function setTravelsWithConsolidator(bool $travelsWithConsolidator): static
+    {
+        $this->travelsWithConsolidator = $travelsWithConsolidator;
 
         return $this;
     }

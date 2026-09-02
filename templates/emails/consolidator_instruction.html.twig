@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Instrucciones de entrega</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7f9; padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden;">
+          <tr>
+            <td style="background-color:#41b6c8; padding:20px 24px;">
+              <span style="color:#ffffff; font-size:18px; font-weight:bold;">Villanueva Cervantes</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px; font-size:16px; color:#212529;">
+                Instrucciones de entrega para el pedimento <strong>{{ import.agencyReference }}</strong> de <strong>{{ import.idCompany.name }}</strong>.
+              </p>
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
+                <tr>
+                  <td style="color:#909090;">Mercancía</td>
+                  <td><strong>{{ instruction.descripcion }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Cantidad</td>
+                  <td><strong>{{ instruction.quantity }} {{ instruction.unidad }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Peso</td>
+                  <td><strong>{{ instruction.weightKg }} KG</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Destinatario</td>
+                  <td><strong>{{ instruction.deliveryPoint.name ?? (import.idCompany.name ~ ' (domicilio fiscal)') }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Transporte</td>
+                  <td><strong>{{ instruction.transport.companyName }} (CAAT {{ instruction.transport.caat }})</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Referencia del cliente</td>
+                  <td><strong>{{ import.clientReference }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Pedimento</td>
+                  <td><strong>{{ import.importNumber }}</strong></td>
+                </tr>
+              </table>
+              <p style="margin:24px 0 0; font-size:13px; color:#909090;">
+                Se adjuntan la orden de remisión y el pedimento completo.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -11,6 +11,7 @@ use App\Entity\ImportRequest;
 use App\Entity\Provider;
 use App\Entity\User;
 use App\Security\CompanyAccess;
+use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\EmailListParser;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\InspectionAuthorityCatalog;
@@ -103,6 +104,7 @@ class DashboardImports extends AbstractController {
   		'inspectionNone' => InspectionAuthorityCatalog::NONE,
   		'inspectionUnsure' => InspectionAuthorityCatalog::UNSURE,
   		'inspectionOther' => InspectionAuthorityCatalog::OTHER,
+  		'containerTypes' => ContainerTypeCatalog::LABELS,
   	]);
   }
 
@@ -222,6 +224,23 @@ class DashboardImports extends AbstractController {
   			$deliveryPoint->setName($newPointName);
   			$deliveryPoint->setAddress($newPointAddress);
 
+  			// Opcionales: no hacen falta para el uso normal de "Entregar en",
+  			// solo si este punto se usa despues como destinatario de las
+  			// instrucciones al consolidador de carga (ver ConsolidatorInstruction).
+  			$deliveryPoint->setRfc($this->nullableTrim($r->request->get('newDeliveryPointRfc')));
+  			$deliveryPoint->setStreet($this->nullableTrim($r->request->get('newDeliveryPointStreet')));
+  			$deliveryPoint->setExtNumber($this->nullableTrim($r->request->get('newDeliveryPointExtNumber')));
+  			$deliveryPoint->setIntNumber($this->nullableTrim($r->request->get('newDeliveryPointIntNumber')));
+  			$deliveryPoint->setNeighborhood($this->nullableTrim($r->request->get('newDeliveryPointNeighborhood')));
+  			$deliveryPoint->setLocality($this->nullableTrim($r->request->get('newDeliveryPointLocality')));
+  			$deliveryPoint->setMunicipality($this->nullableTrim($r->request->get('newDeliveryPointMunicipality')));
+  			$deliveryPoint->setState($this->nullableTrim($r->request->get('newDeliveryPointState')));
+  			$deliveryPoint->setCountry($this->nullableTrim($r->request->get('newDeliveryPointCountry')) ?? 'MEXICO');
+  			$deliveryPoint->setZipCode($this->nullableTrim($r->request->get('newDeliveryPointZipCode')));
+  			$deliveryPoint->setContactName($this->nullableTrim($r->request->get('newDeliveryPointContactName')));
+  			$deliveryPoint->setContactPhone($this->nullableTrim($r->request->get('newDeliveryPointContactPhone')));
+  			$deliveryPoint->setContactEmail($this->nullableTrim($r->request->get('newDeliveryPointContactEmail')));
+
   			$entityManager->persist($deliveryPoint);
   		}
   	}
@@ -265,6 +284,7 @@ class DashboardImports extends AbstractController {
   	$import->setDirection($direction);
   	$import->setType($type);
   	$import->setStatus(ImportRequestWorkflow::PENDING);
+  	$import->setTravelsWithConsolidator($r->request->get('travelsWithConsolidator') === '1');
 
   	$entityManager->persist($import);
 
@@ -323,5 +343,12 @@ class DashboardImports extends AbstractController {
 
   	$this->addFlash('success', 'Solicitud creada correctamente, en espera de captura.');
   	return $this->redirect('/dashboard/pedimentos/' . $rfc);
+  }
+
+  private function nullableTrim(mixed $value): ?string
+  {
+  	$value = trim((string) $value);
+
+  	return $value === '' ? null : $value;
   }
 }

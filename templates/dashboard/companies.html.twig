@@ -40,6 +40,9 @@
                   data-id="{{ c.id }}">
                   <i class="bi bi-file-pdf"></i>
                 </button>
+                <a href="{{ path('company_edit_address', { id: c.id }) }}" class="btn btn-outline-secondary" title="Domicilio fiscal para XCF">
+                  <i class="bi bi-signpost-split"></i>
+                </a>
               </td>
             </tr>
           {% endfor %}

@@ -309,9 +309,18 @@ final class ImportRequestWorkflow
      * se puede llegar solo con el comprobante de cita (ver missingRequirements),
      * sin haber agendado nada de verdad todavia, asi que hace falta seguir
      * pudiendo asignarlo despues.
+     *
+     * Si la mercancia viaja con el consolidador de carga (XCF), no se puede
+     * avisar al transporte hasta mandarle antes las instrucciones: XCF genera
+     * un folio que el transportista debe presentar, asi que el aviso sin ese
+     * folio dejaria al camion sin poder entregar.
      */
     public function canAssignTransport(ImportRequest $request): bool
     {
+        if ($request->travelsWithConsolidator() && $request->getConsolidatorInstructions()->isEmpty()) {
+            return false;
+        }
+
         if ($this->awaitsTransport($request) || in_array(self::SCHEDULED, $this->nextStatuses($request), true)) {
             return true;
         }
