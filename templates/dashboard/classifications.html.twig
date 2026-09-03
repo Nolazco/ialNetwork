@@ -56,14 +56,17 @@
                 {% if r.isConfirmed %}
                   <span class="badge text-bg-success">{{ r.confirmedTariffFraction }}</span>
                   <div class="text-body-secondary small">{{ r.confirmedBy.name }} · {{ r.confirmedAt|date('d/m/Y') }}</div>
+                  {% if r.confirmedJustification %}
+                    <button type="button" class="btn btn-sm btn-link px-0" data-bs-toggle="modal" data-bs-target="#justificationModal{{ r.id }}">
+                      <i class="bi bi-file-text"></i> Ver justificación
+                    </button>
+                  {% endif %}
                 {% elseif is_granted('ROLE_EXECUTIVE') %}
-                  <form method="POST" action="{{ path('classification_confirm', { id: r.id }) }}" class="d-flex gap-1">
-                    <input type="hidden" name="_token" value="{{ csrf_token('classification_confirm') }}">
-                    <input type="text" name="confirmedTariffFraction" class="form-control form-control-sm"
-                           placeholder="8471.30.01.99" title="Fracción a 10 dígitos: XXXX.XX.XX.XX"
-                           pattern="\d{4}\.\d{2}\.\d{2}\.\d{2}" style="width: 170px;" required>
-                    <button type="submit" class="btn btn-sm btn-outline-primary">Confirmar</button>
-                  </form>
+                  <button type="button" class="btn btn-sm btn-outline-primary js-confirm-trigger"
+                          data-bs-toggle="modal" data-bs-target="#confirmModal"
+                          data-request-id="{{ r.id }}" data-merchandise-name="{{ r.merchandiseName }}">
+                    <i class="bi bi-check2-circle"></i> Confirmar fracción
+                  </button>
                 {% else %}
                   <span class="badge text-bg-warning">Pendiente</span>
                 {% endif %}
@@ -95,7 +98,12 @@
                   <ul class="list-group mb-3">
                     {% for a in r.attachments %}
                       <li class="list-group-item d-flex justify-content-between align-items-center gap-2">
-                        <span class="text-truncate"><i class="bi bi-file-earmark"></i> {{ a.nombre }}</span>
+                        <span class="text-truncate">
+                          <i class="bi bi-file-earmark"></i> {{ a.nombre }}
+                          <span class="badge {{ (a.tipo ?? 'solicitud') == 'confirmacion' ? 'text-bg-success' : 'text-bg-secondary' }} ms-1">
+                            {{ (a.tipo ?? 'solicitud') == 'confirmacion' ? 'Confirmación' : 'Solicitud' }}
+                          </span>
+                        </span>
                         <a href="{{ path('classification_attachment_download', { id: r.id, index: loop.index0 }) }}" class="btn btn-sm btn-outline-primary flex-shrink-0" download title="Descargar {{ a.nombre }}">
                           <i class="bi bi-download"></i>
                         </a>
@@ -110,7 +118,66 @@
             </div>
           </div>
         {% endif %}
+        {% if r.confirmedJustification %}
+          <div class="modal fade" id="justificationModal{{ r.id }}" tabindex="-1" aria-labelledby="justificationModalLabel{{ r.id }}" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title" id="justificationModalLabel{{ r.id }}">Justificación del clasificador · {{ r.merchandiseName }}</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                  {{ r.confirmedJustification|raw }}
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
       {% endfor %}
+
+      {# Un solo modal compartido para confirmar cualquier fila: js-confirm-trigger
+         le pasa el id del expediente por data-request-id al abrirlo (ver JS abajo),
+         en vez de repetir un formulario + un editor de Quill por cada fila pendiente. #}
+      <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+          <div class="modal-content">
+            <form method="POST" id="confirmForm" enctype="multipart/form-data">
+              <div class="modal-header">
+                <h5 class="modal-title" id="confirmModalLabel">Confirmar fracción arancelaria</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+              </div>
+              <div class="modal-body">
+                <input type="hidden" name="_token" value="{{ csrf_token('classification_confirm') }}">
+                <div class="mb-3">
+                  <label class="form-label">Fracción arancelaria</label>
+                  <input type="text" name="confirmedTariffFraction" id="confirmFractionInput" class="form-control"
+                         placeholder="8471.30.01.99" title="Fracción a 10 dígitos: XXXX.XX.XX.XX"
+                         pattern="\d{4}\.\d{2}\.\d{2}\.\d{2}" required>
+                </div>
+                <div class="mb-3">
+                  <label class="form-label">Justificación del clasificador (opcional)</label>
+                  <div class="form-text mb-2">
+                    Pega aquí tal cual el texto del correo del clasificador (regulaciones, anexos, tasas...); conserva colores, negritas y enlaces.
+                  </div>
+                  <div id="confirmJustificationEditor" style="height: 240px; background: #fff;"></div>
+                  <textarea name="confirmedJustification" id="confirmJustificationInput" class="d-none"></textarea>
+                </div>
+                <div class="mb-2">
+                  <label class="form-label">Adjuntar correo del clasificador (opcional)</label>
+                  <input type="file" name="confirmationFiles[]" class="form-control" multiple>
+                  <div class="form-text">Permitidos: {{ allowedExtensions|join(', ') }}.</div>
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-check2-circle"></i> Confirmar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
     {% elseif q %}
       <div class="card text-center">
         <div class="card-header">Aviso</div>
@@ -133,4 +200,42 @@
     {% endif %}
 
   </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const modalEl = document.getElementById("confirmModal");
+
+      if (!modalEl) {
+        return;
+      }
+
+      const form = document.getElementById("confirmForm");
+      const fractionInput = document.getElementById("confirmFractionInput");
+      const editorContainer = document.getElementById("confirmJustificationEditor");
+      const justificationInput = document.getElementById("confirmJustificationInput");
+
+      const quill = new Quill(editorContainer, {
+        theme: "snow",
+        placeholder: "Pega aquí la justificación del clasificador...",
+      });
+
+      // Bootstrap manda el boton que abrio el modal en event.relatedTarget —
+      // asi un solo modal sirve para cualquier fila, sin duplicar el editor.
+      modalEl.addEventListener("show.bs.modal", function (event) {
+        const trigger = event.relatedTarget;
+        const requestId = trigger.dataset.requestId;
+
+        form.action = "{{ path('classification_confirm', { id: 1 }) }}".replace(/\/1\/confirmar$/, "/" + requestId + "/confirmar");
+        fractionInput.value = "";
+        quill.setText("");
+      });
+
+      form.addEventListener("submit", function () {
+        justificationInput.value = quill.getSemanticHTML ? quill.getSemanticHTML() : quill.root.innerHTML;
+      });
+    });
+  </script>
 {% endblock %}

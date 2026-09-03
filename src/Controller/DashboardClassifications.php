@@ -11,9 +11,12 @@ use App\Service\UploadPath;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\ExpressionLanguage\Expression;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -46,6 +49,8 @@ class DashboardClassifications extends AbstractController
         private readonly CompanyAccess $companyAccess,
         private readonly ClassificationMailer $mailer,
         private readonly UploadPath $uploadPath,
+        #[Autowire(service: 'html_sanitizer.sanitizer.app.classification_justification')]
+        private readonly HtmlSanitizerInterface $justificationSanitizer,
     ) {
     }
 
@@ -93,6 +98,7 @@ class DashboardClassifications extends AbstractController
             'loged' => 'true',
             'requests' => $requests,
             'q' => $q,
+            'allowedExtensions' => self::ALLOWED_EXTENSIONS,
         ]);
     }
 
@@ -131,12 +137,14 @@ class DashboardClassifications extends AbstractController
 
     /**
      * El ejecutivo captura la fracción que el equipo de clasificadores ya
-     * confirmó por su propio correo. Es la única forma en que ese resultado
+     * confirmó por su propio correo — junto con la justificación completa
+     * (regulaciones, anexos, tasas...) que suele venir en ese correo, y el
+     * correo mismo como soporte. Es la única forma en que ese resultado
      * queda en el sistema (ver docblock de la clase).
      */
     #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/clasificaciones/{id}/confirmar', name: 'classification_confirm', requirements: ['id' => '\d+'], methods: ['POST'])]
-    public function confirmTariffFraction(#[MapEntity(id: 'id')] ClassificationRequest $classificationRequest, Request $r): Response
+    public function confirmTariffFraction(#[MapEntity(id: 'id')] ClassificationRequest $classificationRequest, Request $r, SluggerInterface $slugger): Response
     {
         if (!$this->isCsrfTokenValid('classification_confirm', $r->request->get('_token'))) {
             $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
@@ -155,11 +163,39 @@ class DashboardClassifications extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
 
+        // Se sanea antes de guardar: es HTML pegado tal cual de un correo
+        // externo, y de aqui se vuelve a mostrar sin escapar (ver
+        // classifications.html.twig) — sin esto, cualquier cosa que traiga
+        // pegado ese correo (scripts, estilos con codigo) quedaria guardada
+        // y se le mostraria tal cual a quien sea que abra la clasificacion.
+        $rawJustification = trim((string) $r->request->get('confirmedJustification'));
+        $justification = $rawJustification !== '' ? $this->justificationSanitizer->sanitize($rawJustification) : null;
+
+        [$newAttachments, $rejected] = $this->storeAttachments(
+            $classificationRequest,
+            $r->files->all('confirmationFiles'),
+            $slugger,
+            'confirmacion'
+        );
+
         $classificationRequest->setConfirmedTariffFraction($fraction);
+        $classificationRequest->setConfirmedJustification($justification);
         $classificationRequest->setConfirmedBy($user);
         $classificationRequest->setConfirmedAt(new \DateTimeImmutable());
 
+        if ($newAttachments !== []) {
+            $classificationRequest->setAttachments([...$classificationRequest->getAttachments(), ...$newAttachments]);
+        }
+
         $this->entityManager->flush();
+
+        if ($rejected !== []) {
+            $this->addFlash('error', sprintf(
+                'No se aceptaron: %s. Formatos permitidos: %s.',
+                implode(', ', $rejected),
+                implode(', ', self::ALLOWED_EXTENSIONS)
+            ));
+        }
 
         $this->addFlash('success', 'Fracción arancelaria confirmada y guardada.');
 
@@ -233,44 +269,7 @@ class DashboardClassifications extends AbstractController
         $this->entityManager->persist($classificationRequest);
         $this->entityManager->flush();
 
-        $folder = 'uploads/clasificaciones/'.$classificationRequest->getId();
-        $physicalFolder = $this->uploadPath->resolve($folder);
-
-        if (!is_dir($physicalFolder) && !mkdir($physicalFolder, 0777, true) && !is_dir($physicalFolder)) {
-            $this->addFlash('error', 'No se pudo preparar la carpeta de archivos.');
-
-            return $this->redirectToRoute('classification_new');
-        }
-
-        $attachments = [];
-        $rejected = [];
-
-        foreach ($files as $file) {
-            if (!$file || !$file->isValid()) {
-                continue;
-            }
-
-            $original = $file->getClientOriginalName();
-            $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
-
-            if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
-                $rejected[] = $original;
-
-                continue;
-            }
-
-            $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
-
-            try {
-                $file->move($physicalFolder, $name);
-            } catch (FileException) {
-                $rejected[] = $original;
-
-                continue;
-            }
-
-            $attachments[] = ['nombre' => $original, 'ruta' => $folder.'/'.$name];
-        }
+        [$attachments, $rejected] = $this->storeAttachments($classificationRequest, $files, $slugger, 'solicitud');
 
         if ($attachments === []) {
             $this->entityManager->remove($classificationRequest);
@@ -393,6 +392,64 @@ class DashboardClassifications extends AbstractController
         $response->deleteFileAfterSend(true);
 
         return $response;
+    }
+
+    /**
+     * Sube archivos validando extensión, a la misma carpeta
+     * uploads/clasificaciones/{id}/ de siempre — compartida entre los
+     * documentos originales de la solicitud y los que se adjuntan al
+     * confirmar la fracción (normalmente el correo del clasificador), solo
+     * cambia $tipo para poder distinguirlos después (ver
+     * classifications.html.twig).
+     *
+     * @param list<UploadedFile|null> $files
+     *
+     * @return array{0: list<array{nombre: string, ruta: string, tipo: string}>, 1: list<string>}
+     */
+    private function storeAttachments(ClassificationRequest $classificationRequest, array $files, SluggerInterface $slugger, string $tipo): array
+    {
+        if ($files === []) {
+            return [[], []];
+        }
+
+        $folder = 'uploads/clasificaciones/'.$classificationRequest->getId();
+        $physicalFolder = $this->uploadPath->resolve($folder);
+
+        if (!is_dir($physicalFolder) && !mkdir($physicalFolder, 0777, true) && !is_dir($physicalFolder)) {
+            return [[], array_map(static fn (?UploadedFile $f): string => $f?->getClientOriginalName() ?? '?', $files)];
+        }
+
+        $attachments = [];
+        $rejected = [];
+
+        foreach ($files as $file) {
+            if (!$file || !$file->isValid()) {
+                continue;
+            }
+
+            $original = $file->getClientOriginalName();
+            $extension = strtolower(pathinfo($original, PATHINFO_EXTENSION));
+
+            if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+                $rejected[] = $original;
+
+                continue;
+            }
+
+            $name = $slugger->slug(pathinfo($original, PATHINFO_FILENAME)).'-'.uniqid().'.'.$extension;
+
+            try {
+                $file->move($physicalFolder, $name);
+            } catch (FileException) {
+                $rejected[] = $original;
+
+                continue;
+            }
+
+            $attachments[] = ['nombre' => $original, 'ruta' => $folder.'/'.$name, 'tipo' => $tipo];
+        }
+
+        return [$attachments, $rejected];
     }
 
     private function slugForZip(string $name): string

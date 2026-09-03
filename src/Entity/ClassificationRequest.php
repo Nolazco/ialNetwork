@@ -37,8 +37,17 @@ class ClassificationRequest
     #[ORM\Column(length: 255)]
     private ?string $presentation = null;
 
+    /**
+     * Documentos de soporte. "tipo" distingue los que vienen con la
+     * solicitud original ('solicitud', el valor de siempre — también el que
+     * asume cualquier fila vieja sin esa clave) de los que el ejecutivo
+     * adjunta al confirmar la fracción, normalmente el correo del
+     * clasificador ('confirmacion').
+     *
+     * @var list<array{nombre: string, ruta: string, tipo?: string}>
+     */
     #[ORM\Column(type: Types::JSON)]
-    private array $attachments = []; // list<array{nombre: string, ruta: string}>
+    private array $attachments = [];
 
     #[ORM\Column]
     private ?\DateTimeImmutable $createdAt = null;
@@ -60,6 +69,18 @@ class ClassificationRequest
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $confirmedAt = null;
+
+    /**
+     * La justificación completa que manda el clasificador junto con la
+     * fracción (regulaciones, anexos, tasas...) — el ejecutivo la pega tal
+     * cual del correo al confirmar. Ya llega saneada (ver
+     * DashboardClassifications::confirmTariffFraction() y
+     * config/packages/html_sanitizer.yaml), así que es segura de mostrar
+     * directamente. Nullable: no siempre viene una justificación tan
+     * detallada, a veces solo la fracción.
+     */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $confirmedJustification = null;
 
     public function getId(): ?int
     {
@@ -219,5 +240,17 @@ class ClassificationRequest
     public function isConfirmed(): bool
     {
         return $this->confirmedTariffFraction !== null;
+    }
+
+    public function getConfirmedJustification(): ?string
+    {
+        return $this->confirmedJustification;
+    }
+
+    public function setConfirmedJustification(?string $confirmedJustification): static
+    {
+        $this->confirmedJustification = $confirmedJustification;
+
+        return $this;
     }
 }
