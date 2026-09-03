@@ -60,6 +60,25 @@ if (csrfMeta) {
     };
 }
 
+// Boton de "mostrar contraseña" (ojo) en login, registro y cambio de
+// contraseña. El boton siempre es el hermano inmediato del input en el
+// markup (ver templates/login.html.twig, register.html.twig y
+// reset_password/reset.html.twig), asi que no hace falta un id por campo.
+document.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('.js-toggle-password').forEach((boton) => {
+        boton.addEventListener('click', () => {
+            const input = boton.previousElementSibling;
+            const icono = boton.querySelector('i');
+            const mostrando = input.type === 'text';
+
+            input.type = mostrando ? 'password' : 'text';
+            icono.classList.toggle('bi-eye', mostrando);
+            icono.classList.toggle('bi-eye-slash', !mostrando);
+            boton.setAttribute('aria-label', mostrando ? 'Mostrar contraseña' : 'Ocultar contraseña');
+        });
+    });
+});
+
 // Mensajes flash. Los renderiza templates/_flashes.html.twig como JSON; aqui se
 // muestran uno tras otro para que no se pisen entre si.
 const FLASH_TITLES = {

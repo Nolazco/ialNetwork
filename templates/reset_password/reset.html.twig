@@ -12,12 +12,22 @@
 			{{ form_start(resetForm) }}
 				<div class="mb-3">
 					{{ form_label(resetForm.plainPassword.first, null, { label_attr: { class: 'form-label' } }) }}
-					{{ form_widget(resetForm.plainPassword.first, { attr: { class: 'form-control' } }) }}
+					<div class="input-group">
+						{{ form_widget(resetForm.plainPassword.first, { attr: { class: 'form-control' } }) }}
+						<button type="button" class="btn btn-outline-secondary js-toggle-password" tabindex="-1" aria-label="Mostrar contraseña">
+							<i class="bi bi-eye"></i>
+						</button>
+					</div>
 					{{ form_errors(resetForm.plainPassword.first) }}
 				</div>
 				<div class="mb-3">
 					{{ form_label(resetForm.plainPassword.second, null, { label_attr: { class: 'form-label' } }) }}
-					{{ form_widget(resetForm.plainPassword.second, { attr: { class: 'form-control' } }) }}
+					<div class="input-group">
+						{{ form_widget(resetForm.plainPassword.second, { attr: { class: 'form-control' } }) }}
+						<button type="button" class="btn btn-outline-secondary js-toggle-password" tabindex="-1" aria-label="Mostrar contraseña">
+							<i class="bi bi-eye"></i>
+						</button>
+					</div>
 					{{ form_errors(resetForm.plainPassword.second) }}
 				</div>
 				<button type="submit" class="btn btn-primary auth-submit">Guardar nueva contraseña</button>

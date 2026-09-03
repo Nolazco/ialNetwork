@@ -28,11 +28,21 @@
 			  <div class="row">
 			  	<div class="col-sm-6 mb-3">
 				    <label for="password1" class="form-label">Contraseña</label>
-				    <input type="password" class="form-control" id="password1" name="password1" required>
+				    <div class="input-group">
+				      <input type="password" class="form-control" id="password1" name="password1" required>
+				      <button type="button" class="btn btn-outline-secondary js-toggle-password" tabindex="-1" aria-label="Mostrar contraseña">
+				        <i class="bi bi-eye"></i>
+				      </button>
+				    </div>
 				  </div>
 				  <div class="col-sm-6 mb-3">
 				    <label for="password2" class="form-label">Repetir contraseña</label>
-				    <input type="password" class="form-control" id="password2" name="password2" required>
+				    <div class="input-group">
+				      <input type="password" class="form-control" id="password2" name="password2" required>
+				      <button type="button" class="btn btn-outline-secondary js-toggle-password" tabindex="-1" aria-label="Mostrar contraseña">
+				        <i class="bi bi-eye"></i>
+				      </button>
+				    </div>
 				  </div>
 			  </div>
 			  <button type="submit" class="btn btn-primary auth-submit">Registrarme</button>
