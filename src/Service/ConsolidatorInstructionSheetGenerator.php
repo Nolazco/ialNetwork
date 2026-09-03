@@ -19,14 +19,6 @@ final class ConsolidatorInstructionSheetGenerator
 {
     private const TEMPLATE_PATH = __DIR__.'/../../resources/templates/xcf-orden-remision.xlsx';
 
-    /**
-     * Código de aduana (2 dígitos) para el número de pedimento completo —
-     * unica aduana que maneja la agencia hoy (mismo supuesto que
-     * SoiaClient::ADUANA_MANZANILLO, pero ese es el id del combo del portal
-     * SOIA, no el código real de 2 dígitos que lleva el pedimento).
-     */
-    private const ADUANA_MANZANILLO = '16';
-
     public function __construct(
         #[Autowire(env: 'SOIA_PATENTE')]
         private readonly string $patente,
@@ -47,7 +39,7 @@ final class ConsolidatorInstructionSheetGenerator
         // en importNumber no lo trae, igual que en SoiaClient) + aduana +
         // patente + numero de pedimento; y fraccion arancelaria.
         $anio = (new \DateTimeImmutable())->format('y');
-        $sheet->setCellValue('C6', sprintf('%s %s %s %s', $anio, self::ADUANA_MANZANILLO, $this->patente, $import->getImportNumber()));
+        $sheet->setCellValue('C6', sprintf('%s %s %s %s', $anio, $import->getAduana(), $this->patente, $import->getImportNumber()));
         $sheet->setCellValue('C8', (string) $import->getTariffFraction());
 
         // Destinatario.

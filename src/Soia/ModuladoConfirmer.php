@@ -4,6 +4,7 @@ namespace App\Soia;
 
 use App\Entity\ImportRequest;
 use App\Notification\ModuladoMailer;
+use App\Workflow\AduanaCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -21,12 +22,13 @@ final class ModuladoConfirmer
         private readonly ImportRequestWorkflow $workflow,
         private readonly ModuladoMailer $mailer,
         private readonly EntityManagerInterface $entityManager,
+        private readonly AduanaCatalog $aduanaCatalog,
     ) {
     }
 
     public function attemptConfirm(ImportRequest $import): SoiaResult
     {
-        $result = $this->client->consultar((string) $import->getImportNumber());
+        $result = $this->client->consultar((string) $import->getImportNumber(), $this->aduanaCatalog->soiaCode($import->getAduana()));
         $import->setLastSoiaCheckAt(new \DateTimeImmutable());
 
         if ($result->isResolved() && $this->workflow->canTransitionTo($import, ImportRequestWorkflow::MODULATED)) {

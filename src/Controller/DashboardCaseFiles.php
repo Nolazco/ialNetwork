@@ -20,6 +20,7 @@ use App\Notification\DeliveryMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Soia\ModuladoConfirmer;
+use App\Workflow\AduanaCatalog;
 use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
@@ -169,6 +170,7 @@ class DashboardCaseFiles extends AbstractController
             'progress' => $this->workflow->progress($import),
             'directions' => ImportRequestWorkflow::DIRECTIONS,
             'types' => ImportRequestWorkflow::TYPES,
+            'aduanas' => AduanaCatalog::LABELS,
             'maniobras' => OperationCatalog::COMMON,
             'maniobraOther' => OperationCatalog::OTHER,
             'operations' => $this->entityManager->getRepository(Operation::class)

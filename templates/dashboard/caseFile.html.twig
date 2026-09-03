@@ -12,6 +12,7 @@
           {{ import.idCompany.name }}
           &middot; {{ directions[import.direction]|default(import.direction) }}
           &middot; {{ types[import.type]|default(import.type) }}
+          &middot; Aduana {{ aduanas[import.aduana]|default(import.aduana) }}
         </p>
       </div>
       <a href="/dashboard/pedimentos/" class="btn btn-outline-secondary">

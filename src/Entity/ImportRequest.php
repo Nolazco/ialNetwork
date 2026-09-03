@@ -3,6 +3,7 @@
 namespace App\Entity;
 
 use App\Repository\ImportRequestRepository;
+use App\Workflow\AduanaCatalog;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\DBAL\Types\Types;
@@ -66,6 +67,16 @@ class ImportRequest
     /** "import" o "export": junto con $type determina la secuencia de estados. */
     #[ORM\Column(length: 16)]
     private ?string $direction = null;
+
+    /**
+     * Aduana por la que se despacha este expediente (ver AduanaCatalog). Cada
+     * cliente puede tener expedientes por distintas aduanas al mismo tiempo
+     * (ej. unos por Manzanillo y otros por Veracruz), así que vive aquí y no
+     * en Company. La agencia solo operaba por Manzanillo antes de este
+     * campo, de ahí el default para los expedientes que ya existían.
+     */
+    #[ORM\Column(length: 8, options: ['default' => AduanaCatalog::MANZANILLO])]
+    private string $aduana = AduanaCatalog::MANZANILLO;
 
     /** "container" o "lcl". */
     #[ORM\Column(length: 255)]
@@ -373,6 +384,18 @@ class ImportRequest
     public function setDirection(string $direction): static
     {
         $this->direction = $direction;
+
+        return $this;
+    }
+
+    public function getAduana(): string
+    {
+        return $this->aduana;
+    }
+
+    public function setAduana(string $aduana): static
+    {
+        $this->aduana = $aduana;
 
         return $this;
     }

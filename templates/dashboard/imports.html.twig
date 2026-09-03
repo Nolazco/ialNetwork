@@ -2,7 +2,23 @@
 {% block body %}
   <!-- Contenido principal -->
   <div class="content">
-    <h2 class="mb-4">Pedimentos</h2>
+    <div class="d-flex justify-content-between align-items-end mb-4 flex-wrap gap-2">
+      <h2 class="mb-0">Pedimentos</h2>
+      <form method="GET" action="/dashboard/pedimentos/" class="d-flex align-items-center gap-2">
+        <label for="aduana-filter" class="form-label mb-0 small">Aduana</label>
+        <select class="form-select form-select-sm" name="aduana" id="aduana-filter" onchange="this.form.submit()">
+          <option value="">Todas</option>
+          {% for value, label in aduanas %}
+            <option value="{{ value }}" {{ selectedAduana == value ? 'selected' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+        {% if selectedAduana %}
+          <a href="/dashboard/pedimentos/" class="btn btn-sm btn-outline-secondary" title="Quitar filtro">
+            <i class="bi bi-x-lg"></i>
+          </a>
+        {% endif %}
+      </form>
+    </div>
     {% if imports %}
       <table class="table table-striped">
         <thead>
@@ -12,6 +28,7 @@
             <th scope="col">No. Pedimento</th>
             <th scope="col">Mercancía</th>
             <th scope="col">Operación</th>
+            <th scope="col">Aduana</th>
             <th scope="col">ETA</th>
             <th scope="col">Estatus</th>
             <th scope="col">Opciones</th>
@@ -28,6 +45,7 @@
                 {{ directions[i.direction]|default(i.direction) }}
                 <span class="text-body-secondary">&middot; {{ types[i.type]|default(i.type) }}</span>
               </td>
+              <td>{{ aduanas[i.aduana]|default(i.aduana) }}</td>
               <td>{{ i.eta|date('d/m/Y') }}</td>
               <td>
                 <span class="badge {{ i.status == 'Pendiente' ? 'text-bg-warning' : (i.status == 'Finalizado' ? 'text-bg-success' : 'text-bg-primary') }}">

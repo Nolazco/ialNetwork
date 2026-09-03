@@ -12,6 +12,7 @@ use App\Entity\Provider;
 use App\Entity\User;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
+use App\Workflow\AduanaCatalog;
 use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\EmailListParser;
 use App\Workflow\ImportRequestWorkflow;
@@ -30,6 +31,7 @@ class DashboardImports extends AbstractController {
 		private readonly CompanyAccess $companyAccess,
 		private readonly InspectionAuthorityCatalog $inspectionCatalog,
 		private readonly UploadPath $uploadPath,
+		private readonly AduanaCatalog $aduanaCatalog,
 	) {
 	}
 
@@ -37,10 +39,12 @@ class DashboardImports extends AbstractController {
 	// El cliente llega a los suyos desde /dashboard/empresas.
 	#[IsGranted('ROLE_EXECUTIVE')]
 	#[Route('/dashboard/pedimentos/', methods: ['GET'])]
-  public function getImportsGlobal(EntityManagerInterface $entityManager): Response {
+  public function getImportsGlobal(Request $r, EntityManagerInterface $entityManager): Response {
   	/** @var User $user */
   	$user = $this->getUser();
-    $imports = $entityManager->getRepository(ImportRequest::class)->findAll();
+  	$aduana = $r->query->get('aduana');
+  	$criteria = $this->aduanaCatalog->isValid($aduana) ? ['aduana' => $aduana] : [];
+    $imports = $entityManager->getRepository(ImportRequest::class)->findBy($criteria);
 
     return $this->render('/dashboard/imports.html.twig', [
     	'name' => $user->getName(),
@@ -48,12 +52,14 @@ class DashboardImports extends AbstractController {
     	'loged' => 'true',
     	'directions' => ImportRequestWorkflow::DIRECTIONS,
     	'types' => ImportRequestWorkflow::TYPES,
+    	'aduanas' => AduanaCatalog::LABELS,
+    	'selectedAduana' => $criteria['aduana'] ?? null,
     	'imports' => $imports
     ]);
   }
 
 	#[Route('/dashboard/pedimentos/{rfc}', methods: ['GET'])]
-  public function getImports(string $rfc, EntityManagerInterface $entityManager): Response {
+  public function getImports(string $rfc, Request $r, EntityManagerInterface $entityManager): Response {
   	/** @var User $user */
   	$user = $this->getUser();
     $company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
@@ -64,7 +70,14 @@ class DashboardImports extends AbstractController {
       throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
     }
 
-    $imports = $entityManager->getRepository(ImportRequest::class)->findBy(['idCompany' => $company]);
+    $aduana = $r->query->get('aduana');
+    $criteria = ['idCompany' => $company];
+
+    if ($this->aduanaCatalog->isValid($aduana)) {
+    	$criteria['aduana'] = $aduana;
+    }
+
+    $imports = $entityManager->getRepository(ImportRequest::class)->findBy($criteria);
 
     return $this->render('/dashboard/companyImports.html.twig', [
     	'name' => $user->getName(),
@@ -72,6 +85,8 @@ class DashboardImports extends AbstractController {
     	'loged' => 'true',
     	'directions' => ImportRequestWorkflow::DIRECTIONS,
     	'types' => ImportRequestWorkflow::TYPES,
+    	'aduanas' => AduanaCatalog::LABELS,
+    	'selectedAduana' => $criteria['aduana'] ?? null,
     	'company' => $company,
     	'imports' => $imports
     ]);
@@ -107,6 +122,7 @@ class DashboardImports extends AbstractController {
   		'inspectionUnsure' => InspectionAuthorityCatalog::UNSURE,
   		'inspectionOther' => InspectionAuthorityCatalog::OTHER,
   		'containerTypes' => ContainerTypeCatalog::LABELS,
+  		'aduanas' => AduanaCatalog::LABELS,
   	]);
   }
 
@@ -256,6 +272,13 @@ class DashboardImports extends AbstractController {
   		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
   	}
 
+  	$aduana = $r->request->get('aduana');
+
+  	if (!$this->aduanaCatalog->isValid($aduana)) {
+  		$this->addFlash('error', 'Selecciona una aduana válida.');
+  		return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  	}
+
   	// Lo que el cliente anticipa sobre la inspeccion: no gatea nada por si
   	// solo (eso lo sigue decidiendo el certificado real mas adelante), es
   	// solo un aviso temprano para el ejecutivo.
@@ -285,6 +308,7 @@ class DashboardImports extends AbstractController {
   	$import->setExpectedInspectionAuthority($inspectionAuthority);
   	$import->setDirection($direction);
   	$import->setType($type);
+  	$import->setAduana($aduana);
   	$import->setStatus(ImportRequestWorkflow::PENDING);
   	$import->setTravelsWithConsolidator($r->request->get('travelsWithConsolidator') === '1');
 

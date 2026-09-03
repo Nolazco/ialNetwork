@@ -101,6 +101,15 @@
             {% endfor %}
           </select>
         </div>
+        <div class="col">
+          <label for="aduana" class="form-label">Aduana</label>
+          <select class="form-select" name="aduana" id="aduana" required>
+            <option selected disabled value="">Seleccione la aduana</option>
+            {% for value, label in aduanas %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
       </div>
       <p class="text-body-secondary small mt-2 mb-0">
         <i class="bi bi-info-circle"></i>

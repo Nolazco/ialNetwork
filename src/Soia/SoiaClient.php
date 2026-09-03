@@ -24,9 +24,6 @@ final class SoiaClient
 {
     private const URL = 'https://aplicacionesc.mat.sat.gob.mx/SOIANET/oia_consultarap_cep.aspx';
 
-    /** Unica aduana que maneja la agencia hoy. */
-    private const ADUANA_MANZANILLO = '160';
-
     private const MAX_ATTEMPTS = 5;
 
     /**
@@ -44,7 +41,12 @@ final class SoiaClient
     ) {
     }
 
-    public function consultar(string $pedimento): SoiaResult
+    /**
+     * @param string $aduanaSoiaCode Id del combo "cmbAduanas" del portal (ver
+     *                                AduanaCatalog::soiaCode()), no la clave
+     *                                real de 2 dígitos del pedimento.
+     */
+    public function consultar(string $pedimento, string $aduanaSoiaCode): SoiaResult
     {
         // El "documento" que usa este portal no lleva el año codificado (se
         // confirmó contra datos reales: no es el numero de pedimento con el
@@ -64,7 +66,7 @@ final class SoiaClient
                     'body' => array_merge($tokens, [
                         '__EVENTTARGET' => '',
                         '__EVENTARGUMENT' => '',
-                        'cmbAduanas' => self::ADUANA_MANZANILLO,
+                        'cmbAduanas' => $aduanaSoiaCode,
                         'cmbAnios' => $anio,
                         'txtPatente' => $this->patente,
                         'txtDocumento' => $pedimento,
