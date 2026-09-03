@@ -8,49 +8,46 @@
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7f9; padding:24px 0;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:640px; background-color:#ffffff; border:1px solid #dfe3e7; border-radius:4px;">
           <tr>
-            <td style="background-color:#41b6c8; padding:20px 24px;">
-              <span style="color:#ffffff; font-size:18px; font-weight:bold;">IAL Network</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:24px;">
-              <p style="margin:0 0 16px; font-size:16px; color:#212529;">
-                {{ request.requesterName }}, en calidad de representante de <strong>{{ request.companyName }}</strong>, solicita la clasificación de la mercancía <strong>{{ request.merchandiseName }}</strong>.
+            <td style="padding:28px 32px;">
+              <p style="margin:0 0 20px; font-size:16px; font-weight:bold; color:#212529; text-align:center;">
+                Solicitud de Clasificación de Mercancía
               </p>
-              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
-                <tr>
-                  <td style="color:#909090;">Nombre comercial</td>
-                  <td><strong>{{ request.merchandiseName }}</strong></td>
-                </tr>
+              <p style="margin:0 0 16px; font-size:14px; color:#212529;">
+                Estimados,
+              </p>
+              <p style="margin:0 0 16px; font-size:14px; color:#404040; text-align:justify;">
+                {{ request.requesterName }}, mediante la presente, en mi calidad de representante legal de la empresa
+                <strong>{{ request.companyName }}</strong>, adjunto documentos para solicitar la clasificación de la
+                mercancía <strong>{{ request.merchandiseName }}</strong>, de la cual comparto los siguientes datos:
+              </p>
+              <ul style="margin:0 0 16px; padding-left:20px; font-size:14px; color:#404040; line-height:1.8;">
+                <li>Nombre comercial: <strong>{{ request.merchandiseName }}</strong></li>
                 {% if request.chemicalName %}
-                <tr>
-                  <td style="color:#909090;">Nombre químico</td>
-                  <td><strong>{{ request.chemicalName }}</strong></td>
-                </tr>
+                  <li>Nombre químico: <strong>{{ request.chemicalName }}</strong></li>
                 {% endif %}
                 {% if request.casNumber %}
-                <tr>
-                  <td style="color:#909090;">Número de CAS</td>
-                  <td><strong>{{ request.casNumber }}</strong></td>
-                </tr>
+                  <li>Número de CAS: <strong>{{ request.casNumber }}</strong></li>
                 {% endif %}
-                <tr>
-                  <td style="color:#909090;">Uso</td>
-                  <td><strong>{{ request.merchandiseUse }}</strong></td>
-                </tr>
-                <tr>
-                  <td style="color:#909090;">Presentación</td>
-                  <td><strong>{{ request.presentation }}</strong></td>
-                </tr>
-              </table>
-              <p style="margin:24px 0 0; font-size:13px; color:#909090;">
-                Los archivos compartidos van adjuntos a este correo. Solicitud recibida por el acceso público sin cuenta.
+                <li>Uso de la mercancía: <strong>{{ request.merchandiseUse }}</strong></li>
+                <li>Presentación de la mercancía: <strong>{{ request.presentation }}</strong></li>
+              </ul>
+              <p style="margin:0 0 28px; font-size:14px; color:#404040; text-align:justify;">
+                Sin otro particular por el momento, quedo a su disposición para cualquier aclaración o información
+                adicional que pueda requerirse.
+              </p>
+              <p style="margin:0; font-size:14px; color:#212529; text-align:center; font-style:italic;">
+                Atentamente,<br>
+                {{ request.requesterName }}<br>
+                Representante legal
               </p>
             </td>
           </tr>
         </table>
+        <p style="max-width:640px; margin:16px auto 0; font-size:12px; color:#909090; text-align:center;">
+          Los archivos compartidos van adjuntos a este correo. Solicitud recibida por el acceso público sin cuenta.
+        </p>
       </td>
     </tr>
   </table>
