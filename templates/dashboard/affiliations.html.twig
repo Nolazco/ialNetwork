@@ -68,6 +68,9 @@
                 <th scope="col">Cliente</th>
                 <th scope="col">Empresa</th>
                 <th scope="col">Estatus</th>
+                {% if is_granted('ROLE_ADMIN') %}
+                  <th scope="col" class="text-end">Opciones</th>
+                {% endif %}
               </tr>
             </thead>
             <tbody>
@@ -80,6 +83,17 @@
                       {{ a.approved ? 'Aprobada' : 'Rechazada' }}
                     </span>
                   </td>
+                  {% if is_granted('ROLE_ADMIN') %}
+                    <td class="text-end">
+                      <form method="POST" action="{{ path('affiliation_delete', { id: a.id }) }}"
+                            onsubmit="return confirm('¿Quitar la afiliación de {{ a.idClient.email }} a {{ a.idCompany.name }}? Perderá acceso a los expedientes, documentos y cuentas de gastos de esa empresa.');">
+                        <input type="hidden" name="_token" value="{{ csrf_token('affiliation_delete') }}">
+                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Quitar afiliación">
+                          <i class="bi bi-trash"></i> Quitar
+                        </button>
+                      </form>
+                    </td>
+                  {% endif %}
                 </tr>
               {% endfor %}
             </tbody>
