@@ -15,7 +15,7 @@
           &middot; Aduana {{ aduanas[import.aduana]|default(import.aduana) }}
         </p>
       </div>
-      <a href="/dashboard/pedimentos/" class="btn btn-outline-secondary">
+      <a href="{{ is_granted('ROLE_EXECUTIVE') ? path('app_dashboardimports_getimportsglobal') : path('app_dashboardimports_getimports', { rfc: import.idCompany.rfc }) }}" class="btn btn-outline-secondary">
         <i class="bi bi-arrow-left"></i> Volver
       </a>
     </div>
