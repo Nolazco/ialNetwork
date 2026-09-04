@@ -20,6 +20,7 @@ final class AduanaCatalog
     public const VERACRUZ = '43';
     public const AICM = '47';
     public const GUADALAJARA = '48';
+    public const AIFA = '85';
 
     /** @var array<string, string> */
     public const LABELS = [
@@ -28,6 +29,7 @@ final class AduanaCatalog
         self::VERACRUZ => 'Veracruz',
         self::AICM => 'Aeropuerto Internacional de la CDMX',
         self::GUADALAJARA => 'Guadalajara, Jalisco',
+        self::AIFA => 'Aeropuerto Internacional Felipe Ángeles (AIFA)',
     ];
 
     /** @var array<string, string> */
@@ -37,6 +39,7 @@ final class AduanaCatalog
         self::VERACRUZ => '430',
         self::AICM => '470',
         self::GUADALAJARA => '480',
+        self::AIFA => '850',
     ];
 
     public function isValid(?string $aduana): bool

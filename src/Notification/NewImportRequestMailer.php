@@ -30,6 +30,7 @@ final class NewImportRequestMailer
         AduanaCatalog::VERACRUZ => 'veracruz',
         AduanaCatalog::AICM => 'aicm',
         AduanaCatalog::GUADALAJARA => 'guadalajara',
+        AduanaCatalog::AIFA => 'aifa',
     ];
 
     public function __construct(
