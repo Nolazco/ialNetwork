@@ -22,6 +22,7 @@ use App\Service\UploadPath;
 use App\Soia\ModuladoConfirmer;
 use App\Workflow\AduanaCatalog;
 use App\Workflow\ContainerTypeCatalog;
+use App\Workflow\EmailListParser;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
 use App\Workflow\RequiredDocumentType;
@@ -700,11 +701,24 @@ class DashboardCaseFiles extends AbstractController
         }
 
         // Vacio es a proposito: "transporte pendiente" cuando ya se tiene la
-        // cita pero todavia no se sabe que transportista la cubrira.
+        // cita pero todavia no se sabe que transportista la cubrira. "otro" es
+        // un transportista que no esta en el catalogo y no se va a registrar
+        // (ver Delivery::$unregisteredHaulerName).
         $transportId = (string) $r->request->get('transport');
         $hauler = null;
+        $unregisteredName = null;
+        $unregisteredEmails = null;
 
-        if ($transportId !== '') {
+        if ($transportId === 'otro') {
+            $unregisteredName = trim((string) $r->request->get('unregisteredHaulerName'));
+            $unregisteredEmails = EmailListParser::parse((string) $r->request->get('unregisteredHaulerEmails'));
+
+            if ($unregisteredName === '' || $unregisteredEmails === []) {
+                $this->addFlash('error', 'Captura la razón social y al menos un correo válido del transportista.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        } elseif ($transportId !== '') {
             $hauler = $this->entityManager->getRepository(FreightHauler::class)->find($transportId);
 
             if (!$hauler) {
@@ -803,6 +817,8 @@ class DashboardCaseFiles extends AbstractController
         }
 
         $delivery->setTransport($hauler);
+        $delivery->setUnregisteredHaulerName($unregisteredName);
+        $delivery->setUnregisteredHaulerEmails($unregisteredEmails);
         $delivery->setDate($date->setTime(0, 0));
         $delivery->setHour($hour);
         $delivery->setClaveSat($claveSat);
@@ -896,7 +912,7 @@ class DashboardCaseFiles extends AbstractController
         $this->addFlash('success', sprintf(
             'Cita registrada para el %s con %s%s.%s',
             $date->format('d/m/Y'),
-            $hauler ? $hauler->getCompanyName() : 'transporte pendiente por asignar',
+            $delivery->getHaulerDisplayName() ?? 'transporte pendiente por asignar',
             count($allImports) > 1 ? sprintf(' (compartida con %d expediente(s) más)', count($allImports) - 1) : '',
             $advanced !== [] ? ' '.implode(', ', $advanced).'.' : ''
         ));
@@ -939,8 +955,19 @@ class DashboardCaseFiles extends AbstractController
 
         $transportId = (string) $r->request->get('transport');
         $hauler = null;
+        $unregisteredName = null;
+        $unregisteredEmails = null;
 
-        if ($transportId !== '') {
+        if ($transportId === 'otro') {
+            $unregisteredName = trim((string) $r->request->get('unregisteredHaulerName'));
+            $unregisteredEmails = EmailListParser::parse((string) $r->request->get('unregisteredHaulerEmails'));
+
+            if ($unregisteredName === '' || $unregisteredEmails === []) {
+                $this->addFlash('error', 'Captura la razón social y al menos un correo válido del transportista.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        } elseif ($transportId !== '') {
             $hauler = $this->entityManager->getRepository(FreightHauler::class)->find($transportId);
 
             if (!$hauler) {
@@ -989,14 +1016,18 @@ class DashboardCaseFiles extends AbstractController
         // Si cambia el transportista, la unidad/chofer/CFDI que hubiera
         // quedan invalidos: son de la flota del transportista anterior. Le
         // toca al nuevo transportista volver a mandarlos (ver
-        // DashboardDeliveries::assignVehicle()).
-        if ($delivery->getTransport() !== $hauler) {
+        // DashboardDeliveries::assignVehicle()). Un transportista no
+        // registrado nunca tiene flota propia en el sistema, asi que
+        // cualquier cambio hacia o desde "otro" tambien cuenta como cambio.
+        if ($delivery->getTransport() !== $hauler || $delivery->getUnregisteredHaulerName() !== $unregisteredName) {
             $delivery->setVehicle(null);
             $delivery->setDriver(null);
             $delivery->setCfdiFolio(null);
         }
 
         $delivery->setTransport($hauler);
+        $delivery->setUnregisteredHaulerName($unregisteredName);
+        $delivery->setUnregisteredHaulerEmails($unregisteredEmails);
         $delivery->setDate($date->setTime(0, 0));
         $delivery->setHour($hour);
         $delivery->setClaveSat($claveSat);

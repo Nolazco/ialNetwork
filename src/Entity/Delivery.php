@@ -47,6 +47,24 @@ class Delivery
     private ?FreightHauler $transport = null;
 
     /**
+     * Razón social de un transportista que NO está en el catálogo (no tiene
+     * cuenta ni se va a registrar solo por este despacho) — alternativa a
+     * $transport, no un complemento: mientras uno tenga valor el otro se
+     * queda null (ver DashboardCaseFiles::assignTransport()). FreightHauler
+     * exige una cuenta de usuario propia (ver FreightHauler::$idUser), así
+     * que no tiene caso crear una fila de catálogo falsa solo para un
+     * transportista de un solo uso.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $unregisteredHaulerName = null;
+
+    /**
+     * @var list<string>|null
+     */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $unregisteredHaulerEmails = null;
+
+    /**
      * Unidad y chofer que se van a presentar — nullable igual que $transport:
      * mientras no haya transportista elegido tampoco puede haber unidad ni
      * chofer (ambos son de su propia flota, ver Vehicle/Driver).
@@ -215,6 +233,45 @@ class Delivery
         $this->transport = $transport;
 
         return $this;
+    }
+
+    public function getUnregisteredHaulerName(): ?string
+    {
+        return $this->unregisteredHaulerName;
+    }
+
+    public function setUnregisteredHaulerName(?string $unregisteredHaulerName): static
+    {
+        $this->unregisteredHaulerName = $unregisteredHaulerName;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    public function getUnregisteredHaulerEmails(): ?array
+    {
+        return $this->unregisteredHaulerEmails;
+    }
+
+    /**
+     * @param list<string>|null $unregisteredHaulerEmails
+     */
+    public function setUnregisteredHaulerEmails(?array $unregisteredHaulerEmails): static
+    {
+        $this->unregisteredHaulerEmails = $unregisteredHaulerEmails;
+
+        return $this;
+    }
+
+    /**
+     * Nombre a mostrar sea cual sea el tipo de transportista, o null si el
+     * despacho sigue como "transporte pendiente".
+     */
+    public function getHaulerDisplayName(): ?string
+    {
+        return $this->transport?->getCompanyName() ?? $this->unregisteredHaulerName;
     }
 
     public function getVehicle(): ?Vehicle
