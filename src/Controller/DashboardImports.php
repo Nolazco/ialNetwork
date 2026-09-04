@@ -10,6 +10,7 @@ use App\Entity\ImportDocument;
 use App\Entity\ImportRequest;
 use App\Entity\Provider;
 use App\Entity\User;
+use App\Notification\NewImportRequestMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Workflow\AduanaCatalog;
@@ -32,6 +33,7 @@ class DashboardImports extends AbstractController {
 		private readonly InspectionAuthorityCatalog $inspectionCatalog,
 		private readonly UploadPath $uploadPath,
 		private readonly AduanaCatalog $aduanaCatalog,
+		private readonly NewImportRequestMailer $newImportRequestMailer,
 	) {
 	}
 
@@ -373,6 +375,8 @@ class DashboardImports extends AbstractController {
   	}
 
   	$entityManager->flush();
+
+  	$this->newImportRequestMailer->notify($import);
 
   	$this->addFlash('success', 'Solicitud creada correctamente, en espera de captura.');
   	return $this->redirect('/dashboard/pedimentos/' . $rfc);
