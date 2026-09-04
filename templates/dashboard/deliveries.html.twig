@@ -145,6 +145,11 @@
                         <li>
                           <form method="POST" enctype="multipart/form-data" action="{{ path('delivery_arrival', { id: d.id }) }}" class="px-3 py-2">
                             <input type="hidden" name="_token" value="{{ csrf_token('delivery_arrival') }}">
+                            <label class="form-label small mb-1">Fecha y hora de entrega</label>
+                            <div class="d-flex gap-1 mb-2">
+                              <input type="date" class="form-control form-control-sm" name="deliveredDate" value="{{ "now"|date('Y-m-d') }}" required>
+                              <input type="time" class="form-control form-control-sm" name="deliveredHour" value="{{ "now"|date('H:i') }}" required>
+                            </div>
                             <label class="form-label small mb-1">Prueba de entrega (opcional)</label>
                             <input type="file" class="form-control form-control-sm mb-2" name="proof">
                             <button type="submit" class="btn btn-sm btn-primary w-100">

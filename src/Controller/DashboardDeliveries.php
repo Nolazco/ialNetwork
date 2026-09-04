@@ -12,6 +12,7 @@ use App\Entity\InspectionPoint;
 use App\Entity\LocalTransfer;
 use App\Entity\User;
 use App\Entity\Vehicle;
+use App\Notification\DeliveryArrivalMailer;
 use App\Notification\ForwarderMailer;
 use App\Service\UploadPath;
 use App\Workflow\DeliveryFailureCatalog;
@@ -52,6 +53,7 @@ class DashboardDeliveries extends AbstractController
         private readonly ForwarderMailer $forwarderMailer,
         private readonly LocalTransferPlaceCatalog $placeCatalog,
         private readonly UploadPath $uploadPath,
+        private readonly DeliveryArrivalMailer $deliveryArrivalMailer,
     ) {
     }
 
@@ -850,6 +852,17 @@ class DashboardDeliveries extends AbstractController
             return $this->redirectToRoute('deliveries');
         }
 
+        $deliveredDate = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('deliveredDate'));
+        $deliveredHour = \DateTimeImmutable::createFromFormat('H:i', (string) $r->request->get('deliveredHour'));
+
+        if (!$deliveredDate || !$deliveredHour) {
+            $this->addFlash('error', 'La fecha y la hora de entrega son obligatorias.');
+
+            return $this->redirectToRoute('deliveries');
+        }
+
+        $deliveredAt = $deliveredDate->setTime((int) $deliveredHour->format('H'), (int) $deliveredHour->format('i'));
+
         // En importacion la entrega presupone que el camion salio; si el
         // transportista se salto ese paso, se registra ahora. Los expedientes
         // de un mismo despacho siempre comparten direccion (se valida al
@@ -865,8 +878,9 @@ class DashboardDeliveries extends AbstractController
             $delivery->setProofUploadedAt(new \DateTimeImmutable());
         }
 
-        $moved = $this->coordinator->confirmArrival($delivery, new \DateTimeImmutable());
+        $moved = $this->coordinator->confirmArrival($delivery, $deliveredAt);
         $this->entityManager->flush();
+        $this->deliveryArrivalMailer->notify($delivery);
 
         if ($moved !== []) {
             $this->addFlash('success', sprintf('Entrega confirmada. %s', $this->describeMoves($moved)));

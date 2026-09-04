@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mercancía entregada</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7f9; padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden;">
+          <tr>
+            <td style="background-color:#41b6c8; padding:20px 24px;">
+              <span style="color:#ffffff; font-size:18px; font-weight:bold;">IAL Network</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px; font-size:16px; color:#212529;">
+                La mercancía del expediente <strong>{{ import.clientReference }}</strong> ({{ import.idCompany.name }}) ya fue <strong style="color:#2e8540;">entregada</strong> en destino.
+              </p>
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
+                <tr>
+                  <td style="color:#909090;">Fecha y hora de entrega</td>
+                  <td><strong>{{ delivery.deliveredAt ? delivery.deliveredAt|date('d/m/Y H:i') : 'Sin confirmar' }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Transportista</td>
+                  <td><strong>{{ delivery.haulerDisplayName ?? 'Sin asignar' }}</strong></td>
+                </tr>
+                {% if delivery.vehicle or delivery.driver %}
+                  <tr>
+                    <td style="color:#909090;">Unidad / chofer</td>
+                    <td><strong>{{ delivery.vehicle ? delivery.vehicle.plates : '' }}{{ delivery.vehicle and delivery.driver ? ' · ' : '' }}{{ delivery.driver ? delivery.driver.name : '' }}</strong></td>
+                  </tr>
+                {% endif %}
+              </table>
+              <p style="margin:24px 0 0; font-size:13px; color:#909090;">
+                {{ hasProof ? 'Se adjunta la prueba de entrega.' : 'El transportista todavía no sube una prueba de entrega para este despacho.' }}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
