@@ -1,0 +1,60 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Puntos de entrega</h2>
+        <p class="text-body-secondary mb-0">{{ company.name }} ({{ company.rfc }})</p>
+      </div>
+      <a href="{{ path('delivery_points_companies') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+
+    <a href="{{ path('delivery_point_create', { rfc: company.rfc }) }}" class="btn btn-primary mb-3">Nuevo punto de entrega</a>
+
+    {% if points %}
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Nombre</th>
+            <th scope="col">Dirección</th>
+            <th scope="col">Contacto</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in points %}
+            <tr>
+              <td>{{ p.name }}</td>
+              <td style="max-width: 320px; word-wrap: break-word;">{{ p.address }}</td>
+              <td>
+                {{ p.contactName }}
+                {%- if p.contactPhone %} · {{ p.contactPhone }}{% endif -%}
+                {%- if p.contactEmail %} · {{ p.contactEmail }}{% endif %}
+              </td>
+              <td>
+                <a href="{{ path('delivery_point_edit_form', { rfc: company.rfc, id: p.id }) }}" class="btn btn-warning" title="Editar punto de entrega">
+                  <i class="bi bi-pencil-square"></i>
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin registros</h5>
+          <p class="card-text">Da de alta un punto de entrega nuevo.</p>
+          <a href="{{ path('delivery_point_create', { rfc: company.rfc }) }}" class="btn btn-primary">Nuevo punto de entrega</a>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

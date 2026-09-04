@@ -1,0 +1,42 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Puntos de entrega</h2>
+    {% if companies %}
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Empresa</th>
+            <th scope="col">RFC</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in companies %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td>{{ c.rfc }}</td>
+              <td>
+                <a href="{{ path('delivery_points', { rfc: c.rfc }) }}" class="btn btn-primary">
+                  <i class="bi bi-signpost-split"></i> Ver puntos de entrega
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin empresas</h5>
+          <p class="card-text">No tienes ninguna empresa afiliada todavía.</p>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
