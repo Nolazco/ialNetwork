@@ -29,6 +29,7 @@ final class NewImportRequestMailer
         AduanaCatalog::LAZARO_CARDENAS => 'lazaro_cardenas',
         AduanaCatalog::VERACRUZ => 'veracruz',
         AduanaCatalog::AICM => 'aicm',
+        AduanaCatalog::GUADALAJARA => 'guadalajara',
     ];
 
     public function __construct(

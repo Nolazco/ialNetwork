@@ -19,6 +19,7 @@ final class AduanaCatalog
     public const LAZARO_CARDENAS = '51';
     public const VERACRUZ = '43';
     public const AICM = '47';
+    public const GUADALAJARA = '48';
 
     /** @var array<string, string> */
     public const LABELS = [
@@ -26,6 +27,7 @@ final class AduanaCatalog
         self::LAZARO_CARDENAS => 'Lázaro Cárdenas, Michoacán',
         self::VERACRUZ => 'Veracruz',
         self::AICM => 'Aeropuerto Internacional de la CDMX',
+        self::GUADALAJARA => 'Guadalajara, Jalisco',
     ];
 
     /** @var array<string, string> */
@@ -34,6 +36,7 @@ final class AduanaCatalog
         self::LAZARO_CARDENAS => '510',
         self::VERACRUZ => '430',
         self::AICM => '470',
+        self::GUADALAJARA => '480',
     ];
 
     public function isValid(?string $aduana): bool
