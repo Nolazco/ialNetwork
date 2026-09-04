@@ -91,6 +91,8 @@ class PollSoiaCommand extends Command
             if ($import->getStatus() === ImportRequestWorkflow::MODULATED) {
                 ++$modulated;
                 $io->writeln(sprintf('[%s] Expediente %s modulado (%s).', $now->format('c'), $import->getClientReference(), $result->estado));
+            } elseif ($result->isUnderInspection()) {
+                $io->writeln(sprintf('[%s] Expediente %s en reconocimiento aduanero.', $now->format('c'), $import->getClientReference()));
             }
 
             if ($checked < count($candidates)) {

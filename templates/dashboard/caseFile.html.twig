@@ -35,15 +35,19 @@
         <div class="roadmap-wrapper mb-3">
           <ol class="roadmap">
             {% for step in sequence %}
+              {% set isReconocimientoAlert = step == 'Modulado' and import.reconocimientoAt and step not in completed %}
               <li class="roadmap-step
                 {%- if step in completed %} is-complete{% endif -%}
                 {%- if step in skipped %} is-skipped{% endif -%}
-                {%- if step == import.status %} is-current{% endif %}">
+                {%- if step == import.status %} is-current{% endif -%}
+                {%- if isReconocimientoAlert %} is-alert{% endif %}">
                 <div class="roadmap-marker">
                   {% if step in completed %}
                     <i class="bi bi-check-lg"></i>
                   {% elseif step in skipped %}
                     <i class="bi bi-dash-lg"></i>
+                  {% elseif isReconocimientoAlert %}
+                    <i class="bi bi-exclamation-lg"></i>
                   {% else %}
                     {{ loop.index }}
                   {% endif %}
@@ -52,6 +56,7 @@
                   {{ step }}
                   {% if step in skipped %}<span class="roadmap-tag">no aplicó</span>{% endif %}
                   {% if step == 'Modulado' and import.moduladoAt %}<span class="roadmap-tag">{{ import.moduladoAt|date('d/m/Y H:i') }}</span>{% endif %}
+                  {% if isReconocimientoAlert %}<span class="roadmap-tag roadmap-tag-alert">Reconocimiento aduanero</span>{% endif %}
                   {% if step == import.status %}<span class="roadmap-tag roadmap-tag-current">Actual</span>{% endif %}
                 </div>
               </li>

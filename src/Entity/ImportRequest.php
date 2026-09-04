@@ -149,6 +149,18 @@ class ImportRequest
     private ?\DateTimeImmutable $lastSoiaCheckAt = null;
 
     /**
+     * Cuándo el SOIA reportó por primera vez "Reconocimiento aduanero" para
+     * este expediente (ver SoiaResult::isUnderInspection()). Sigue siendo
+     * null mientras no le haya tocado, y no se limpia cuando por fin modula:
+     * es a proposito un registro de que sí pasó por reconocimiento, no solo
+     * una bandera de "está pasando ahorita" — el roadmap (ver
+     * ImportRequestWorkflow) ya distingue "en reconocimiento" de "ya
+     * modulado" nada más viendo si $status llegó a MODULATED.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $reconocimientoAt = null;
+
+    /**
      * Cuántas veces el poller automático ya consultó el SOIA por este
      * expediente. No cuenta las consultas manuales ("Consultar SOIA"): el
      * límite es para no seguir golpeando el portal indefinidamente si un
@@ -585,6 +597,18 @@ class ImportRequest
     public function setLastSoiaCheckAt(?\DateTimeImmutable $lastSoiaCheckAt): static
     {
         $this->lastSoiaCheckAt = $lastSoiaCheckAt;
+
+        return $this;
+    }
+
+    public function getReconocimientoAt(): ?\DateTimeImmutable
+    {
+        return $this->reconocimientoAt;
+    }
+
+    public function setReconocimientoAt(?\DateTimeImmutable $reconocimientoAt): static
+    {
+        $this->reconocimientoAt = $reconocimientoAt;
 
         return $this;
     }
