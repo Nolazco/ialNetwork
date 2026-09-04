@@ -376,7 +376,9 @@ class DashboardImports extends AbstractController {
 
   	$entityManager->flush();
 
-  	$this->newImportRequestMailer->notify($import);
+  	/** @var User $user */
+  	$user = $this->getUser();
+  	$this->newImportRequestMailer->notify($import, $user);
 
   	$this->addFlash('success', 'Solicitud creada correctamente, en espera de captura.');
   	return $this->redirect('/dashboard/pedimentos/' . $rfc);

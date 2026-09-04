@@ -3,6 +3,7 @@
 namespace App\Notification;
 
 use App\Entity\ImportRequest;
+use App\Entity\User;
 use App\Repository\NotificationRecipientsRepository;
 use App\Workflow\AduanaCatalog;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
@@ -12,9 +13,11 @@ use Symfony\Component\Mailer\MailerInterface;
 /**
  * Avisa a los responsables de la aduana correspondiente en cuanto un cliente
  * da de alta una solicitud nueva — a diferencia de ModuladoMailer, esto NO
- * lleva al cliente ni a los ejecutivos en general: son los encargados de esa
- * aduana en particular (ver NotificationRecipients, sección "Aduana ..."),
- * porque una misma agencia puede tener responsables distintos por aduana.
+ * lleva a los ejecutivos en general: son los encargados de esa aduana en
+ * particular (ver NotificationRecipients, sección "Aduana ..."), porque una
+ * misma agencia puede tener responsables distintos por aduana. Al cliente que
+ * la dio de alta sí se le agrega en copia (ver self::notify()), para que
+ * cualquier aclaración se le pueda hacer directamente respondiendo el correo.
  */
 final class NewImportRequestMailer
 {
@@ -41,7 +44,7 @@ final class NewImportRequestMailer
     ) {
     }
 
-    public function notify(ImportRequest $import): void
+    public function notify(ImportRequest $import, ?User $creator = null): void
     {
         [$toKey, $ccKey] = $this->keysFor($import->getAduana());
 
@@ -50,6 +53,10 @@ final class NewImportRequestMailer
 
         if ($to === [] && $cc === []) {
             return;
+        }
+
+        if ($creator?->getEmail()) {
+            $cc = array_values(array_unique([...$cc, $creator->getEmail()]));
         }
 
         $email = (new TemplatedEmail())
