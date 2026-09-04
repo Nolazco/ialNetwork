@@ -18,7 +18,9 @@ use Symfony\Component\Mailer\MailerInterface;
  * contacto adicionales que haya agregado en "Mis empresas transportistas",
  * ver FreightHauler::getContactEmails()); si no esta en el catalogo (ver
  * Delivery::$unregisteredHaulerEmails), se manda a los correos que el
- * ejecutivo capturo a mano al avisarle.
+ * ejecutivo capturo a mano al avisarle. Si alguno de los expedientes del
+ * despacho requiere custodia armada (ver ImportRequest::$custodia), esa
+ * custodia va en copia.
  */
 final class DeliveryMailer
 {
@@ -50,9 +52,14 @@ final class DeliveryMailer
         }
 
         $agencyReferences = [];
+        $custodiaEmails = [];
 
         foreach ($delivery->getReferences() as $reference) {
             $agencyReferences[] = $reference->getAgencyReference();
+
+            foreach ($reference->getCustodia()?->getContactEmails() ?? [] as $custodiaEmail) {
+                $custodiaEmails[$custodiaEmail] = true;
+            }
         }
 
         $email = (new TemplatedEmail())
@@ -61,6 +68,10 @@ final class DeliveryMailer
             ->htmlTemplate('emails/delivery_notice.html.twig')
             ->context(['delivery' => $delivery])
             ->to(...$to);
+
+        if ($custodiaEmails !== []) {
+            $email->cc(...array_keys($custodiaEmails));
+        }
 
         if ($delivery->getPedimentoSimplificadoRoute()) {
             $path = $this->uploadPath->resolve($delivery->getPedimentoSimplificadoRoute());

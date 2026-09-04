@@ -84,6 +84,40 @@
       </div>
       <div class="row mt-3">
         <div class="col">
+          <label class="form-label">¿Requiere custodia?</label>
+          <select class="form-select" name="requiresCustody" id="requiresCustody" required>
+            <option value="no" selected>No</option>
+            <option value="si">Sí</option>
+          </select>
+        </div>
+        <div class="col d-none" id="custodia-wrapper">
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="custodiaId" class="form-label mb-0">Custodia</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-custodia">
+              <i class="bi bi-plus-lg"></i> Nueva custodia
+            </button>
+          </div>
+          <select class="form-select" name="custodiaId" id="custodiaId">
+            <option value="" selected disabled>Seleccione una custodia</option>
+            {% for c in custodias %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <div id="new-custodia-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newCustodiaName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newCustodiaName" name="newCustodiaName" placeholder="Nombre de la custodia">
+            </div>
+            <div class="mb-0">
+              <label for="newCustodiaEmails" class="form-label small mb-1">Correos de contacto</label>
+              <input type="text" class="form-control form-control-sm" id="newCustodiaEmails" name="newCustodiaEmails" placeholder="correo1@custodia.com; correo2@custodia.com">
+              <div class="form-text small">Puedes capturar varios, separados por punto y coma.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
           <label for="direction" class="form-label">Operación</label>
           <select class="form-select" name="direction" id="direction" required>
             <option selected disabled value="">Seleccione la operación</option>
@@ -390,6 +424,54 @@
         toggleForwarderBtn.innerHTML = creatingForwarder
           ? '<i class="bi bi-list"></i> Elegir del catálogo'
           : '<i class="bi bi-plus-lg"></i> Nuevo forwarder';
+      });
+
+      // Igual que el bloque de forwarder: si requiere custodia o no, y dentro
+      // de "si", entre elegir una del catalogo o capturar una nueva.
+      const requiresCustodySelect = document.getElementById("requiresCustody");
+      const custodiaWrapper = document.getElementById("custodia-wrapper");
+      const custodiaSelect = document.getElementById("custodiaId");
+      const toggleCustodiaBtn = document.getElementById("toggle-new-custodia");
+      const newCustodiaFields = document.getElementById("new-custodia-fields");
+      let creatingCustodia = false;
+
+      function toggleCustodiaVisibility() {
+        const showCustodia = requiresCustodySelect.value === "si";
+        custodiaWrapper.classList.toggle("d-none", !showCustodia);
+        custodiaSelect.required = showCustodia && !creatingCustodia;
+
+        if (!showCustodia) {
+          creatingCustodia = false;
+          custodiaSelect.classList.remove("d-none");
+          custodiaSelect.value = "";
+          newCustodiaFields.classList.add("d-none");
+          newCustodiaFields.querySelectorAll("input").forEach(function (input) {
+            input.required = false;
+            input.value = "";
+          });
+          toggleCustodiaBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nueva custodia';
+        }
+      }
+
+      requiresCustodySelect.addEventListener("change", toggleCustodiaVisibility);
+      toggleCustodiaVisibility();
+
+      toggleCustodiaBtn.addEventListener("click", function () {
+        creatingCustodia = !creatingCustodia;
+
+        custodiaSelect.classList.toggle("d-none", creatingCustodia);
+        custodiaSelect.required = !creatingCustodia;
+        custodiaSelect.value = "";
+
+        newCustodiaFields.classList.toggle("d-none", !creatingCustodia);
+        newCustodiaFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingCustodia;
+          input.value = "";
+        });
+
+        toggleCustodiaBtn.innerHTML = creatingCustodia
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nueva custodia';
       });
 
       // Igual que el bloque de forwarder: domicilio fiscal vs punto de

@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Company;
 use App\Entity\Container;
+use App\Entity\Custodia;
 use App\Entity\DeliveryPoint;
 use App\Entity\Forwarder;
 use App\Entity\ImportDocument;
@@ -106,6 +107,7 @@ class DashboardImports extends AbstractController {
   	// Solo id/nombre llegan a esta plantilla: los forwarders pueden tener
   	// cuentas bancarias, pero eso nunca debe ser visible para el cliente.
   	$forwarders = $entityManager->getRepository(Forwarder::class)->findAll();
+  	$custodias = $entityManager->getRepository(Custodia::class)->findAll();
   	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
   	$deliveryPoints = $entityManager->getRepository(DeliveryPoint::class)->findBy(['company' => $company]);
 
@@ -115,6 +117,7 @@ class DashboardImports extends AbstractController {
   		'rfc' => $rfc,
   		'providers' => $providers,
   		'forwarders' => $forwarders,
+  		'custodias' => $custodias,
   		'deliveryPoints' => $deliveryPoints,
   		'directions' => ImportRequestWorkflow::DIRECTIONS,
   		'types' => ImportRequestWorkflow::TYPES,
@@ -215,6 +218,40 @@ class DashboardImports extends AbstractController {
   		}
   	}
 
+  	// Si la mercancia requiere custodia armada, el cliente elige una empresa
+  	// del catalogo o da de alta una nueva aqui mismo (solo nombre + correos
+  	// de contacto, igual que forwarder). Se le agrega en copia al avisar al
+  	// transporte del despacho (ver DeliveryMailer).
+  	$requiresCustody = $r->request->get('requiresCustody', 'no');
+  	$custodia = null;
+
+  	if ($requiresCustody === 'si') {
+  		$custodiaId = $r->request->get('custodiaId');
+
+  		if ($custodiaId) {
+  			$custodia = $entityManager->getRepository(Custodia::class)->find($custodiaId);
+
+  			if (!$custodia) {
+  				$this->addFlash('error', 'Selecciona una custodia válida.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+  		} else {
+  			$custodiaName = trim((string) $r->request->get('newCustodiaName'));
+  			$custodiaEmails = EmailListParser::parse((string) $r->request->get('newCustodiaEmails'));
+
+  			if ($custodiaName === '' || $custodiaEmails === []) {
+  				$this->addFlash('error', 'Selecciona una custodia del catálogo o captura una nueva completa, con al menos un correo válido.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+
+  			$custodia = new Custodia();
+  			$custodia->setName($custodiaName);
+  			$custodia->setContactEmails($custodiaEmails);
+
+  			$entityManager->persist($custodia);
+  		}
+  	}
+
   	// A donde entregar: domicilio fiscal (default) o un punto del catalogo
   	// propio de esta empresa, o uno nuevo dado de alta ahi mismo.
   	$deliverTo = $r->request->get('deliverTo', 'fiscal');
@@ -300,6 +337,7 @@ class DashboardImports extends AbstractController {
   	$import->setIdCompany($company);
   	$import->setIdProvider($provider);
   	$import->setForwarder($forwarder);
+  	$import->setCustodia($custodia);
   	$import->setDeliveryPoint($deliveryPoint);
   	$import->setDeliveryInstructions($deliveryInstructions !== '' ? $deliveryInstructions : null);
   	$import->setGoods($r->request->get('goods'));

@@ -21,7 +21,7 @@
               </p>
               <p style="margin:0 0 16px; font-size:14px; color:#404040;">
                 {% for r in delivery.references %}
-                  Pedimento <strong>{{ r.agencyReference }}</strong> — {{ r.idCompany.name }} (referencia del cliente: {{ r.clientReference }}){% if not loop.last %}<br>{% endif %}
+                  Pedimento <strong>{{ r.agencyReference }}</strong> — {{ r.idCompany.name }} (referencia del cliente: {{ r.clientReference }}){% if r.custodia %} — <strong>requiere custodia ({{ r.custodia.name }})</strong>{% endif %}{% if not loop.last %}<br>{% endif %}
                 {% endfor %}
               </p>
               <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">

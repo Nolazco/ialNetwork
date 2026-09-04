@@ -39,6 +39,14 @@ class ImportRequest
     #[ORM\JoinColumn(nullable: true)]
     private ?DeliveryPoint $deliveryPoint = null;
 
+    // Nullable: la mayoria de la mercancia no requiere custodia armada. Si no
+    // es nulo, el cliente indico al dar de alta la solicitud que si la
+    // requiere, y esa custodia se agrega en copia al avisar al transporte
+    // (ver DeliveryMailer).
+    #[ORM\ManyToOne(inversedBy: 'importRequests')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Custodia $custodia = null;
+
     /**
      * Instrucciones libres de entrega (ej. repartos entre varios puntos).
      * A proposito no se modela el reparto con datos duros: son casos raros
@@ -312,6 +320,18 @@ class ImportRequest
     public function setForwarder(?Forwarder $forwarder): static
     {
         $this->forwarder = $forwarder;
+
+        return $this;
+    }
+
+    public function getCustodia(): ?Custodia
+    {
+        return $this->custodia;
+    }
+
+    public function setCustodia(?Custodia $custodia): static
+    {
+        $this->custodia = $custodia;
 
         return $this;
     }
