@@ -221,6 +221,15 @@
               <dt class="col-sm-5">Consignado a</dt>
               <dd class="col-sm-7">{{ import.forwarder ? 'Forwarder: ' ~ import.forwarder.name : 'Cliente' }}</dd>
 
+              <dt class="col-sm-5">Requiere custodia</dt>
+              <dd class="col-sm-7">
+                {% if import.custodia %}
+                  Sí — {{ import.custodia.name }}
+                {% else %}
+                  No
+                {% endif %}
+              </dd>
+
               <dt class="col-sm-5">Entregar en</dt>
               <dd class="col-sm-7">
                 {% if import.deliveryPoint %}
