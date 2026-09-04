@@ -10,6 +10,12 @@ framework:
             # resaltar texto, y las tablas que a veces trae el correo.
             app.classification_justification:
                 allow_safe_elements: true
+                # El correo del clasificador puede traer toda la
+                # justificación (regulaciones, anexos, tasas...) y ser mucho
+                # más largo que el límite por defecto del sanitizador
+                # (20 000 caracteres) -- sin esto, el texto se corta a la
+                # mitad de una etiqueta sin avisar. -1 = sin límite.
+                max_input_length: -1
                 allow_elements:
                     span: [style]
                     div: [style]
