@@ -10,6 +10,7 @@ use App\Entity\FreightHauler;
 use App\Entity\ImportRequest;
 use App\Entity\User;
 use App\Entity\Vehicle;
+use App\Notification\UserStatusMailer;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\TransportCoordinator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -345,7 +346,7 @@ class DashboardUsers extends AbstractController {
 
 	#[Route(name: 'verifyUser', path: '/dashboard/usuarios/{id}/verificar', methods: ['POST'])]
 	#[IsGranted('ROLE_ADMIN')]
-	public function verifyUser(int $id, EntityManagerInterface $entityManager, Request $r): JsonResponse {
+	public function verifyUser(int $id, EntityManagerInterface $entityManager, Request $r, UserStatusMailer $mailer): JsonResponse {
     if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
       return $csrf;
     }
@@ -362,13 +363,14 @@ class DashboardUsers extends AbstractController {
 
     $user->setStatus('active');
     $entityManager->flush();
+    $mailer->notifyApproved($user);
 
     return new JsonResponse(['success' => true, 'message' => 'Usuario verificado con éxito']);
 	}
 
 	#[Route(name: 'denyUser', path: '/dashboard/usuarios/{id}/rechazar', methods: ['POST'])]
 	#[IsGranted('ROLE_ADMIN')]
-	public function denyUser(int $id, EntityManagerInterface $entityManager, Request $r): JsonResponse {
+	public function denyUser(int $id, EntityManagerInterface $entityManager, Request $r, UserStatusMailer $mailer): JsonResponse {
     if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
       return $csrf;
     }
@@ -385,6 +387,7 @@ class DashboardUsers extends AbstractController {
 
     $user->setStatus('inactive');
     $entityManager->flush();
+    $mailer->notifyRejected($user);
 
     return new JsonResponse(['success' => true, 'message' => 'Usuario rechazado con éxito']);
 	}

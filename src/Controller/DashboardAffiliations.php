@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\Associated;
 use App\Entity\User;
+use App\Notification\AffiliationStatusMailer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -47,7 +48,7 @@ class DashboardAffiliations extends AbstractController
     }
 
     #[Route('/dashboard/afiliaciones/{id}/{decision}', name: 'affiliation_decide', requirements: ['id' => '\d+', 'decision' => 'aprobar|rechazar'], methods: ['POST'])]
-    public function decide(#[MapEntity(id: 'id')] Associated $association, string $decision, Request $r): Response
+    public function decide(#[MapEntity(id: 'id')] Associated $association, string $decision, Request $r, AffiliationStatusMailer $mailer): Response
     {
         if (!$this->isCsrfTokenValid('affiliation_decide', $r->request->get('_token'))) {
             $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
@@ -57,6 +58,7 @@ class DashboardAffiliations extends AbstractController
 
         $association->setStatus($decision === 'aprobar' ? Associated::APPROVED : Associated::REJECTED);
         $this->entityManager->flush();
+        $mailer->notify($association);
 
         $this->addFlash('success', sprintf(
             'Afiliación de %s a %s %s.',
