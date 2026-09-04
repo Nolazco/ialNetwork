@@ -20,6 +20,16 @@ framework:
                     h2: [style]
                     h3: [style]
                     h4: [style]
+                    # El correo del clasificador suele poner el color en la
+                    # misma etiqueta que la negrita/subrayado (ej. <strong
+                    # style="color:red">), no en un span aparte -- sin esto,
+                    # allow_safe_elements ya deja pasar la etiqueta pero le
+                    # quita el style, y el texto llega en negro.
+                    strong: [style]
+                    b: [style]
+                    em: [style]
+                    i: [style]
+                    u: [style]
                     table: ['*']
                     thead: ['*']
                     tbody: ['*']
