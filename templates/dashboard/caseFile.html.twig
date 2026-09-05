@@ -328,7 +328,14 @@
     {# ---------- Documentos del ejecutivo ---------- #}
     <div class="card shadow-sm mt-4">
       <div class="card-body">
-        <h5 class="card-title mb-3">Documentos del ejecutivo</h5>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="card-title mb-0">Documentos del ejecutivo</h5>
+          {% if requiredDocuments|length or advanceRequests|length %}
+            <a href="{{ path('case_file_required_documents_download_all', { id: import.id }) }}" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-file-earmark-zip"></i> Descargar todo
+            </a>
+          {% endif %}
+        </div>
 
         <table class="table table-sm align-middle mb-3">
           <thead>
@@ -458,11 +465,16 @@
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="card-title mb-0">Documentos del aviso</h5>
-          {% if import.importDocuments|length %}
-            <span class="badge text-bg-success">{{ import.importDocuments|length }} documento(s)</span>
-          {% else %}
-            <span class="badge text-bg-warning">Sin documentos</span>
-          {% endif %}
+          <div class="d-flex align-items-center gap-2">
+            {% if import.importDocuments|length %}
+              <span class="badge text-bg-success">{{ import.importDocuments|length }} documento(s)</span>
+              <a href="{{ path('case_file_documents_download_all', { id: import.id }) }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-file-earmark-zip"></i> Descargar todo
+              </a>
+            {% else %}
+              <span class="badge text-bg-warning">Sin documentos</span>
+            {% endif %}
+          </div>
         </div>
 
         {% if import.importDocuments|length %}

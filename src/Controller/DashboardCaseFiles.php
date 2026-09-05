@@ -86,6 +86,60 @@ class DashboardCaseFiles extends AbstractController
     }
 
     /**
+     * Arma un zip temporal con los archivos indicados y lo manda como
+     * descarga. Los nombres se resuelven contra $entries['label'] (mas la
+     * extension real del archivo); si dos entradas comparten label (no
+     * deberia pasar salvo por datos viejos raros), se numeran para no
+     * pisarse una a la otra dentro del zip.
+     *
+     * @param list<array{route: string, label: string}> $entries
+     */
+    private function zipResponse(array $entries, string $downloadName): BinaryFileResponse
+    {
+        $zipPath = tempnam(sys_get_temp_dir(), 'ial-zip-');
+        $zip = new \ZipArchive();
+        $zip->open($zipPath, \ZipArchive::OVERWRITE);
+
+        $usedNames = [];
+        $added = 0;
+
+        foreach ($entries as $entry) {
+            $path = $this->uploadPath->resolve($entry['route']);
+
+            if (!is_file($path)) {
+                continue;
+            }
+
+            $name = $entry['label'].'.'.pathinfo($path, PATHINFO_EXTENSION);
+            $suffix = 2;
+
+            while (isset($usedNames[$name])) {
+                $name = sprintf('%s (%d).%s', $entry['label'], $suffix++, pathinfo($path, PATHINFO_EXTENSION));
+            }
+
+            $usedNames[$name] = true;
+            $zip->addFile($path, $name);
+            ++$added;
+        }
+
+        $zip->close();
+
+        // Un zip sin archivos ni siquiera queda en disco (ZipArchive::close()
+        // lo borra si no se le agrego nada): sin este candado, BinaryFileResponse
+        // tronaria con "el archivo no existe" en vez de un 404 entendible.
+        if ($added === 0) {
+            throw $this->createNotFoundException('Ninguno de los archivos de este expediente está disponible en el servidor.');
+        }
+
+        $response = new BinaryFileResponse($zipPath);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_ATTACHMENT, $downloadName);
+        $response->headers->set('Content-Type', 'application/zip');
+        $response->deleteFileAfterSend(true);
+
+        return $response;
+    }
+
+    /**
      * Para la prueba de entrega y el EIR: ademas del cliente/ejecutivo que ya
      * ve el expediente (canView), el transportista dueño de ESE despacho en
      * concreto tambien debe poder verlos, aunque no tenga acceso al resto del
@@ -334,6 +388,33 @@ class DashboardCaseFiles extends AbstractController
         $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
 
         return $response;
+    }
+
+    /**
+     * Zip con todos los documentos del aviso que el cliente ya anexó.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/documentos/descargar-todo', name: 'case_file_documents_download_all', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function downloadAllDocuments(#[MapEntity(id: 'id')] ImportRequest $import): BinaryFileResponse
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $entries = [];
+
+        foreach ($import->getImportDocuments() as $document) {
+            if ($document->getRoute() === null) {
+                continue;
+            }
+
+            $entries[] = ['route' => $document->getRoute(), 'label' => $document->getType()];
+        }
+
+        if ($entries === []) {
+            throw $this->createNotFoundException('Este expediente todavía no tiene documentos del aviso.');
+        }
+
+        return $this->zipResponse($entries, sprintf('documentos-aviso-%s.zip', $import->getClientReference()));
     }
 
     /**
@@ -671,6 +752,43 @@ class DashboardCaseFiles extends AbstractController
         $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
 
         return $response;
+    }
+
+    /**
+     * Zip con todos los documentos del ejecutivo que ya se subieron
+     * (proforma, BL, pedimentos, comprobante de cita, certificado de
+     * inspección, solicitudes de anticipo). Los que aún no se suben
+     * simplemente no aparecen en el zip.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/requisitos/descargar-todo', name: 'case_file_required_documents_download_all', requirements: ['id' => '\d+'], methods: ['GET'])]
+    public function downloadAllRequiredDocuments(#[MapEntity(id: 'id')] ImportRequest $import): BinaryFileResponse
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $entries = [];
+        $advanceRequestCount = 0;
+
+        foreach ($import->getRequiredDocuments() as $document) {
+            if ($document->getRoute() === null) {
+                continue;
+            }
+
+            $label = $document->getType();
+
+            if ($label === RequiredDocumentType::ADVANCE_REQUEST) {
+                $label = sprintf('%s %d', $label, ++$advanceRequestCount);
+            }
+
+            $entries[] = ['route' => $document->getRoute(), 'label' => $label];
+        }
+
+        if ($entries === []) {
+            throw $this->createNotFoundException('Este expediente todavía no tiene documentos del ejecutivo.');
+        }
+
+        return $this->zipResponse($entries, sprintf('documentos-ejecutivo-%s.zip', $import->getClientReference()));
     }
 
     /**
