@@ -79,6 +79,73 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
+// Tablas ordenables por columna: clic en el encabezado ordena por esa
+// columna, otro clic invierte el orden. Generico via clase/atributo (marca
+// la tabla con .js-sortable-table y cada <th> ordenable con .js-sortable) en
+// vez de un script por pantalla, porque el mismo listado de pedimentos se
+// repite en mas de una plantilla (ver templates/dashboard/imports.html.twig
+// y companyImports.html.twig). El texto visible de la celda es lo que se
+// compara por default; si hace falta un criterio distinto (ej. ETA: el
+// texto "04/09/2026" no ordena bien como texto, pero un ISO "2026-09-04" si),
+// el <td> puede traer data-sort con ese valor.
+document.addEventListener('DOMContentLoaded', () => {
+    // Icono de reposo (aun sin ordenar por esa columna): flechas en ambos
+    // sentidos, para que se note que la columna es clickeable antes de que
+    // el usuario le dé clic siquiera.
+    const ICONO_INACTIVO = 'bi-arrow-down-up';
+
+    document.querySelectorAll('.js-sortable-table').forEach((tabla) => {
+        const cuerpo = tabla.tBodies[0];
+        const encabezados = Array.from(tabla.querySelectorAll('thead th.js-sortable'));
+
+        if (!cuerpo || encabezados.length === 0) {
+            return;
+        }
+
+        encabezados.forEach((th) => {
+            const indice = Array.from(th.parentElement.children).indexOf(th);
+            const icono = document.createElement('i');
+            icono.className = `bi ${ICONO_INACTIVO} ms-1 text-body-secondary small`;
+
+            th.appendChild(icono);
+            th.classList.add('user-select-none');
+            th.style.cursor = 'pointer';
+            th.dataset.sortDir = '';
+
+            th.addEventListener('click', () => {
+                const dir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+
+                encabezados.forEach((otro) => {
+                    otro.dataset.sortDir = '';
+                    otro.querySelector('i').className = `bi ${ICONO_INACTIVO} ms-1 text-body-secondary small`;
+                });
+
+                th.dataset.sortDir = dir;
+                icono.className = `bi ms-1 ${dir === 'asc' ? 'bi-sort-alpha-down' : 'bi-sort-alpha-up'}`;
+
+                const valorDe = (fila) => {
+                    const celda = fila.cells[indice];
+
+                    return (celda.dataset.sort ?? celda.textContent.trim()).toLowerCase();
+                };
+
+                Array.from(cuerpo.rows)
+                    .sort((a, b) => {
+                        const va = valorDe(a);
+                        const vb = valorDe(b);
+
+                        if (va === vb) return 0;
+
+                        const cmp = va < vb ? -1 : 1;
+
+                        return dir === 'asc' ? cmp : -cmp;
+                    })
+                    .forEach((fila) => cuerpo.appendChild(fila));
+            });
+        });
+    });
+});
+
 // Mensajes flash. Los renderiza templates/_flashes.html.twig como JSON; aqui se
 // muestran uno tras otro para que no se pisen entre si.
 const FLASH_TITLES = {
