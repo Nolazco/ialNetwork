@@ -901,16 +901,13 @@ class DashboardCaseFiles extends AbstractController
         $bultos = (int) $r->request->get('bultos');
         $weightKg = (float) str_replace(',', '.', (string) $r->request->get('weightKg'));
         $cubicaje = (float) str_replace(',', '.', (string) $r->request->get('cubicaje'));
+        // El pedimento simplificado es opcional aqui: si no se adjunta uno,
+        // el aviso al transporte toma el que ya se subio en la fase "Pagado"
+        // (ver DeliveryMailer). Mismo criterio que editTransport().
         $pedimentoFile = $r->files->get('pedimentoSimplificado');
 
         if ($claveSat === '' || $descripcion === '' || $embalaje === '' || $bultos < 1 || $weightKg <= 0 || $cubicaje <= 0) {
             $this->addFlash('error', 'Clave SAT, mercancía, embalaje, bultos, peso y cubicaje son obligatorios.');
-
-            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
-        }
-
-        if (!$pedimentoFile || !$pedimentoFile->isValid()) {
-            $this->addFlash('error', 'Adjunta el pedimento simplificado.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
@@ -995,27 +992,32 @@ class DashboardCaseFiles extends AbstractController
 
         // Hasta aqui ya tiene id: la carpeta del pedimento simplificado se
         // nombra con el, igual que uploads/entregas/{id} para la prueba de
-        // entrega (ver DashboardDeliveries::storeProof()).
-        $route = 'uploads/despachos/'.$delivery->getId();
-        $folder = $this->uploadPath->resolve($route);
+        // entrega (ver DashboardDeliveries::storeProof()). Si no se adjunta
+        // uno aqui, el aviso al transporte toma el que ya se subio en la
+        // fase "Pagado" (ver DeliveryMailer).
+        if ($pedimentoFile && $pedimentoFile->isValid()) {
+            $route = 'uploads/despachos/'.$delivery->getId();
+            $folder = $this->uploadPath->resolve($route);
 
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
-            $this->addFlash('error', 'No se pudo preparar la carpeta del pedimento simplificado.');
+            if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+                $this->addFlash('error', 'No se pudo preparar la carpeta del pedimento simplificado.');
 
-            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $name = 'pedimento-simplificado-'.uniqid().'.'.$pedimentoFile->guessExtension();
+
+            try {
+                $pedimentoFile->move($folder, $name);
+            } catch (FileException) {
+                $this->addFlash('error', 'No se pudo guardar el pedimento simplificado.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $delivery->setPedimentoSimplificadoRoute($route.'/'.$name);
         }
 
-        $name = 'pedimento-simplificado-'.uniqid().'.'.$pedimentoFile->guessExtension();
-
-        try {
-            $pedimentoFile->move($folder, $name);
-        } catch (FileException) {
-            $this->addFlash('error', 'No se pudo guardar el pedimento simplificado.');
-
-            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
-        }
-
-        $delivery->setPedimentoSimplificadoRoute($route.'/'.$name);
         $this->entityManager->flush();
 
         $advanced = [];

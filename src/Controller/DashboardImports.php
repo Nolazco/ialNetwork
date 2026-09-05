@@ -2,6 +2,7 @@
 
 namespace App\Controller;
 
+use App\Entity\Biller;
 use App\Entity\Company;
 use App\Entity\Container;
 use App\Entity\Custodia;
@@ -108,6 +109,7 @@ class DashboardImports extends AbstractController {
   	// cuentas bancarias, pero eso nunca debe ser visible para el cliente.
   	$forwarders = $entityManager->getRepository(Forwarder::class)->findAll();
   	$custodias = $entityManager->getRepository(Custodia::class)->findAll();
+  	$billers = $entityManager->getRepository(Biller::class)->findAll();
   	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
   	$deliveryPoints = $entityManager->getRepository(DeliveryPoint::class)->findBy(['company' => $company]);
 
@@ -118,6 +120,7 @@ class DashboardImports extends AbstractController {
   		'providers' => $providers,
   		'forwarders' => $forwarders,
   		'custodias' => $custodias,
+  		'billers' => $billers,
   		'deliveryPoints' => $deliveryPoints,
   		'directions' => ImportRequestWorkflow::DIRECTIONS,
   		'types' => ImportRequestWorkflow::TYPES,
@@ -252,6 +255,42 @@ class DashboardImports extends AbstractController {
   		}
   	}
 
+  	// A quien se factura el movimiento: al cliente directo (default, usa su
+  	// razon social/domicilio/RFC) o a un facturador del catalogo, o uno nuevo
+  	// dado de alta aqui mismo. Su razon social/domicilio/RFC aparecen en el
+  	// aviso al transporte del despacho (ver DeliveryMailer).
+  	$billedTo = $r->request->get('billedTo', 'cliente');
+  	$billTo = null;
+
+  	if ($billedTo === 'facturador') {
+  		$billerId = $r->request->get('billerId');
+
+  		if ($billerId) {
+  			$billTo = $entityManager->getRepository(Biller::class)->find($billerId);
+
+  			if (!$billTo) {
+  				$this->addFlash('error', 'Selecciona un facturador válido.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+  		} else {
+  			$billerName = trim((string) $r->request->get('newBillerName'));
+  			$billerAddress = trim((string) $r->request->get('newBillerAddress'));
+  			$billerRfc = trim((string) $r->request->get('newBillerRfc'));
+
+  			if ($billerName === '' || $billerAddress === '' || $billerRfc === '') {
+  				$this->addFlash('error', 'Selecciona un facturador del catálogo o captura uno nuevo completo.');
+  				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
+  			}
+
+  			$billTo = new Biller();
+  			$billTo->setName($billerName);
+  			$billTo->setAddress($billerAddress);
+  			$billTo->setRfc($billerRfc);
+
+  			$entityManager->persist($billTo);
+  		}
+  	}
+
   	// A donde entregar: domicilio fiscal (default) o un punto del catalogo
   	// propio de esta empresa, o uno nuevo dado de alta ahi mismo.
   	$deliverTo = $r->request->get('deliverTo', 'fiscal');
@@ -338,6 +377,7 @@ class DashboardImports extends AbstractController {
   	$import->setIdProvider($provider);
   	$import->setForwarder($forwarder);
   	$import->setCustodia($custodia);
+  	$import->setBillTo($billTo);
   	$import->setDeliveryPoint($deliveryPoint);
   	$import->setDeliveryInstructions($deliveryInstructions !== '' ? $deliveryInstructions : null);
   	$import->setGoods($r->request->get('goods'));

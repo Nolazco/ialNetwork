@@ -1,0 +1,128 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Facturadores</h2>
+    {% if billers %}
+      <a href="/dashboard/facturadores/nuevo" class="btn btn-primary">Nuevo facturador</a>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Razón social</th>
+            <th scope="col">Domicilio</th>
+            <th scope="col">RFC</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in billers %}
+            <tr>
+              <td>{{ b.name }}</td>
+              <td>{{ b.address }}</td>
+              <td>{{ b.rfc }}</td>
+              <td>
+                <button
+                  class="btn btn-warning edit-biller-btn"
+                  title="Editar facturador"
+                  data-id="{{ b.id }}"
+                  data-name="{{ b.name }}"
+                  data-address="{{ b.address }}"
+                  data-rfc="{{ b.rfc }}">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin registros</h5>
+          <p class="card-text">Da de alta un facturador nuevo.</p>
+          <a href="/dashboard/facturadores/nuevo" class="btn btn-primary">Nuevo facturador</a>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      function handleEditClick(e) {
+        const btn = e.currentTarget;
+        const billerId = btn.getAttribute("data-id");
+        const currentName = btn.getAttribute("data-name");
+        const currentAddress = btn.getAttribute("data-address");
+        const currentRfc = btn.getAttribute("data-rfc");
+
+        Swal.fire({
+          title: "Editar facturador",
+          html: `
+            <input id="swal-name" class="swal2-input" placeholder="Razón social" value="${currentName}">
+            <input id="swal-address" class="swal2-input" placeholder="Domicilio" value="${currentAddress}">
+            <input id="swal-rfc" class="swal2-input" placeholder="RFC" value="${currentRfc}">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          cancelButtonText: "Cancelar",
+          preConfirm: () => {
+            const name = document.getElementById("swal-name").value.trim();
+            const address = document.getElementById("swal-address").value.trim();
+            const rfc = document.getElementById("swal-rfc").value.trim();
+
+            if (!name || !address || !rfc) {
+              Swal.showValidationMessage("Razón social, domicilio y RFC son obligatorios");
+              return false;
+            }
+
+            return { name, address, rfc };
+          }
+        }).then(result => {
+          if (result.isConfirmed) {
+            const updatedData = result.value;
+
+            fetch(`/dashboard/facturadores/${billerId}/editar`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+              },
+              body: JSON.stringify(updatedData)
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire("¡Actualizado!", "El facturador fue editado correctamente.", "success");
+
+                btn.setAttribute("data-name", data.name);
+                btn.setAttribute("data-address", data.address);
+                btn.setAttribute("data-rfc", data.rfc);
+
+                const row = btn.closest("tr");
+                row.children[0].textContent = data.name;
+                row.children[1].textContent = data.address;
+                row.children[2].textContent = data.rfc;
+              } else {
+                Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll(".edit-biller-btn").forEach(btn => {
+        btn.addEventListener("click", handleEditClick);
+      });
+    });
+  </script>
+{% endblock %}

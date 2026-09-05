@@ -47,6 +47,13 @@ class ImportRequest
     #[ORM\JoinColumn(nullable: true)]
     private ?Custodia $custodia = null;
 
+    // Nullable: null significa que se factura al cliente directo
+    // (Company::name/address/rfc). Si no es nulo, se factura a esta razon
+    // social del catalogo en vez de al cliente (ver Biller y DeliveryMailer).
+    #[ORM\ManyToOne(inversedBy: 'importRequests')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Biller $billTo = null;
+
     /**
      * Instrucciones libres de entrega (ej. repartos entre varios puntos).
      * A proposito no se modela el reparto con datos duros: son casos raros
@@ -332,6 +339,18 @@ class ImportRequest
     public function setCustodia(?Custodia $custodia): static
     {
         $this->custodia = $custodia;
+
+        return $this;
+    }
+
+    public function getBillTo(): ?Biller
+    {
+        return $this->billTo;
+    }
+
+    public function setBillTo(?Biller $billTo): static
+    {
+        $this->billTo = $billTo;
 
         return $this;
     }

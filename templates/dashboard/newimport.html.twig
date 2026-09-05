@@ -118,6 +118,43 @@
       </div>
       <div class="row mt-3">
         <div class="col">
+          <label class="form-label">¿Se factura a?</label>
+          <select class="form-select" name="billedTo" id="billedTo" required>
+            <option value="cliente" selected>Cliente</option>
+            <option value="facturador">Facturador</option>
+          </select>
+        </div>
+        <div class="col d-none" id="biller-wrapper">
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="billerId" class="form-label mb-0">Facturador</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-biller">
+              <i class="bi bi-plus-lg"></i> Nuevo facturador
+            </button>
+          </div>
+          <select class="form-select" name="billerId" id="billerId">
+            <option value="" selected disabled>Seleccione un facturador</option>
+            {% for b in billers %}
+              <option value="{{ b.id }}">{{ b.name }}</option>
+            {% endfor %}
+          </select>
+          <div id="new-biller-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newBillerName" class="form-label small mb-1">Razón social</label>
+              <input type="text" class="form-control form-control-sm" id="newBillerName" name="newBillerName" placeholder="Razón social del facturador">
+            </div>
+            <div class="mb-2">
+              <label for="newBillerAddress" class="form-label small mb-1">Domicilio</label>
+              <input type="text" class="form-control form-control-sm" id="newBillerAddress" name="newBillerAddress" placeholder="Domicilio fiscal">
+            </div>
+            <div class="mb-0">
+              <label for="newBillerRfc" class="form-label small mb-1">RFC</label>
+              <input type="text" class="form-control form-control-sm" id="newBillerRfc" name="newBillerRfc" placeholder="RFC">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
           <label for="direction" class="form-label">Operación</label>
           <select class="form-select" name="direction" id="direction" required>
             <option selected disabled value="">Seleccione la operación</option>
@@ -472,6 +509,55 @@
         toggleCustodiaBtn.innerHTML = creatingCustodia
           ? '<i class="bi bi-list"></i> Elegir del catálogo'
           : '<i class="bi bi-plus-lg"></i> Nueva custodia';
+      });
+
+      // Igual que el bloque de forwarder: a quien se factura el movimiento,
+      // y dentro de "facturador", entre elegir uno del catalogo o capturar
+      // uno nuevo.
+      const billedToSelect = document.getElementById("billedTo");
+      const billerWrapper = document.getElementById("biller-wrapper");
+      const billerSelect = document.getElementById("billerId");
+      const toggleBillerBtn = document.getElementById("toggle-new-biller");
+      const newBillerFields = document.getElementById("new-biller-fields");
+      let creatingBiller = false;
+
+      function toggleBillerVisibility() {
+        const showBiller = billedToSelect.value === "facturador";
+        billerWrapper.classList.toggle("d-none", !showBiller);
+        billerSelect.required = showBiller && !creatingBiller;
+
+        if (!showBiller) {
+          creatingBiller = false;
+          billerSelect.classList.remove("d-none");
+          billerSelect.value = "";
+          newBillerFields.classList.add("d-none");
+          newBillerFields.querySelectorAll("input").forEach(function (input) {
+            input.required = false;
+            input.value = "";
+          });
+          toggleBillerBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nuevo facturador';
+        }
+      }
+
+      billedToSelect.addEventListener("change", toggleBillerVisibility);
+      toggleBillerVisibility();
+
+      toggleBillerBtn.addEventListener("click", function () {
+        creatingBiller = !creatingBiller;
+
+        billerSelect.classList.toggle("d-none", creatingBiller);
+        billerSelect.required = !creatingBiller;
+        billerSelect.value = "";
+
+        newBillerFields.classList.toggle("d-none", !creatingBiller);
+        newBillerFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingBiller;
+          input.value = "";
+        });
+
+        toggleBillerBtn.innerHTML = creatingBiller
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo facturador';
       });
 
       // Igual que el bloque de forwarder: domicilio fiscal vs punto de

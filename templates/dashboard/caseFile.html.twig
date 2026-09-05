@@ -230,6 +230,15 @@
                 {% endif %}
               </dd>
 
+              <dt class="col-sm-5">Se factura a</dt>
+              <dd class="col-sm-7">
+                {% if import.billTo %}
+                  {{ import.billTo.name }} — {{ import.billTo.address }} — RFC {{ import.billTo.rfc }}
+                {% else %}
+                  Cliente — {{ import.idCompany.name }} — {{ import.idCompany.address }} — RFC {{ import.idCompany.rfc }}
+                {% endif %}
+              </dd>
+
               <dt class="col-sm-5">Entregar en</dt>
               <dd class="col-sm-7">
                 {% if import.deliveryPoint %}
@@ -882,8 +891,11 @@
               {% endif %}
 
               <div class="col-md-4">
-                <label for="pedimentoSimplificado" class="form-label">Pedimento simplificado</label>
-                <input type="file" class="form-control" name="pedimentoSimplificado" id="pedimentoSimplificado" required>
+                <label for="pedimentoSimplificado" class="form-label">
+                  Pedimento simplificado
+                  <span class="text-body-secondary">(opcional, se toma el ya subido en el expediente si no adjuntas otro)</span>
+                </label>
+                <input type="file" class="form-control" name="pedimentoSimplificado" id="pedimentoSimplificado">
               </div>
 
               {% if shareableImports|length > 0 %}
