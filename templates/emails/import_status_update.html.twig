@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Actualización de tu expediente</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7f9; padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden;">
+          <tr>
+            <td style="background-color:#41b6c8; padding:20px 24px;">
+              <span style="color:#ffffff; font-size:18px; font-weight:bold;">IAL Network</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px; font-size:16px; color:#212529;">
+                {{ headline }}
+              </p>
+              <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
+                <tr>
+                  <td style="color:#909090;">Referencia</td>
+                  <td><strong>{{ import.clientReference }}</strong></td>
+                </tr>
+                <tr>
+                  <td style="color:#909090;">Cliente</td>
+                  <td><strong>{{ import.idCompany.name }}</strong></td>
+                </tr>
+                {% if delivery is defined %}
+                  <tr>
+                    <td style="color:#909090;">Transportista</td>
+                    <td><strong>{{ delivery.haulerDisplayName ?? 'Sin asignar' }}</strong></td>
+                  </tr>
+                  {% if delivery.vehicle or delivery.driver %}
+                    <tr>
+                      <td style="color:#909090;">Unidad / chofer</td>
+                      <td><strong>{{ delivery.vehicle ? delivery.vehicle.plates : '' }}{{ delivery.vehicle and delivery.driver ? ' · ' : '' }}{{ delivery.driver ? delivery.driver.name : '' }}</strong></td>
+                    </tr>
+                  {% endif %}
+                  <tr>
+                    <td style="color:#909090;">Fecha y hora de salida</td>
+                    <td><strong>{{ delivery.departedAt ? delivery.departedAt|date('d/m/Y H:i') : (delivery.date|date('d/m/Y') ~ ' ' ~ delivery.hour|date('H:i')) }}</strong></td>
+                  </tr>
+                {% endif %}
+              </table>
+              {% if documents|length %}
+                <p style="margin:20px 0 8px; font-size:13px; color:#909090;">Documentos:</p>
+                <ul style="margin:0; padding-left:20px; font-size:14px; color:#404040;">
+                  {% for d in documents %}
+                    <li>
+                      {{ d.label }}
+                      {% if d.attached %}
+                        <span style="color:#2e8540;">(adjunto)</span>
+                      {% else %}
+                        <span style="color:#909090;">(pendiente de subir)</span>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

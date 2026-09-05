@@ -14,6 +14,7 @@ use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Notification\DeliveryArrivalMailer;
 use App\Notification\ForwarderMailer;
+use App\Notification\ImportRequestStatusMailer;
 use App\Service\UploadPath;
 use App\Workflow\DeliveryFailureCatalog;
 use App\Workflow\EmptyReturnCatalog;
@@ -54,6 +55,7 @@ class DashboardDeliveries extends AbstractController
         private readonly LocalTransferPlaceCatalog $placeCatalog,
         private readonly UploadPath $uploadPath,
         private readonly DeliveryArrivalMailer $deliveryArrivalMailer,
+        private readonly ImportRequestStatusMailer $statusMailer,
     ) {
     }
 
@@ -664,6 +666,7 @@ class DashboardDeliveries extends AbstractController
         }
 
         if ($newStatus) {
+            $this->statusMailer->notifyStatusReached($owner, $newStatus);
             $this->addFlash('success', sprintf('Vacío %s devuelto. El expediente pasó a "%s".', $container->getNum(), $newStatus));
 
             return $this->redirectToRoute('deliveries');
@@ -810,6 +813,10 @@ class DashboardDeliveries extends AbstractController
         $moved = $this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable());
         $this->entityManager->flush();
 
+        foreach ($moved as $move) {
+            $this->statusMailer->notifyInTransit($move['request'], $delivery);
+        }
+
         $this->addFlash('success', $moved !== []
             ? sprintf('Salida confirmada. %s', $this->describeMoves($moved))
             : 'Salida confirmada.');
@@ -870,7 +877,9 @@ class DashboardDeliveries extends AbstractController
         $firstReference = $delivery->getReferences()->first() ?: null;
 
         if (!$delivery->isDeparted() && $firstReference && $this->workflow->departureStatus($firstReference) !== null) {
-            $this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable());
+            foreach ($this->coordinator->confirmDeparture($delivery, new \DateTimeImmutable()) as $move) {
+                $this->statusMailer->notifyInTransit($move['request'], $delivery);
+            }
         }
 
         if ($route = $this->storeProof($r, $delivery, $slugger)) {

@@ -17,6 +17,7 @@ use App\Entity\PrevioReport;
 use App\Entity\RequiredDocument;
 use App\Entity\User;
 use App\Notification\DeliveryMailer;
+use App\Notification\ImportRequestStatusMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Soia\ModuladoConfirmer;
@@ -69,6 +70,7 @@ class DashboardCaseFiles extends AbstractController
         private readonly UploadPath $uploadPath,
         private readonly ContainerTypeCatalog $containerTypeCatalog,
         private readonly DeliveryMailer $deliveryMailer,
+        private readonly ImportRequestStatusMailer $statusMailer,
         #[Autowire('%kernel.environment%')]
         private readonly string $environment,
     ) {
@@ -542,6 +544,7 @@ class DashboardCaseFiles extends AbstractController
 
         if ($advancedTo !== null) {
             $this->entityManager->flush();
+            $this->statusMailer->notifyStatusReached($import, $advancedTo);
         }
 
         $this->addFlash('success', $advancedTo !== null
@@ -896,15 +899,21 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $advanced = [];
+        $justAdvanced = [];
 
         foreach ($allImports as $imp) {
             if ($status = $this->workflow->tryAutoAdvance($imp)) {
                 $advanced[] = sprintf('%s pasó a "%s"', $imp->getClientReference(), $status);
+                $justAdvanced[] = [$imp, $status];
             }
         }
 
         if ($advanced !== []) {
             $this->entityManager->flush();
+        }
+
+        foreach ($justAdvanced as [$imp, $status]) {
+            $this->statusMailer->notifyStatusReached($imp, $status);
         }
 
         $this->deliveryMailer->notify($delivery);
@@ -1229,7 +1238,9 @@ class DashboardCaseFiles extends AbstractController
 
         // Dar de alta el pedimento es lo que saca al expediente de "Pendiente".
         // Si ya avanzo mas alla, esto es una correccion y no debe retroceder.
-        if ($import->getStatus() === ImportRequestWorkflow::PENDING) {
+        $justCaptured = $import->getStatus() === ImportRequestWorkflow::PENDING;
+
+        if ($justCaptured) {
             $import->setStatus(ImportRequestWorkflow::CAPTURED);
             $this->addFlash('success', 'Pedimento dado de alta. El expediente pasó a Capturado.');
         } else {
@@ -1237,6 +1248,10 @@ class DashboardCaseFiles extends AbstractController
         }
 
         $this->entityManager->flush();
+
+        if ($justCaptured) {
+            $this->statusMailer->notifyCaptured($import);
+        }
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
@@ -1304,6 +1319,7 @@ class DashboardCaseFiles extends AbstractController
 
         $import->setStatus($status);
         $this->entityManager->flush();
+        $this->statusMailer->notifyStatusReached($import, $status);
 
         $this->addFlash('success', sprintf('El expediente pasó a "%s".', $status));
 
