@@ -8,6 +8,7 @@ use App\Entity\User;
 use App\Notification\ClassificationMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
+use App\Workflow\AllowedFileExtensions;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -41,8 +42,8 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 #[IsGranted(new Expression('is_granted("ROLE_EXECUTIVE") or is_granted("ROLE_CLIENT")'))]
 class DashboardClassifications extends AbstractController
 {
-    /** Mismas extensiones que se aceptan en el resto de la app: nada ejecutable. */
-    public const ALLOWED_EXTENSIONS = ['pdf', 'xml', 'zip', 'rar', '7z', 'jpg', 'jpeg', 'png', 'xlsx', 'xls', 'docx', 'csv'];
+    /** Mismas extensiones que se aceptan en el resto de la app (ver AllowedFileExtensions). */
+    public const ALLOWED_EXTENSIONS = AllowedFileExtensions::LIST;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,

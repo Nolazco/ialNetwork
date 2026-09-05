@@ -219,9 +219,11 @@
           let html = `<ul class="list-group">`;
 
           docs.forEach(doc => {
+            const extension = (doc.route || '').split('.').pop().toUpperCase();
+
             html += `
               <li class="list-group-item d-flex justify-content-between align-items-center">
-                <a href="/dashboard/empresas/documentos/${doc.id}/archivo" target="_blank">${doc.type || 'Documento sin nombre'}</a>
+                <a href="/dashboard/empresas/documentos/${doc.id}/archivo" target="_blank">${doc.type || 'Documento sin nombre'} <span class="badge text-bg-secondary">${extension}</span></a>
                 <div>
                   <button class="btn btn-sm btn-warning edit-doc" data-id="${doc.id}">Editar</button>
                   <button class="btn btn-sm btn-danger delete-doc" data-id="${doc.id}">Eliminar</button>
@@ -283,7 +285,7 @@
                     title: 'Editar documento',
                     html: `
                       <input type="text" id="edit-type" class="swal2-input" placeholder="Tipo de documento">
-                      <input type="file" id="edit-file" class="swal2-file" accept=".pdf">
+                      <input type="file" id="edit-file" class="swal2-file" accept=".pdf,.xml,.zip,.rar,.7z,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.csv">
                     `,
                     showCancelButton: true,
                     confirmButtonText: 'Guardar',
@@ -328,7 +330,7 @@
                   title: 'Agregar nuevo documento',
                   html: `
                     <input type="text" id="doc-type" class="swal2-input" placeholder="Tipo de documento">
-                    <input type="file" id="doc-file" class="swal2-file" accept=".pdf">
+                    <input type="file" id="doc-file" class="swal2-file" accept=".pdf,.xml,.zip,.rar,.7z,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.csv">
                   `,
                   showCancelButton: true,
                   confirmButtonText: 'Guardar',

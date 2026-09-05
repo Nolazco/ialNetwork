@@ -22,6 +22,7 @@ use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Soia\ModuladoConfirmer;
 use App\Workflow\AduanaCatalog;
+use App\Workflow\AllowedFileExtensions;
 use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\EmailListParser;
 use App\Workflow\ImportRequestWorkflow;
@@ -56,9 +57,10 @@ class DashboardCaseFiles extends AbstractController
 {
     /**
      * Extensiones que se aceptan tanto en la cuenta de gastos como en los
-     * documentos del aviso. Nada ejecutable.
+     * documentos del aviso — mismo catalogo que el resto de la app (ver
+     * AllowedFileExtensions).
      */
-    public const EXPENSE_EXTENSIONS = ['pdf', 'xml', 'zip', 'rar', '7z', 'jpg', 'jpeg', 'png', 'xlsx', 'xls', 'docx', 'csv'];
+    public const EXPENSE_EXTENSIONS = AllowedFileExtensions::LIST;
 
     public function __construct(
         private readonly EntityManagerInterface $entityManager,

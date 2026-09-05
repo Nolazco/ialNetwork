@@ -8,6 +8,7 @@ use App\Entity\CompanyDocument;
 use App\Entity\User;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
+use App\Workflow\AllowedFileExtensions;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -21,6 +22,9 @@ use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardCompanies extends AbstractController{
   use AjaxCsrfTrait;
+
+  /** Mismas extensiones que se aceptan en el resto de la app (ver AllowedFileExtensions). */
+  private const ALLOWED_EXTENSIONS = AllowedFileExtensions::LIST;
 
 	public function __construct(
 		private readonly CompanyAccess $companyAccess,
@@ -383,6 +387,12 @@ class DashboardCompanies extends AbstractController{
       return new JsonResponse(['error' => 'Faltan datos.'], 400);
     }
 
+    $extension = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION));
+
+    if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+      return new JsonResponse(['error' => sprintf('Formato no permitido. Formatos permitidos: %s.', implode(', ', self::ALLOWED_EXTENSIONS))], 400);
+    }
+
     $route = 'uploads/empresas/' . $company->getRfc(); // Ruta relativa guardada en el documento
     $folder = $this->uploadPath->resolve($route); // Carpeta física, fuera de public/
 
@@ -458,6 +468,12 @@ class DashboardCompanies extends AbstractController{
     }
 
     if ($newFile) {
+      $extension = strtolower(pathinfo($newFile->getClientOriginalName(), PATHINFO_EXTENSION));
+
+      if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+        return new JsonResponse(['error' => sprintf('Formato no permitido. Formatos permitidos: %s.', implode(', ', self::ALLOWED_EXTENSIONS))], 400);
+      }
+
       // Elimina archivo anterior
       $oldPath = $document->getRoute();
       if ($oldPath && file_exists($this->uploadPath->resolve($oldPath))) {
