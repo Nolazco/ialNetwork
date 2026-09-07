@@ -8,6 +8,39 @@
 
     <div class="card shadow-sm mb-4">
       <div class="card-body">
+        <h5 class="card-title mb-3">Nueva afiliación</h5>
+        <p class="text-body-secondary small">
+          El cliente ya no puede afiliarse solo a una empresa — se le da acceso directamente desde aquí.
+        </p>
+        <form method="POST" action="{{ path('affiliation_create') }}" class="row g-2 align-items-end">
+          <input type="hidden" name="_token" value="{{ csrf_token('affiliation_create') }}">
+          <div class="col-md-5">
+            <label for="clientId" class="form-label">Cliente</label>
+            <select class="form-select" name="clientId" id="clientId" required>
+              <option value="" selected disabled>Seleccione un cliente</option>
+              {% for c in clients %}
+                <option value="{{ c.id }}">{{ c.name }} {{ c.lastName }} ({{ c.email }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-5">
+            <label for="companyId" class="form-label">Empresa</label>
+            <select class="form-select" name="companyId" id="companyId" required>
+              <option value="" selected disabled>Seleccione una empresa</option>
+              {% for co in companies %}
+                <option value="{{ co.id }}">{{ co.name }} ({{ co.rfc }})</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-2">
+            <button type="submit" class="btn btn-primary w-100">Afiliar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h5 class="card-title mb-0">Pendientes de autorización</h5>
           {% if pending|length %}

@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Associated;
+use App\Entity\Company;
 use App\Entity\User;
 use App\Notification\AffiliationStatusMailer;
 use Doctrine\ORM\EntityManagerInterface;
@@ -14,10 +15,12 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * Autorizacion de las afiliaciones que solicitan los clientes.
+ * Afiliacion de clientes a empresas: quien tiene acceso a los expedientes,
+ * documentos y cuentas de gastos de cada empresa.
  *
- * Afiliarse a una empresa da acceso a sus expedientes, sus documentos y sus
- * cuentas de gastos, asi que la decision es de la agencia, no del solicitante.
+ * El cliente ya no puede afiliarse solo (ver DashboardCompanies, de donde se
+ * quito ese flujo) — ahora la agencia crea la afiliacion directamente desde
+ * aqui, o decide sobre alguna que haya quedado pendiente de un flujo previo.
  */
 #[IsGranted('ROLE_EXECUTIVE')]
 class DashboardAffiliations extends AbstractController
@@ -34,6 +37,11 @@ class DashboardAffiliations extends AbstractController
 
         $repository = $this->entityManager->getRepository(Associated::class);
 
+        $clients = array_filter(
+            $this->entityManager->getRepository(User::class)->findAll(),
+            static fn (User $u): bool => in_array('ROLE_CLIENT', $u->getRoles(), true)
+        );
+
         return $this->render('/dashboard/affiliations.html.twig', [
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
@@ -44,7 +52,70 @@ class DashboardAffiliations extends AbstractController
                 ['id' => 'DESC'],
                 50
             ),
+            'clients' => $clients,
+            'companies' => $this->entityManager->getRepository(Company::class)->findBy([], ['name' => 'ASC']),
         ]);
+    }
+
+    /**
+     * El cliente ya no se afilia solo (ver DashboardCompanies): la agencia
+     * crea la afiliacion directamente, ya aprobada — no tiene sentido pasar
+     * por "pendiente" cuando es el propio ejecutivo/admin quien la esta dando
+     * de alta.
+     */
+    #[Route('/dashboard/afiliaciones/nueva', name: 'affiliation_create', methods: ['POST'])]
+    public function create(Request $r, AffiliationStatusMailer $mailer): Response
+    {
+        if (!$this->isCsrfTokenValid('affiliation_create', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('affiliations');
+        }
+
+        $client = $this->entityManager->getRepository(User::class)->find($r->request->get('clientId'));
+
+        if (!$client || !in_array('ROLE_CLIENT', $client->getRoles(), true)) {
+            $this->addFlash('error', 'Selecciona un cliente válido.');
+
+            return $this->redirectToRoute('affiliations');
+        }
+
+        $company = $this->entityManager->getRepository(Company::class)->find($r->request->get('companyId'));
+
+        if (!$company) {
+            $this->addFlash('error', 'Selecciona una empresa válida.');
+
+            return $this->redirectToRoute('affiliations');
+        }
+
+        $existing = $this->entityManager->getRepository(Associated::class)->findOneBy([
+            'idClient' => $client,
+            'idCompany' => $company,
+        ]);
+
+        if ($existing) {
+            $this->addFlash('error', sprintf(
+                '%s ya tiene una afiliación (%s) a %s.',
+                $client->getEmail(),
+                $existing->getStatus(),
+                $company->getName()
+            ));
+
+            return $this->redirectToRoute('affiliations');
+        }
+
+        $association = new Associated();
+        $association->setIdClient($client);
+        $association->setIdCompany($company);
+        $association->setStatus(Associated::APPROVED);
+
+        $this->entityManager->persist($association);
+        $this->entityManager->flush();
+        $mailer->notify($association);
+
+        $this->addFlash('success', sprintf('Se afilió a %s con %s.', $client->getEmail(), $company->getName()));
+
+        return $this->redirectToRoute('affiliations');
     }
 
     #[Route('/dashboard/afiliaciones/{id}/{decision}', name: 'affiliation_decide', requirements: ['id' => '\d+', 'decision' => 'aprobar|rechazar'], methods: ['POST'])]

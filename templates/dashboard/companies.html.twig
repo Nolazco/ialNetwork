@@ -4,8 +4,7 @@
   <div class="content">
     <h2 class="mb-4">Empresas</h2>
     {% if companies %}
-      <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a> <a href="#"
-        class="btn btn-primary" id="btn-associate">Afiliarme a una empresa</a>
+      <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a>
       <table class="table table-striped">
         <thead>
           <tr>
@@ -55,9 +54,14 @@
         </div>
         <div class="card-body">
           <h5 class="card-title">Sin registros</h5>
-          <p class="card-text">Da de alta una empresa o registrate en una.</p>
-          <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a> <a href="#" id="btn-associate"
-            class="btn btn-primary">Afiliarme a una empresa</a>
+          <p class="card-text">
+            {% if is_granted('ROLE_EXECUTIVE') %}
+              Todavía no hay empresas dadas de alta.
+            {% else %}
+              Da de alta una empresa, o pide que la agencia te afilie a una ya existente.
+            {% endif %}
+          </p>
+          <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a>
         </div>
         <div class="card-footer text-body-secondary"></div>
       </div>
@@ -153,54 +157,6 @@
           }
         });
       }
-
-      document.getElementById('btn-associate').addEventListener('click', function(e) {
-        e.preventDefault();
-
-        fetch('/dashboard/empresas/disponibles', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json'
-          }
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (!data.empresas.length) {
-              Swal.fire('¡Sin empresas!', 'Ya estás afiliado a todas las empresas disponibles.', 'info');
-              return;
-            }
-
-            Swal.fire({
-              title: 'Selecciona una empresa',
-              input: 'select',
-              inputOptions: data.empresas.reduce((options, empresa) => {
-                options[empresa.id] = empresa.name + ' (' + empresa.rfc + ')';
-                return options;
-              }, {}),
-              inputPlaceholder: 'Selecciona una empresa...',
-              showCancelButton: true,
-              confirmButtonText: 'Afiliarme',
-              cancelButtonText: 'Cancelar'
-            }).then(result => {
-              if (result.isConfirmed && result.value) {
-                console.log(result.value);
-                fetch('/dashboard/empresas/afiliar/' + result.value, {
-                  method: 'POST',
-                  headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/json'
-                  }
-                }).then(res => res.json()).then(data => {
-                  Swal.fire(
-                    'Solicitud enviada',
-                    data.message || 'Tu solicitud quedó pendiente de autorización por la agencia.',
-                    'info'
-                  ).then(() => location.reload());
-                });
-              }
-            });
-          });
-      });
 
       document.querySelectorAll('.view-documents').forEach(btn => {
         btn.addEventListener('click', async () => {
