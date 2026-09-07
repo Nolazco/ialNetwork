@@ -65,7 +65,7 @@
               </td>
               <td>{{ (d.references|first) and (d.references|first).cr ? (d.references|first).cr.name : 'Sin asignar' }}</td>
               <td>
-                {{ d.transport ? d.transport.companyName : 'Transporte pendiente' }}
+                {{ d.haulerDisplayName ?? 'Transporte pendiente' }}
                 {% if d.vehicle or d.driver %}
                   <div class="small text-body-secondary">
                     {{ d.vehicle ? d.vehicle.plates : '' }}{{ d.vehicle and d.driver ? ' · ' : '' }}{{ d.driver ? d.driver.name : '' }}

@@ -144,7 +144,7 @@
                   <span class="fw-semibold">{{ delivery.hour|date('H:i') }}</span>
                   {{ delivery.references|map(r => r.agencyReference)|join(', ') }}
                   <span class="text-body-secondary small d-block">
-                    {{ delivery.transport ? delivery.transport.companyName : 'Transporte pendiente' }}
+                    {{ delivery.haulerDisplayName ?? 'Transporte pendiente' }}
                   </span>
                 </div>
                 <span class="badge {{ delivery.stage == 'Fallido' ? 'text-bg-danger' : (delivery.stage == 'Entregado' ? 'text-bg-success' : (delivery.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
