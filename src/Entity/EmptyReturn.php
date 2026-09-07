@@ -63,7 +63,13 @@ class EmptyReturn
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $slipRoute = null;
 
-    /** Folio del EIR que entrega el patio al recibir el vacio. Nullable: se llena hasta que se registra la devolucion real. */
+    /**
+     * Identifica la devolucion (ej. "EIR HLHU8205066"). El folio real que
+     * entrega el patio casi nunca importa en la practica, asi que ya no se le
+     * pide al transportista: se genera solo con el contenedor al registrar
+     * la devolucion (ver DashboardDeliveries::registerEmptyReturn()).
+     * Nullable: se llena hasta ese momento.
+     */
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $eir = null;
 

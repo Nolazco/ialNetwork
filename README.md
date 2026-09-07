@@ -74,10 +74,11 @@ Solo aplica a la **importación contenerizada**, que es la única secuencia con 
 estado «Vacío devuelto».
 
 Lo registra el transportista desde su despacho, una vez confirmada la entrega:
-por cada contenedor captura el patio, el tipo de devolución
+por cada contenedor captura el tipo de devolución
 ([`EmptyReturnCatalog`](src/Workflow/EmptyReturnCatalog.php): Directa o
-Recolección), la fecha, el folio del EIR y el EIR escaneado. El expediente pasa
-a «Vacío devuelto» cuando **han vuelto todos** los contenedores.
+Recolección), la fecha y el EIR escaneado — el folio ya no se le pide, se
+genera solo con el número de contenedor. El expediente pasa a «Vacío
+devuelto» cuando **han vuelto todos** los contenedores.
 
 El ejecutivo no puede marcar ese estado a mano: el controlador lo rechaza
 mientras quede algún contenedor sin EIR, para que el expediente no cierre sin el

@@ -103,19 +103,13 @@
                 </select>
               </div>
 
-              <div class="col-md-2">
+              <div class="col-md-3">
                 <label for="date-{{ c.id }}" class="form-label">Fecha</label>
                 <input type="date" class="form-control" name="date" id="date-{{ c.id }}"
                        value="{{ "now"|date('Y-m-d') }}" required>
               </div>
 
-              <div class="col-md-3">
-                <label for="eir-{{ c.id }}" class="form-label">Folio EIR</label>
-                <input type="text" class="form-control" name="eir" id="eir-{{ c.id }}"
-                       placeholder="Folio" required>
-              </div>
-
-              <div class="col-md-3">
+              <div class="col-md-4">
                 <label for="eirFile-{{ c.id }}" class="form-label">EIR escaneado</label>
                 <input type="file" class="form-control" name="eirFile" id="eirFile-{{ c.id }}" required>
               </div>

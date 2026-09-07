@@ -52,7 +52,6 @@ final class ForwarderMailer
                 'clientReference' => $import->getClientReference(),
                 'containerNum' => $return->getContainer()?->getNum(),
                 'containerType' => $return->getContainer()?->getType(),
-                'eir' => $return->getEir(),
                 'yardName' => $return->getYard()?->getName(),
                 'returnDate' => $return->getDate(),
                 'returnType' => $return->getType(),

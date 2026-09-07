@@ -605,11 +605,10 @@ class DashboardDeliveries extends AbstractController
             return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
         }
 
-        $eir = trim((string) $r->request->get('eir'));
         $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('date'));
 
-        if ($eir === '' || !$date) {
-            $this->addFlash('error', 'Folio del EIR y fecha son obligatorios.');
+        if (!$date) {
+            $this->addFlash('error', 'La fecha es obligatoria.');
 
             return $this->redirectToRoute('delivery_empty_returns', ['id' => $delivery->getId()]);
         }
@@ -641,9 +640,12 @@ class DashboardDeliveries extends AbstractController
         // existe y sigue sin ejecutarse.
         $return = $this->coordinator->emptyReturnFor($container);
 
+        // El folio del EIR casi nunca importa en la practica: en vez de
+        // pedirselo al transportista, se guarda un valor fijo con el
+        // contenedor, que es lo unico que de verdad identifica la devolucion.
         $return->setTransport($delivery->getReturnTransport() ?? $delivery->getTransport());
         $return->setType($type);
-        $return->setEir($eir);
+        $return->setEir(sprintf('EIR %s', $container->getNum()));
         $return->setDate($date->setTime(0, 0));
 
         if ($route = $this->storeEir($r, $delivery, $container, $slugger)) {
