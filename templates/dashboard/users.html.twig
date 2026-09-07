@@ -412,10 +412,11 @@
         const btn = e.currentTarget;
         const userId = btn.getAttribute("data-id");
         const current = btn.getAttribute("data-aduanas").split(",").filter(Boolean);
+        const isAll = current.length === 0;
 
         const checkboxesHtml = Object.entries(aduanaLabels).map(([code, label]) => `
           <div class="form-check text-start">
-            <input class="form-check-input swal-aduana-check" type="checkbox" value="${code}" id="aduana-${code}" ${current.includes(code) ? "checked" : ""}>
+            <input class="form-check-input swal-aduana-check" type="checkbox" value="${code}" id="aduana-${code}" ${current.includes(code) ? "checked" : ""} ${isAll ? "disabled" : ""}>
             <label class="form-check-label" for="aduana-${code}">${label}</label>
           </div>
         `).join('');
@@ -423,14 +424,47 @@
         Swal.fire({
           title: "Asignar aduanas",
           html: `
-            <p class="text-start small text-muted">Sin ninguna marcada, este ejecutivo sigue recibiendo alertas de cualquier aduana.</p>
+            <div class="form-check text-start mb-2 border-bottom pb-2">
+              <input class="form-check-input" type="checkbox" id="swal-aduana-all" ${isAll ? "checked" : ""}>
+              <label class="form-check-label fw-bold" for="swal-aduana-all">Todas las aduanas</label>
+            </div>
             ${checkboxesHtml}
           `,
           focusConfirm: false,
           showCancelButton: true,
           confirmButtonText: "Guardar",
           cancelButtonText: "Cancelar",
-          preConfirm: () => Array.from(document.querySelectorAll(".swal-aduana-check:checked")).map(cb => cb.value)
+          didOpen: () => {
+            const allCheckbox = document.getElementById("swal-aduana-all");
+            const individualChecks = document.querySelectorAll(".swal-aduana-check");
+
+            allCheckbox.addEventListener("change", () => {
+              individualChecks.forEach(cb => {
+                cb.disabled = allCheckbox.checked;
+                if (allCheckbox.checked) cb.checked = false;
+              });
+            });
+
+            individualChecks.forEach(cb => {
+              cb.addEventListener("change", () => {
+                if (cb.checked) allCheckbox.checked = false;
+              });
+            });
+          },
+          preConfirm: () => {
+            if (document.getElementById("swal-aduana-all").checked) {
+              return [];
+            }
+
+            const selected = Array.from(document.querySelectorAll(".swal-aduana-check:checked")).map(cb => cb.value);
+
+            if (selected.length === 0) {
+              Swal.showValidationMessage("Marca \"Todas las aduanas\" o selecciona al menos una.");
+              return false;
+            }
+
+            return selected;
+          }
         }).then(result => {
           if (result.isConfirmed) {
             const selected = result.value;
