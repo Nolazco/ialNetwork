@@ -424,9 +424,11 @@ class DashboardCaseFiles extends AbstractController
     /**
      * La fecha de arribo que captura el cliente al dar de alta suele ser un
      * estimado, no la definitiva: por eso cliente y ejecutivo pueden
-     * corregirla despues. Una vez marcada "confirmada", solo el ejecutivo
-     * puede seguir editandola (el cliente ni siquiera ve el formulario, ver
-     * caseFile.html.twig, pero se blinda tambien aqui).
+     * corregirla despues. Solo el ejecutivo puede marcarla "confirmada" (o
+     * quitarle la confirmacion) — el cliente puede seguir corrigiendo la
+     * fecha, pero no confirmarla el mismo (el cliente ni siquiera ve la
+     * casilla, ver caseFile.html.twig, pero se blinda tambien aqui). Una vez
+     * confirmada, solo el ejecutivo puede seguir editandola.
      */
     #[Route('/dashboard/pedimentos/expediente/{id}/eta', name: 'case_file_eta', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function updateEta(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
@@ -457,13 +459,11 @@ class DashboardCaseFiles extends AbstractController
 
         $import->setEta($eta);
 
-        $confirmed = (bool) $r->request->get('etaConfirmed');
-
-        // Un cliente puede confirmarla, pero no quitarle la confirmacion una
-        // vez puesta: eso queda solo para el ejecutivo, por si hay que
-        // corregir un error.
-        if ($this->isGranted('ROLE_EXECUTIVE') || $confirmed) {
-            $import->setEtaConfirmed($confirmed);
+        // Confirmar (o quitarle la confirmacion) es solo del ejecutivo: un
+        // cliente puede seguir corrigiendo la fecha, pero no darla por
+        // definitiva el mismo.
+        if ($this->isGranted('ROLE_EXECUTIVE')) {
+            $import->setEtaConfirmed((bool) $r->request->get('etaConfirmed'));
         }
 
         $this->entityManager->flush();
