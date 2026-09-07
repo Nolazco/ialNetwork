@@ -1,0 +1,88 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <div class="content">
+    <h2 class="mb-4">Inicio</h2>
+
+    {% if haulers|length == 0 %}
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <p class="mb-3">Todavía no tienes una empresa de transporte registrada.</p>
+          <a href="{{ path('hauler_companies') }}" class="btn btn-primary">Registrar empresa de transporte</a>
+        </div>
+      </div>
+    {% else %}
+      <div class="row g-4 mb-5">
+        <div class="col-lg-8">
+          <h5 class="text-body-secondary text-uppercase small mb-3">Despachos de hoy</h5>
+          <div class="card shadow-sm">
+            <div class="card-body">
+              {% if todayDeliveries|length %}
+                <ul class="list-group list-group-flush">
+                  {% for delivery in todayDeliveries %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0 flex-wrap gap-2">
+                      <div>
+                        <span class="fw-semibold">{{ delivery.hour|date('H:i') }}</span>
+                        {{ delivery.references|map(r => r.agencyReference)|join(', ') }}
+                        <span class="text-body-secondary small d-block">
+                          {% if delivery.vehicle and delivery.driver %}
+                            Unidad {{ delivery.vehicle.plates }} · {{ delivery.driver.name }}
+                          {% else %}
+                            Falta asignar unidad y chofer
+                          {% endif %}
+                        </span>
+                      </div>
+                      <span class="badge {{ delivery.stage == 'Fallido' ? 'text-bg-danger' : (delivery.stage == 'Entregado' ? 'text-bg-success' : (delivery.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
+                        {{ delivery.stage }}
+                      </span>
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="text-body-secondary mb-0">No tienes despachos programados para hoy.</p>
+              {% endif %}
+            </div>
+            <div class="card-footer bg-transparent">
+              <a href="{{ path('deliveries') }}" class="small text-decoration-none">Ver todos los despachos <i class="bi bi-arrow-right"></i></a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <h5 class="text-body-secondary text-uppercase small mb-3">Pendientes</h5>
+          <div class="row g-3">
+            <div class="col-6">
+              <div class="card text-bg-{{ missingVehicle > 0 ? 'warning' : 'light' }} shadow-sm h-100">
+                <div class="card-body">
+                  <p class="card-text fs-4 mb-0">{{ missingVehicle }}</p>
+                  <p class="card-text small">Despachos sin unidad asignada</p>
+                </div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="card text-bg-{{ pendingReturnsTotal > 0 ? 'warning' : 'light' }} shadow-sm h-100">
+                <div class="card-body">
+                  <p class="card-text fs-4 mb-0">{{ pendingReturnsTotal }}</p>
+                  <p class="card-text small">Contenedores por devolver</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <h5 class="text-body-secondary text-uppercase small mb-3">Tu flota</h5>
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <p class="mb-0">
+            <span class="fw-semibold fs-5">{{ vehicleTotal }}</span> unidad{{ vehicleTotal == 1 ? '' : 'es' }} ·
+            <span class="fw-semibold fs-5">{{ driverTotal }}</span> chofer{{ driverTotal == 1 ? '' : 'es' }}
+            registrado{{ driverTotal == 1 ? '' : 's' }}
+          </p>
+        </div>
+        <div class="card-footer bg-transparent">
+          <a href="{{ path('hauler_fleet', { hauler: haulers[0].id }) }}" class="small text-decoration-none">Administrar flota <i class="bi bi-arrow-right"></i></a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}

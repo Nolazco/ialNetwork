@@ -1,42 +1,165 @@
 {% extends '/dashboard/baseDashboard.html.twig' %}
 {% block body %}
-	<!-- Contenido principal -->
   <div class="content">
-    <h2 class="mb-4">Resumen</h2>
-    <div class="row g-4">
-      <div class="col-md-4">
-        <div class="card text-bg-primary shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Usuarios pendientes de validacion</h5>
-            <p class="card-text fs-4">{{ pending }}</p>
+    <h2 class="mb-4">Inicio</h2>
+
+    {% if is_granted('ROLE_ADMIN') %}
+      <h5 class="text-body-secondary text-uppercase small mb-3">Pendientes de validar</h5>
+      <div class="row g-4 mb-5">
+        <div class="col-md-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="card-title mb-0">Usuarios pendientes de validación</h5>
+                <span class="badge text-bg-warning fs-6">{{ pendingUsersTotal }}</span>
+              </div>
+              {% if pendingUsers|length %}
+                <ul class="list-group list-group-flush mb-2">
+                  {% for u in pendingUsers %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                      <span>{{ u.name }} {{ u.lastName }}</span>
+                      <span class="text-body-secondary small">{{ u.email }}</span>
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="text-body-secondary mb-2">No hay usuarios pendientes.</p>
+              {% endif %}
+              <a href="{{ path('users') }}" class="btn btn-sm btn-outline-secondary">Ver en Usuarios <i class="bi bi-arrow-right"></i></a>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-body">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <h5 class="card-title mb-0">Afiliaciones pendientes de validación</h5>
+                <span class="badge text-bg-warning fs-6">{{ pendingAssociationsTotal }}</span>
+              </div>
+              {% if pendingAssociations|length %}
+                <ul class="list-group list-group-flush mb-2">
+                  {% for a in pendingAssociations %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                      <span>{{ a.idClient.email }}</span>
+                      <span class="text-body-secondary small">{{ a.idCompany.name }}</span>
+                    </li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="text-body-secondary mb-2">No hay afiliaciones pendientes.</p>
+              {% endif %}
+              <a href="{{ path('affiliations') }}" class="btn btn-sm btn-outline-secondary">Ver en Afiliaciones <i class="bi bi-arrow-right"></i></a>
+            </div>
           </div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="card text-bg-success shadow-sm">
+    {% endif %}
+
+    <h5 class="text-body-secondary text-uppercase small mb-3">Requiere tu atención</h5>
+    <div class="card shadow-sm mb-5">
+      <div class="card-body">
+        {% if attentionQueue|length %}
+          <ul class="list-group list-group-flush">
+            {% for item in attentionQueue %}
+              <li class="list-group-item d-flex justify-content-between align-items-start px-0 flex-wrap gap-2">
+                <div>
+                  <a href="{{ path('case_file', { id: item.import.id }) }}" class="fw-semibold text-decoration-none">
+                    {{ item.import.agencyReference }}
+                  </a>
+                  <span class="text-body-secondary">{{ item.import.idCompany.name }}</span>
+                  <div class="small text-body-secondary">{{ item.reason }}</div>
+                </div>
+                <span class="badge text-bg-secondary align-self-center">{{ item.import.status }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if attentionTotal > attentionQueue|length %}
+            <p class="text-body-secondary small mt-3 mb-0">Y {{ attentionTotal - attentionQueue|length }} más.</p>
+          {% endif %}
+        {% else %}
+          <p class="text-success mb-0"><i class="bi bi-check-circle"></i> No hay expedientes esperando algo de ti ahora mismo.</p>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-transparent">
+        <a href="/dashboard/pedimentos/" class="small text-decoration-none">Ver todos los expedientes <i class="bi bi-arrow-right"></i></a>
+      </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+      <div class="col-lg-7">
+        <h5 class="text-body-secondary text-uppercase small mb-3">Expedientes activos por etapa · {{ activeTotal }}</h5>
+        <div class="card shadow-sm h-100">
           <div class="card-body">
-            <h5 class="card-title">Empresas pendientes de validacion</h5>
-            <p class="card-text fs-4">1</p>
+            {% if statusCounts|length %}
+              <div class="d-flex flex-wrap gap-2">
+                {% for status, count in statusCounts %}
+                  <span class="badge text-bg-light border text-body fs-6 fw-normal">{{ status }} <span class="fw-bold">{{ count }}</span></span>
+                {% endfor %}
+              </div>
+            {% else %}
+              <p class="text-body-secondary mb-0">No hay expedientes activos.</p>
+            {% endif %}
           </div>
         </div>
       </div>
-      <div class="col-md-4">
-        <div class="card text-bg-warning shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Pedimentos pendientes de apertura</h5>
-            <p class="card-text fs-4">0</p>
+      <div class="col-lg-5">
+        <h5 class="text-body-secondary text-uppercase small mb-3">Alertas operativas</h5>
+        <div class="row g-3">
+          <div class="col-6">
+            <div class="card text-bg-{{ unconfirmedToday > 0 ? 'warning' : 'light' }} shadow-sm h-100">
+              <div class="card-body">
+                <p class="card-text fs-4 mb-0">{{ unconfirmedToday }}</p>
+                <p class="card-text small">Despachos de hoy sin salida confirmada</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="card text-bg-{{ pendingReturns > 0 ? 'warning' : 'light' }} shadow-sm h-100">
+              <div class="card-body">
+                <p class="card-text fs-4 mb-0">{{ pendingReturns }}</p>
+                <p class="card-text small">Contenedores pendientes de devolver</p>
+              </div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="card text-bg-light shadow-sm h-100">
+              <div class="card-body">
+                <p class="card-text fs-4 mb-0">{{ scheduledAwaitingModulation }}</p>
+                <p class="card-text small">Programados esperando modulación</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
-    <hr class="my-5">
-
-    <h3>Actividad reciente</h3>
-    <ul class="list-group">
-      <li class="list-group-item">Usuario Juan inició sesión</li>
-      <li class="list-group-item">Nuevo reporte generado</li>
-      <li class="list-group-item">Actualización de configuración</li>
-    </ul>
+    <h5 class="text-body-secondary text-uppercase small mb-3">Despachos de hoy</h5>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% if todayDeliveries|length %}
+          <ul class="list-group list-group-flush">
+            {% for delivery in todayDeliveries %}
+              <li class="list-group-item d-flex justify-content-between align-items-center px-0 flex-wrap gap-2">
+                <div>
+                  <span class="fw-semibold">{{ delivery.hour|date('H:i') }}</span>
+                  {{ delivery.references|map(r => r.agencyReference)|join(', ') }}
+                  <span class="text-body-secondary small d-block">
+                    {{ delivery.transport ? delivery.transport.companyName : 'Transporte pendiente' }}
+                  </span>
+                </div>
+                <span class="badge {{ delivery.stage == 'Fallido' ? 'text-bg-danger' : (delivery.stage == 'Entregado' ? 'text-bg-success' : (delivery.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary')) }}">
+                  {{ delivery.stage }}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-body-secondary mb-0">No hay despachos programados para hoy.</p>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-transparent">
+        <a href="{{ path('deliveries') }}" class="small text-decoration-none">Ver todos los despachos <i class="bi bi-arrow-right"></i></a>
+      </div>
+    </div>
   </div>
 {% endblock %}

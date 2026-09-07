@@ -1,0 +1,231 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Mi flota{% endblock %}
+
+{% block body %}
+  <div class="content">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Mi flota</h2>
+        <p class="text-body-secondary mb-0">{{ hauler.companyName }} (CAAT {{ hauler.caat }})</p>
+      </div>
+      <a href="{{ path('hauler_companies') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a mis empresas
+      </a>
+    </div>
+
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Unidades</h5>
+
+            {% if vehicles %}
+              <table class="table table-striped align-middle mb-4">
+                <thead>
+                  <tr>
+                    <th scope="col">Placas</th>
+                    <th scope="col">Núm. económico</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col" class="text-end">Opciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for v in vehicles %}
+                    <tr>
+                      <td>{{ v.plates }}</td>
+                      <td>{{ v.economicNumber }}</td>
+                      <td>{{ v.type }}</td>
+                      <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary js-edit-toggle" data-target="edit-vehicle-{{ v.id }}" title="Editar">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <form method="POST" class="d-inline js-confirm-delete" action="{{ path('hauler_fleet_delete_vehicle', { id: v.id }) }}">
+                          <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_delete_vehicle') }}">
+                          <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar unidad">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                    <tr id="edit-vehicle-{{ v.id }}" class="d-none">
+                      <td colspan="4">
+                        <form method="POST" action="{{ path('hauler_fleet_edit_vehicle', { id: v.id }) }}" class="row g-2 align-items-end">
+                          <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_edit_vehicle') }}">
+                          <div class="col-md-4">
+                            <label class="form-label small">Placas</label>
+                            <input type="text" class="form-control form-control-sm" name="plates" value="{{ v.plates }}" required>
+                          </div>
+                          <div class="col-md-4">
+                            <label class="form-label small">Núm. económico</label>
+                            <input type="text" class="form-control form-control-sm" name="economicNumber" value="{{ v.economicNumber }}">
+                          </div>
+                          <div class="col-md-3">
+                            <label class="form-label small">Tipo</label>
+                            <input type="text" class="form-control form-control-sm" name="type" value="{{ v.type }}">
+                          </div>
+                          <div class="col-md-1">
+                            <button type="submit" class="btn btn-sm btn-primary w-100">
+                              <i class="bi bi-save"></i>
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p class="text-body-secondary">Todavía no registras ninguna unidad.</p>
+            {% endif %}
+
+            <form method="POST" action="{{ path('hauler_fleet_add_vehicle', { hauler: hauler.id }) }}" class="row g-2 align-items-end">
+              <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_add_vehicle') }}">
+              <div class="col-md-4">
+                <label for="plates" class="form-label">Placas</label>
+                <input type="text" class="form-control" name="plates" id="plates" required>
+              </div>
+              <div class="col-md-4">
+                <label for="economicNumber" class="form-label">Núm. económico</label>
+                <input type="text" class="form-control" name="economicNumber" id="economicNumber">
+              </div>
+              <div class="col-md-3">
+                <label for="type" class="form-label">Tipo</label>
+                <input type="text" class="form-control" name="type" id="type" placeholder="Ej. Torton">
+              </div>
+              <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100" title="Agregar unidad">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="card-title mb-3">Choferes</h5>
+
+            {% if drivers %}
+              <table class="table table-striped align-middle mb-4">
+                <thead>
+                  <tr>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Teléfono</th>
+                    <th scope="col">Licencia</th>
+                    <th scope="col" class="text-end">Opciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for d in drivers %}
+                    <tr>
+                      <td>{{ d.name }}</td>
+                      <td>{{ d.phone }}</td>
+                      <td>{{ d.license }}</td>
+                      <td class="text-end text-nowrap">
+                        <button type="button" class="btn btn-sm btn-outline-secondary js-edit-toggle" data-target="edit-driver-{{ d.id }}" title="Editar">
+                          <i class="bi bi-pencil"></i>
+                        </button>
+                        <form method="POST" class="d-inline js-confirm-delete" action="{{ path('hauler_fleet_delete_driver', { id: d.id }) }}">
+                          <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_delete_driver') }}">
+                          <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar chofer">
+                            <i class="bi bi-trash"></i>
+                          </button>
+                        </form>
+                      </td>
+                    </tr>
+                    <tr id="edit-driver-{{ d.id }}" class="d-none">
+                      <td colspan="4">
+                        <form method="POST" action="{{ path('hauler_fleet_edit_driver', { id: d.id }) }}" class="row g-2 align-items-end">
+                          <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_edit_driver') }}">
+                          <div class="col-md-5">
+                            <label class="form-label small">Nombre</label>
+                            <input type="text" class="form-control form-control-sm" name="name" value="{{ d.name }}" required>
+                          </div>
+                          <div class="col-md-3">
+                            <label class="form-label small">Teléfono</label>
+                            <input type="text" class="form-control form-control-sm" name="phone" value="{{ d.phone }}">
+                          </div>
+                          <div class="col-md-3">
+                            <label class="form-label small">Licencia</label>
+                            <input type="text" class="form-control form-control-sm" name="license" value="{{ d.license }}">
+                          </div>
+                          <div class="col-md-1">
+                            <button type="submit" class="btn btn-sm btn-primary w-100">
+                              <i class="bi bi-save"></i>
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            {% else %}
+              <p class="text-body-secondary">Todavía no registras ningún chofer.</p>
+            {% endif %}
+
+            <form method="POST" action="{{ path('hauler_fleet_add_driver', { hauler: hauler.id }) }}" class="row g-2 align-items-end">
+              <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_add_driver') }}">
+              <div class="col-md-5">
+                <label for="name" class="form-label">Nombre</label>
+                <input type="text" class="form-control" name="name" id="name" required>
+              </div>
+              <div class="col-md-3">
+                <label for="phone" class="form-label">Teléfono</label>
+                <input type="text" class="form-control" name="phone" id="phone">
+              </div>
+              <div class="col-md-3">
+                <label for="license" class="form-label">Licencia</label>
+                <input type="text" class="form-control" name="license" id="license">
+              </div>
+              <div class="col-md-1">
+                <button type="submit" class="btn btn-primary w-100" title="Agregar chofer">
+                  <i class="bi bi-plus-lg"></i>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      document.querySelectorAll(".js-edit-toggle").forEach(function (boton) {
+        boton.addEventListener("click", function () {
+          const fila = document.getElementById(boton.dataset.target);
+          if (fila) {
+            fila.classList.toggle("d-none");
+          }
+        });
+      });
+
+      document.querySelectorAll(".js-confirm-delete").forEach(function (form) {
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          Swal.fire({
+            title: "¿Eliminar?",
+            text: "Esta acción no se puede deshacer.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonColor: "#dc3545",
+            cancelButtonColor: "#6c757d",
+            confirmButtonText: "Eliminar",
+            cancelButtonText: "Cancelar"
+          }).then(function (result) {
+            if (result.isConfirmed) {
+              form.submit();
+            }
+          });
+        });
+      });
+    });
+  </script>
+{% endblock %}

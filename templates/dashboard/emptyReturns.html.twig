@@ -1,0 +1,129 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Devolución de vacíos{% endblock %}
+
+{% block body %}
+  <div class="content">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Devolución de vacíos</h2>
+        <p class="text-body-secondary mb-0">
+          Expediente{{ delivery.references|length > 1 ? 's' : '' }}
+          {%- for r in delivery.references %} {{ r.clientReference }} ({{ r.idCompany.name }}){{ not loop.last ? ',' : '' }}{% endfor %}
+          &middot; cita {{ delivery.date|date('d/m/Y') }} {{ delivery.hour|date('H:i') }}
+        </p>
+      </div>
+      <a href="{{ path('deliveries') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+
+    {% if returned %}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Ya devueltos</h5>
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Contenedor</th>
+                <th scope="col">Patio</th>
+                <th scope="col">Tipo</th>
+                <th scope="col">Fecha</th>
+                <th scope="col">EIR</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for e in returned %}
+                <tr>
+                  <td>{{ e.container.num }} <span class="text-body-secondary">&middot; {{ e.container.type }}</span></td>
+                  <td>{{ e.yard.name }}</td>
+                  <td>{{ e.type }}</td>
+                  <td>{{ e.date|date('d/m/Y') }}</td>
+                  <td>
+                    {{ e.eir }}
+                    {% if e.eirRoute %}
+                      <a href="{{ path('case_file_empty_return_eir_download', { id: e.reference.id, return: e.id }) }}" target="_blank" rel="noopener" title="Ver EIR escaneado">
+                        <i class="bi bi-file-earmark-text"></i>
+                      </a>
+                    {% else %}
+                      <span class="badge text-bg-warning">sin escaneo</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if pending is empty %}
+      <div class="card text-center">
+        <div class="card-header">Aviso</div>
+        <div class="card-body">
+          <h5 class="card-title">Nada pendiente</h5>
+          <p class="card-text mb-0">Este despacho ya no tiene contenedores por devolver.</p>
+        </div>
+      </div>
+    {% else %}
+      {% for c in pending %}
+        {% set scheduled = pendingReturns[c.id] %}
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h5 class="card-title mb-3">
+              <i class="bi bi-box-seam"></i> {{ c.num }}
+              <span class="text-body-secondary fs-6">{{ c.type }}</span>
+              {% if delivery.references|length > 1 and containerOwners[c.id] %}
+                <span class="badge text-bg-secondary fs-6">{{ containerOwners[c.id].clientReference }}</span>
+              {% endif %}
+            </h5>
+
+            <p class="text-body-secondary mb-3">
+              Programado por el ejecutivo: patio <strong>{{ scheduled.yard.name }}</strong>,
+              cita el <strong>{{ scheduled.appointmentDate|date('d/m/Y') }}</strong>
+              {% if scheduled.slipRoute %}
+                &middot; <a href="{{ path('case_file_empty_return_slip_download', { id: scheduled.reference.id, return: scheduled.id }) }}" target="_blank" rel="noopener">
+                  <i class="bi bi-file-earmark-text"></i> Papeleta
+                </a>
+              {% endif %}
+            </p>
+
+            <form method="POST" enctype="multipart/form-data" class="row g-2 align-items-end"
+                  action="{{ path('delivery_empty_return', { id: delivery.id, container: c.id }) }}">
+              <input type="hidden" name="_token" value="{{ csrf_token('delivery_empty_return') }}">
+
+              <div class="col-md-2">
+                <label for="type-{{ c.id }}" class="form-label">Tipo</label>
+                <select class="form-select" name="type" id="type-{{ c.id }}" required>
+                  <option selected disabled value="">Seleccione</option>
+                  {% for t in returnTypes %}
+                    <option value="{{ t }}">{{ t }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+
+              <div class="col-md-3">
+                <label for="date-{{ c.id }}" class="form-label">Fecha</label>
+                <input type="date" class="form-control" name="date" id="date-{{ c.id }}"
+                       value="{{ "now"|date('Y-m-d') }}" required>
+              </div>
+
+              <div class="col-md-4">
+                <label for="eirFile-{{ c.id }}" class="form-label">EIR escaneado</label>
+                <input type="file" class="form-control" name="eirFile" id="eirFile-{{ c.id }}" required>
+              </div>
+
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary">
+                  <i class="bi bi-box-arrow-in-left"></i> Registrar devolución
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    {% endif %}
+
+  </div>
+{% endblock %}

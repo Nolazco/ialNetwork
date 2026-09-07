@@ -1,0 +1,121 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block title %}Cuentas bancarias — {{ forwarder.name }}{% endblock %}
+{% block body %}
+  <div class="content">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Cuentas bancarias</h2>
+        <p class="text-body-secondary mb-0">{{ forwarder.name }}</p>
+      </div>
+      <a href="/dashboard/forwarders" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+    </div>
+
+    <div class="alert alert-warning">
+      <i class="bi bi-shield-lock"></i>
+      Información confidencial: nunca se comparte con clientes ni con el propio forwarder por correo.
+    </div>
+
+    <form action="/dashboard/forwarders/{{ forwarder.id }}/cuentas" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="{{ csrf_token('save_forwarder_bank_accounts') }}">
+
+      <div id="accounts-container">
+        {% for account in forwarder.bankAccounts %}
+          <div class="row mb-2 account-row align-items-end">
+            <div class="col">
+              <label class="form-label">Banco</label>
+              <input type="text" class="form-control" name="bankName[]" value="{{ account.bank }}" placeholder="Banco">
+            </div>
+            <div class="col">
+              <label class="form-label">Número de cuenta</label>
+              <input type="text" class="form-control" name="accountNumber[]" value="{{ account.accountNumber }}" placeholder="Número de cuenta">
+            </div>
+            <div class="col">
+              <label class="form-label">CLABE</label>
+              <input type="text" class="form-control" name="clabe[]" value="{{ account.clabe }}" placeholder="CLABE">
+            </div>
+            <div class="col">
+              <label class="form-label">SWIFT</label>
+              <input type="text" class="form-control" name="swift[]" value="{{ account.swift }}" placeholder="SWIFT">
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-outline-danger delete-account-btn" title="Eliminar">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        {% else %}
+          <div class="row mb-2 account-row align-items-end">
+            <div class="col">
+              <label class="form-label">Banco</label>
+              <input type="text" class="form-control" name="bankName[]" placeholder="Banco">
+            </div>
+            <div class="col">
+              <label class="form-label">Número de cuenta</label>
+              <input type="text" class="form-control" name="accountNumber[]" placeholder="Número de cuenta">
+            </div>
+            <div class="col">
+              <label class="form-label">CLABE</label>
+              <input type="text" class="form-control" name="clabe[]" placeholder="CLABE">
+            </div>
+            <div class="col">
+              <label class="form-label">SWIFT</label>
+              <input type="text" class="form-control" name="swift[]" placeholder="SWIFT">
+            </div>
+            <div class="col-auto">
+              <button type="button" class="btn btn-outline-danger delete-account-btn" title="Eliminar">
+                <i class="bi bi-trash"></i>
+              </button>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <button type="button" class="btn btn-outline-primary mb-3" id="add-account-btn">
+        <i class="bi bi-plus"></i> Agregar cuenta
+      </button>
+
+      <div class="mb-3">
+        <label for="bankAccountsFile" class="form-label">Archivo con las cuentas (opcional)</label>
+        <input type="file" class="form-control" name="bankAccountsFile" id="bankAccountsFile">
+        {% if forwarder.bankAccountsFileRoute %}
+          <div class="form-text">
+            Ya hay un archivo cargado —
+            <a href="{{ path('app_forwarder_bank_file', { id: forwarder.id }) }}" target="_blank" rel="noopener">verlo</a>.
+            Sube uno nuevo para reemplazarlo.
+          </div>
+        {% endif %}
+      </div>
+
+      <input class="btn btn-primary mt-2" type="submit" value="Guardar">
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const container = document.getElementById("accounts-container");
+      const addBtn = document.getElementById("add-account-btn");
+
+      addBtn.addEventListener("click", () => {
+        const lastRow = container.querySelector(".account-row");
+        const newRow = lastRow.cloneNode(true);
+        newRow.querySelectorAll("input").forEach(input => input.value = "");
+        container.appendChild(newRow);
+      });
+
+      container.addEventListener("click", function (e) {
+        if (e.target.closest(".delete-account-btn")) {
+          const rows = container.querySelectorAll(".account-row");
+          if (rows.length > 1) {
+            e.target.closest(".account-row").remove();
+          } else {
+            e.target.closest(".account-row").querySelectorAll("input").forEach(input => input.value = "");
+          }
+        }
+      });
+    });
+  </script>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+	<!-- Contenido principal -->
+  <div class="content">
+    <form action="/dashboard/custodias/new" method="POST">
+      <input type="hidden" name="_token" value="{{ csrf_token('create_custodia') }}">
+      <div class="row">
+        <div class="col">
+          <label for="name" class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Nombre de la custodia" required>
+        </div>
+      </div>
+
+      <div class="row mt-3">
+        <div class="col">
+          <label for="contactEmails" class="form-label">Correos de contacto</label>
+          <input type="text" class="form-control" id="contactEmails" name="contactEmails" placeholder="correo1@custodia.com; correo2@custodia.com">
+          <div class="form-text">Puedes capturar varios, separados por punto y coma.</div>
+        </div>
+      </div>
+
+      <div>
+        <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
+      </div>
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+{% endblock %}

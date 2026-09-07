@@ -4,14 +4,13 @@
   <div class="content">
     <h2 class="mb-4">Empresas</h2>
     {% if companies %}
-      <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a> <a href="#"
-        class="btn btn-primary" id="btn-associate">Afiliarme a una empresa</a>
+      <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a>
       <table class="table table-striped">
         <thead>
           <tr>
             <th scope="col">Nombre</th>
             <th scope="col">RFC</th>
-            <th scope="col">Domicilio</th>
+            <th scope="col" style="max-width: 320px;">Domicilio</th>
             <th scope="col">Ver pedimentos</th>
             <th scope="col">Opciones</th>
           </tr>
@@ -21,7 +20,7 @@
             <tr>
               <td>{{ c.name }}</td>
               <td>{{ c.rfc }}</td>
-              <td>{{ c.address }}</td>
+              <td style="max-width: 320px; word-wrap: break-word;">{{ c.address }}</td>
               <td><a href="/dashboard/pedimentos/{{ c.rfc }}" class="btn btn-primary"><i class="bi bi-truck"></i></a></td>
               <td>
                 <button 
@@ -30,7 +29,8 @@
                   data-id="{{ c.id }}"
                   data-name="{{ c.name }}"
                   data-address="{{ c.address }}"
-                  data-rfc="{{ c.rfc }}">
+                  data-rfc="{{ c.rfc }}"
+                  data-classification-contact-email="{{ c.classificationContactEmail }}">
                   <i class="bi bi-pencil-square"></i>
                 </button>
                 <button
@@ -39,6 +39,9 @@
                   data-id="{{ c.id }}">
                   <i class="bi bi-file-pdf"></i>
                 </button>
+                <a href="{{ path('company_edit_address', { id: c.id }) }}" class="btn btn-outline-secondary" title="Domicilio fiscal para XCF">
+                  <i class="bi bi-signpost-split"></i>
+                </a>
               </td>
             </tr>
           {% endfor %}
@@ -51,29 +54,24 @@
         </div>
         <div class="card-body">
           <h5 class="card-title">Sin registros</h5>
-          <p class="card-text">Da de alta una empresa o registrate en una.</p>
-          <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a> <a href="#" id="btn-associate"
-            class="btn btn-primary">Afiliarme a una empresa</a>
+          <p class="card-text">
+            {% if is_granted('ROLE_EXECUTIVE') %}
+              Todavía no hay empresas dadas de alta.
+            {% else %}
+              Da de alta una empresa, o pide que la agencia te afilie a una ya existente.
+            {% endif %}
+          </p>
+          <a href="/dashboard/empresas/nueva" class="btn btn-primary">Nueva empresa</a>
         </div>
         <div class="card-footer text-body-secondary"></div>
       </div>
     {% endif %}
   </div>
 
-  {% for tipo, mensajes in app.flashes %}
-    {% for mensaje in mensajes %}
-      <script>
-        Swal.fire({
-          title: "{% if tipo == 'success' %}Éxito{% else %}Error{% endif %}",
-          text: "{{ mensaje }}",
-          icon: "{{ tipo }}"
-        });
-      </script>
-    {% endfor %}
-  {% endfor %}
 {% endblock %}
 
 {% block javascripts %}
+  {{ parent() }}
   <script>
     document.addEventListener("DOMContentLoaded", function() {
       function showConfirmation({ title, text, icon, confirmButtonText, confirmButtonColor }, onConfirm) {
@@ -99,6 +97,7 @@
         const currentName = btn.getAttribute("data-name");
         const currentAddress = btn.getAttribute("data-address");
         const currentRfc = btn.getAttribute("data-rfc");
+        const currentClassificationContactEmail = btn.getAttribute("data-classification-contact-email");
 
         Swal.fire({
           title: "Editar empresa",
@@ -106,6 +105,7 @@
             <input id="swal-name" class="swal2-input" placeholder="Razon Social" value="${currentName}">
             <input id="swal-address" class="swal2-input" placeholder="Domicilio" value="${currentAddress}">
             <input id="swal-rfc" class="swal2-input" placeholder="RFC" value="${currentRfc}">
+            <input id="swal-classification-contact-email" class="swal2-input" placeholder="Contacto de clasificación (opcional)" value="${currentClassificationContactEmail}">
           `,
           focusConfirm: false,
           showCancelButton: true,
@@ -115,13 +115,14 @@
             const name = document.getElementById("swal-name").value.trim();
             const address = document.getElementById("swal-address").value.trim();
             const rfc = document.getElementById("swal-rfc").value.trim();
+            const classificationContactEmail = document.getElementById("swal-classification-contact-email").value.trim();
 
             if (!name || !address || !rfc) {
               Swal.showValidationMessage("Todos los campos son obligatorios");
               return false;
             }
 
-            return { name, address, rfc };
+            return { name, address, rfc, classificationContactEmail };
           }
         }).then(result => {
           if (result.isConfirmed) {
@@ -143,6 +144,7 @@
                 btn.setAttribute("data-name", updatedData.name);
                 btn.setAttribute("data-address", updatedData.address);
                 btn.setAttribute("data-rfc", updatedData.rfc);
+                btn.setAttribute("data-classification-contact-email", updatedData.classificationContactEmail);
 
                 const row = btn.closest("tr");
                 row.children[0].textContent = updatedData.name;
@@ -155,51 +157,6 @@
           }
         });
       }
-
-      document.getElementById('btn-associate').addEventListener('click', function(e) {
-        e.preventDefault();
-
-        fetch('/dashboard/empresas/disponibles', {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json'
-          }
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (!data.empresas.length) {
-              Swal.fire('¡Sin empresas!', 'Ya estás afiliado a todas las empresas disponibles.', 'info');
-              return;
-            }
-
-            Swal.fire({
-              title: 'Selecciona una empresa',
-              input: 'select',
-              inputOptions: data.empresas.reduce((options, empresa) => {
-                options[empresa.id] = empresa.name + ' (' + empresa.rfc + ')';
-                return options;
-              }, {}),
-              inputPlaceholder: 'Selecciona una empresa...',
-              showCancelButton: true,
-              confirmButtonText: 'Afiliarme',
-              cancelButtonText: 'Cancelar'
-            }).then(result => {
-              if (result.isConfirmed && result.value) {
-                console.log(result.value);
-                fetch('/dashboard/empresas/afiliar/' + result.value, {
-                  method: 'POST',
-                  headers: {
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'Content-Type': 'application/json'
-                  }
-                }).then(() => {
-                  Swal.fire('¡Listo!', 'Te has afiliado exitosamente.', 'success')
-                    .then(() => location.reload());
-                });
-              }
-            });
-          });
-      });
 
       document.querySelectorAll('.view-documents').forEach(btn => {
         btn.addEventListener('click', async () => {
@@ -218,9 +175,11 @@
           let html = `<ul class="list-group">`;
 
           docs.forEach(doc => {
+            const extension = (doc.route || '').split('.').pop().toUpperCase();
+
             html += `
               <li class="list-group-item d-flex justify-content-between align-items-center">
-                <a href="/${doc.route}" target="_blank">${doc.type || 'Documento sin nombre'}</a>
+                <a href="/dashboard/empresas/documentos/${doc.id}/archivo" target="_blank">${doc.type || 'Documento sin nombre'} <span class="badge text-bg-secondary">${extension}</span></a>
                 <div>
                   <button class="btn btn-sm btn-warning edit-doc" data-id="${doc.id}">Editar</button>
                   <button class="btn btn-sm btn-danger delete-doc" data-id="${doc.id}">Eliminar</button>
@@ -282,7 +241,7 @@
                     title: 'Editar documento',
                     html: `
                       <input type="text" id="edit-type" class="swal2-input" placeholder="Tipo de documento">
-                      <input type="file" id="edit-file" class="swal2-file" accept=".pdf">
+                      <input type="file" id="edit-file" class="swal2-file" accept=".pdf,.xml,.zip,.rar,.7z,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.csv">
                     `,
                     showCancelButton: true,
                     confirmButtonText: 'Guardar',
@@ -327,7 +286,7 @@
                   title: 'Agregar nuevo documento',
                   html: `
                     <input type="text" id="doc-type" class="swal2-input" placeholder="Tipo de documento">
-                    <input type="file" id="doc-file" class="swal2-file" accept=".pdf">
+                    <input type="file" id="doc-file" class="swal2-file" accept=".pdf,.xml,.zip,.rar,.7z,.jpg,.jpeg,.png,.xlsx,.xls,.docx,.csv">
                   `,
                   showCancelButton: true,
                   confirmButtonText: 'Guardar',

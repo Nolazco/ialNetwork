@@ -1,48 +1,28 @@
-<?php 
+<?php
 
 namespace App\Controller;
 
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
 
 class Home extends AbstractController {
-	#[Route(name: 'index', path: "/")]
-	function index(Request $r){
-		$session = $r->getSession();
-
-		if($session->get('loged') == 'true'){
-			return $this->render("indexEs.html.twig", ['name' => $session->get('name'), 'role' => $session->get('role'), 'loged' => 'true']);
-		}else{
-			return $this->render("indexEs.html.twig", ['loged' => 'false']);
-		}
-	}
-
-	#[Route(name: 'indexEn', path: "/en")]
-	function indexEn(Request $r){
-		$session = $r->getSession();
-
-		if($session->get('loged') == 'true'){
-			return $this->render("indexEn.html.twig", ['name' => $session->get('name'), 'role' => $session->get('role'), 'loged' => 'true']);
-		}else{
-			return $this->render("indexEn.html.twig", ['loged' => 'false']);
-		}
+	/**
+	 * Portada.
+	 *
+	 * Las dos rutas rinden la misma plantilla; lo unico que cambia es el idioma.
+	 * "_locale" es un parametro especial de Symfony: fijarlo en la ruta cambia el
+	 * idioma de la peticion, y con eso |trans resuelve contra el catalogo que
+	 * toca. Antes eran dos plantillas de 300 lineas practicamente identicas.
+	 */
+	#[Route(name: 'index', path: '/', defaults: ['_locale' => 'es'])]
+	#[Route(name: 'index_en', path: '/en', defaults: ['_locale' => 'en'])]
+	function index(): Response {
+		return $this->render('index.html.twig');
 	}
 
 	#[Route(name: 'register', path: '/register')]
-	function register(){
+	function register(): Response {
 		return $this->render("register.html.twig");
-	}
-
-	#[Route(name: 'login', path: '/login')]
-	function login(){
-		return $this->render("login.html.twig");
-	}
-
-	#[Route(name: 'logout', path: '/logout')]
-	function logout(Request $r){
-		$session = $r->getSession()->set('loged', 'false');
-
-		return $this->redirect('/');
 	}
 }

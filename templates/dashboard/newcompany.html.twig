@@ -3,6 +3,7 @@
 	<!-- Contenido principal -->
   <div class="content">
     <form action="/dashboard/empresas/new" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="{{ csrf_token('create_company') }}">
       <div class="row">
         <div class="col">
           <label for="name" class="form-label">Razon social</label>
@@ -17,6 +18,10 @@
         <div class="col">
           <label for="address" class="form-label">Domicilio</label>
           <input type="text" class="form-control" id="address" name="address" placeholder="Domicilio">
+        </div>
+        <div class="col">
+          <label for="classificationContactEmail" class="form-label">Contacto de clasificación (opcional)</label>
+          <input type="email" class="form-control" id="classificationContactEmail" name="classificationContactEmail" placeholder="Se copia en las solicitudes de clasificación de esta empresa">
         </div>
       </div>
       <div id="documents-container">
@@ -42,6 +47,7 @@
 {% endblock %}
 
 {% block javascripts %}
+  {{ parent() }}
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       const container = document.getElementById("documents-container");

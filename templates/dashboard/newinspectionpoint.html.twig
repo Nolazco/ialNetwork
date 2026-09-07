@@ -1,0 +1,20 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+	<!-- Contenido principal -->
+  <div class="content">
+    <form action="/dashboard/puntos-inspeccion/new" method="POST">
+      <input type="hidden" name="_token" value="{{ csrf_token('create_inspection_point') }}">
+      <div class="row">
+        <div class="col">
+          <label for="name" class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="name" name="name" placeholder="Nombre del punto de inspección">
+        </div>
+      </div>
+      <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
+    </form>
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+{% endblock %}

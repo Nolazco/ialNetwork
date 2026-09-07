@@ -3,8 +3,10 @@
 namespace App\Entity;
 
 use App\Repository\ImportRequestRepository;
+use App\Workflow\AduanaCatalog;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: ImportRequestRepository::class)]
@@ -23,6 +25,43 @@ class ImportRequest
     #[ORM\JoinColumn(nullable: false)]
     private ?Provider $idProvider = null;
 
+    // Nullable: la mayoria de las mercancias vienen consignadas al cliente
+    // directo. Si no es nulo, el expediente esta consignado a ese forwarder
+    // en vez de al cliente (ver Forwarder y ForwarderMailer).
+    #[ORM\ManyToOne(inversedBy: 'importRequests')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Forwarder $forwarder = null;
+
+    // Nullable: null significa domicilio fiscal (Company::address), el caso
+    // mas comun. Si no es nulo, es un almacen del catalogo propio de la
+    // empresa (ver DeliveryPoint).
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?DeliveryPoint $deliveryPoint = null;
+
+    // Nullable: la mayoria de la mercancia no requiere custodia armada. Si no
+    // es nulo, el cliente indico al dar de alta la solicitud que si la
+    // requiere, y esa custodia se agrega en copia al avisar al transporte
+    // (ver DeliveryMailer).
+    #[ORM\ManyToOne(inversedBy: 'importRequests')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Custodia $custodia = null;
+
+    // Nullable: null significa que se factura al cliente directo
+    // (Company::name/address/rfc). Si no es nulo, se factura a esta razon
+    // social del catalogo en vez de al cliente (ver Biller y DeliveryMailer).
+    #[ORM\ManyToOne(inversedBy: 'importRequests')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?Biller $billTo = null;
+
+    /**
+     * Instrucciones libres de entrega (ej. repartos entre varios puntos).
+     * A proposito no se modela el reparto con datos duros: son casos raros
+     * y muy variados como para justificar una estructura fija.
+     */
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $deliveryInstructions = null;
+
     #[ORM\Column(length: 255)]
     private ?string $clientReference = null;
 
@@ -32,24 +71,118 @@ class ImportRequest
     #[ORM\Column(length: 255)]
     private ?string $importNumber = null;
 
+    /**
+     * Nullable: igual que $cr, el cliente no suele conocerla; la captura el
+     * ejecutivo en el alta del pedimento. Solo hace falta para mandar las
+     * instrucciones al consolidador de carga (ver ConsolidatorInstruction).
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $tariffFraction = null;
+
+    /** "import" o "export": junto con $type determina la secuencia de estados. */
+    #[ORM\Column(length: 16)]
+    private ?string $direction = null;
+
+    /**
+     * Aduana por la que se despacha este expediente (ver AduanaCatalog). Cada
+     * cliente puede tener expedientes por distintas aduanas al mismo tiempo
+     * (ej. unos por Manzanillo y otros por Veracruz), así que vive aquí y no
+     * en Company. La agencia solo operaba por Manzanillo antes de este
+     * campo, de ahí el default para los expedientes que ya existían.
+     */
+    #[ORM\Column(length: 8, options: ['default' => AduanaCatalog::MANZANILLO])]
+    private string $aduana = AduanaCatalog::MANZANILLO;
+
+    /** "container" o "lcl". */
     #[ORM\Column(length: 255)]
     private ?string $type = null;
 
-    #[ORM\Column(length: 255)]
-    private ?string $eta = null;
+    #[ORM\Column(type: Types::DATE_IMMUTABLE)]
+    private ?\DateTimeImmutable $eta = null;
 
+    /**
+     * La fecha de arribo que captura el cliente suele ser un estimado, no la
+     * definitiva. Mientras esto sea false, cliente y ejecutivo pueden
+     * corregirla; una vez confirmada, solo el ejecutivo puede seguir
+     * editándola (ver DashboardCaseFiles::updateEta()).
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $etaConfirmed = false;
+
+    // Nullable a proposito: el cliente no suele saber a que recinto va a
+    // llegar su mercancia, asi que ya no lo elige al dar de alta la
+    // solicitud. Lo asigna el ejecutivo despues, en el alta del pedimento.
     #[ORM\ManyToOne(inversedBy: 'importRequests')]
-    #[ORM\JoinColumn(nullable: false)]
+    #[ORM\JoinColumn(nullable: true)]
     private ?ContainerYard $cr = null;
 
     #[ORM\Column(length: 255)]
     private ?string $status = null;
 
     /**
+     * Pasos opcionales por los que el expediente si paso.
+     *
+     * El estatus solo dice donde esta ahora, no por donde vino, asi que sin esto
+     * no habria forma de distinguir una inspeccion fuera de puerto realizada de
+     * una omitida una vez que el expediente avanza.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(type: Types::JSON)]
+    private array $optionalStepsTaken = [];
+
+    /**
      * @var Collection<int, ImportDocument>
      */
     #[ORM\OneToMany(targetEntity: ImportDocument::class, mappedBy: 'reference')]
     private Collection $importDocuments;
+
+    /**
+     * @var Collection<int, RequiredDocument>
+     */
+    #[ORM\OneToMany(targetEntity: RequiredDocument::class, mappedBy: 'reference')]
+    private Collection $requiredDocuments;
+
+    /**
+     * @var Collection<int, PrevioReport>
+     */
+    #[ORM\OneToMany(targetEntity: PrevioReport::class, mappedBy: 'reference')]
+    private Collection $previoReports;
+
+    /**
+     * Fecha real de modulación que reporta el SOIA, no la fecha en que se
+     * detectó desde la app.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $moduladoAt = null;
+
+    /**
+     * Última vez que se consultó el SOIA (manual o automático), para que el
+     * poller no vuelva a consultar antes de los 5 minutos.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastSoiaCheckAt = null;
+
+    /**
+     * Cuándo el SOIA reportó por primera vez "Reconocimiento aduanero" para
+     * este expediente (ver SoiaResult::isUnderInspection()). Sigue siendo
+     * null mientras no le haya tocado, y no se limpia cuando por fin modula:
+     * es a proposito un registro de que sí pasó por reconocimiento, no solo
+     * una bandera de "está pasando ahorita" — el roadmap (ver
+     * ImportRequestWorkflow) ya distingue "en reconocimiento" de "ya
+     * modulado" nada más viendo si $status llegó a MODULATED.
+     */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $reconocimientoAt = null;
+
+    /**
+     * Cuántas veces el poller automático ya consultó el SOIA por este
+     * expediente. No cuenta las consultas manuales ("Consultar SOIA"): el
+     * límite es para no seguir golpeando el portal indefinidamente si un
+     * expediente nunca modula solo, no para limitar al ejecutivo.
+     */
+    #[ORM\Column(options: ['default' => 0])]
+    private int $soiaPollAttempts = 0;
 
     /**
      * @var Collection<int, Container>
@@ -75,16 +208,86 @@ class ImportRequest
     #[ORM\OneToMany(targetEntity: Operation::class, mappedBy: 'reference')]
     private Collection $operations;
 
+    /**
+     * @var Collection<int, Delivery>
+     */
+    #[ORM\ManyToMany(targetEntity: Delivery::class, mappedBy: 'references')]
+    private Collection $deliveries;
+
+    /**
+     * @var Collection<int, ConsolidatorInstruction>
+     */
+    #[ORM\OneToMany(targetEntity: ConsolidatorInstruction::class, mappedBy: 'reference')]
+    private Collection $consolidatorInstructions;
+
     #[ORM\Column(length: 255)]
     private ?string $goods = null;
+
+    /**
+     * Lo que el cliente anticipa sobre la inspección al dar de alta la
+     * solicitud (autoridad esperada, "No requiere" o "Por confirmar"). No
+     * decide nada por si solo: el certificado real en "Documentos del
+     * ejecutivo" sigue siendo lo que gatea "Inspección fuera de puerto".
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $expectedInspectionAuthority = null;
+
+    /**
+     * true cuando el cliente avisó, al dar de alta la solicitud (o después,
+     * si cambian los planes), que la mercancía viajará con el consolidador
+     * de carga (XCF). Mientras sea true y no se le hayan mandado
+     * instrucciones (ver $consolidatorInstructions), no se puede avisar al
+     * transporte (ver ImportRequestWorkflow::canAssignTransport()).
+     */
+    #[ORM\Column(options: ['default' => false])]
+    private bool $travelsWithConsolidator = false;
 
     public function __construct()
     {
         $this->importDocuments = new ArrayCollection();
+        $this->requiredDocuments = new ArrayCollection();
+        $this->previoReports = new ArrayCollection();
         $this->containers = new ArrayCollection();
         $this->emptyReturns = new ArrayCollection();
         $this->internInvoices = new ArrayCollection();
         $this->operations = new ArrayCollection();
+        $this->deliveries = new ArrayCollection();
+        $this->consolidatorInstructions = new ArrayCollection();
+    }
+
+    /**
+     * @return Collection<int, Delivery>
+     */
+    public function getDeliveries(): Collection
+    {
+        return $this->deliveries;
+    }
+
+    public function addDelivery(Delivery $delivery): static
+    {
+        if (!$this->deliveries->contains($delivery)) {
+            $this->deliveries->add($delivery);
+            $delivery->addReference($this);
+        }
+
+        return $this;
+    }
+
+    public function removeDelivery(Delivery $delivery): static
+    {
+        if ($this->deliveries->removeElement($delivery)) {
+            $delivery->removeReference($this);
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, ConsolidatorInstruction>
+     */
+    public function getConsolidatorInstructions(): Collection
+    {
+        return $this->consolidatorInstructions;
     }
 
     public function getId(): ?int
@@ -112,6 +315,66 @@ class ImportRequest
     public function setIdProvider(?Provider $idProvider): static
     {
         $this->idProvider = $idProvider;
+
+        return $this;
+    }
+
+    public function getForwarder(): ?Forwarder
+    {
+        return $this->forwarder;
+    }
+
+    public function setForwarder(?Forwarder $forwarder): static
+    {
+        $this->forwarder = $forwarder;
+
+        return $this;
+    }
+
+    public function getCustodia(): ?Custodia
+    {
+        return $this->custodia;
+    }
+
+    public function setCustodia(?Custodia $custodia): static
+    {
+        $this->custodia = $custodia;
+
+        return $this;
+    }
+
+    public function getBillTo(): ?Biller
+    {
+        return $this->billTo;
+    }
+
+    public function setBillTo(?Biller $billTo): static
+    {
+        $this->billTo = $billTo;
+
+        return $this;
+    }
+
+    public function getDeliveryPoint(): ?DeliveryPoint
+    {
+        return $this->deliveryPoint;
+    }
+
+    public function setDeliveryPoint(?DeliveryPoint $deliveryPoint): static
+    {
+        $this->deliveryPoint = $deliveryPoint;
+
+        return $this;
+    }
+
+    public function getDeliveryInstructions(): ?string
+    {
+        return $this->deliveryInstructions;
+    }
+
+    public function setDeliveryInstructions(?string $deliveryInstructions): static
+    {
+        $this->deliveryInstructions = $deliveryInstructions;
 
         return $this;
     }
@@ -152,6 +415,42 @@ class ImportRequest
         return $this;
     }
 
+    public function getTariffFraction(): ?string
+    {
+        return $this->tariffFraction;
+    }
+
+    public function setTariffFraction(?string $tariffFraction): static
+    {
+        $this->tariffFraction = $tariffFraction;
+
+        return $this;
+    }
+
+    public function getDirection(): ?string
+    {
+        return $this->direction;
+    }
+
+    public function setDirection(string $direction): static
+    {
+        $this->direction = $direction;
+
+        return $this;
+    }
+
+    public function getAduana(): string
+    {
+        return $this->aduana;
+    }
+
+    public function setAduana(string $aduana): static
+    {
+        $this->aduana = $aduana;
+
+        return $this;
+    }
+
     public function getType(): ?string
     {
         return $this->type;
@@ -164,14 +463,26 @@ class ImportRequest
         return $this;
     }
 
-    public function getEta(): ?string
+    public function getEta(): ?\DateTimeImmutable
     {
         return $this->eta;
     }
 
-    public function setEta(string $eta): static
+    public function setEta(\DateTimeImmutable $eta): static
     {
         $this->eta = $eta;
+
+        return $this;
+    }
+
+    public function isEtaConfirmed(): bool
+    {
+        return $this->etaConfirmed;
+    }
+
+    public function setEtaConfirmed(bool $etaConfirmed): static
+    {
+        $this->etaConfirmed = $etaConfirmed;
 
         return $this;
     }
@@ -196,6 +507,23 @@ class ImportRequest
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getOptionalStepsTaken(): array
+    {
+        return $this->optionalStepsTaken;
+    }
+
+    public function markOptionalStepTaken(string $status): static
+    {
+        if (!in_array($status, $this->optionalStepsTaken, true)) {
+            $this->optionalStepsTaken[] = $status;
+        }
 
         return $this;
     }
@@ -226,6 +554,112 @@ class ImportRequest
                 $importDocument->setReference(null);
             }
         }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, RequiredDocument>
+     */
+    public function getRequiredDocuments(): Collection
+    {
+        return $this->requiredDocuments;
+    }
+
+    public function addRequiredDocument(RequiredDocument $requiredDocument): static
+    {
+        if (!$this->requiredDocuments->contains($requiredDocument)) {
+            $this->requiredDocuments->add($requiredDocument);
+            $requiredDocument->setReference($this);
+        }
+
+        return $this;
+    }
+
+    public function removeRequiredDocument(RequiredDocument $requiredDocument): static
+    {
+        if ($this->requiredDocuments->removeElement($requiredDocument)) {
+            if ($requiredDocument->getReference() === $this) {
+                $requiredDocument->setReference(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, PrevioReport>
+     */
+    public function getPrevioReports(): Collection
+    {
+        return $this->previoReports;
+    }
+
+    public function addPrevioReport(PrevioReport $previoReport): static
+    {
+        if (!$this->previoReports->contains($previoReport)) {
+            $this->previoReports->add($previoReport);
+            $previoReport->setReference($this);
+        }
+
+        return $this;
+    }
+
+    public function removePrevioReport(PrevioReport $previoReport): static
+    {
+        if ($this->previoReports->removeElement($previoReport)) {
+            if ($previoReport->getReference() === $this) {
+                $previoReport->setReference(null);
+            }
+        }
+
+        return $this;
+    }
+
+    public function getModuladoAt(): ?\DateTimeImmutable
+    {
+        return $this->moduladoAt;
+    }
+
+    public function setModuladoAt(?\DateTimeImmutable $moduladoAt): static
+    {
+        $this->moduladoAt = $moduladoAt;
+
+        return $this;
+    }
+
+    public function getLastSoiaCheckAt(): ?\DateTimeImmutable
+    {
+        return $this->lastSoiaCheckAt;
+    }
+
+    public function setLastSoiaCheckAt(?\DateTimeImmutable $lastSoiaCheckAt): static
+    {
+        $this->lastSoiaCheckAt = $lastSoiaCheckAt;
+
+        return $this;
+    }
+
+    public function getReconocimientoAt(): ?\DateTimeImmutable
+    {
+        return $this->reconocimientoAt;
+    }
+
+    public function setReconocimientoAt(?\DateTimeImmutable $reconocimientoAt): static
+    {
+        $this->reconocimientoAt = $reconocimientoAt;
+
+        return $this;
+    }
+
+    public function getSoiaPollAttempts(): int
+    {
+        return $this->soiaPollAttempts;
+    }
+
+    public function incrementSoiaPollAttempts(): static
+    {
+        ++$this->soiaPollAttempts;
 
         return $this;
     }
@@ -355,6 +789,30 @@ class ImportRequest
     public function setGoods(string $goods): static
     {
         $this->goods = $goods;
+
+        return $this;
+    }
+
+    public function getExpectedInspectionAuthority(): ?string
+    {
+        return $this->expectedInspectionAuthority;
+    }
+
+    public function setExpectedInspectionAuthority(?string $expectedInspectionAuthority): static
+    {
+        $this->expectedInspectionAuthority = $expectedInspectionAuthority;
+
+        return $this;
+    }
+
+    public function travelsWithConsolidator(): bool
+    {
+        return $this->travelsWithConsolidator;
+    }
+
+    public function setTravelsWithConsolidator(bool $travelsWithConsolidator): static
+    {
+        $this->travelsWithConsolidator = $travelsWithConsolidator;
 
         return $this;
     }

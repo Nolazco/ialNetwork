@@ -1,0 +1,131 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Forwarders</h2>
+    {% if forwarders %}
+      <a href="/dashboard/forwarders/nuevo" class="btn btn-primary">Nuevo forwarder</a>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Nombre</th>
+            <th scope="col">Correos de contacto</th>
+            <th scope="col">Cuentas bancarias</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in forwarders %}
+            <tr>
+              <td>{{ f.name }}</td>
+              <td>{{ f.contactEmails|join('; ') }}</td>
+              <td>
+                {% if f.bankAccounts|length > 0 or f.bankAccountsFileRoute %}
+                  <span class="badge text-bg-success">Configuradas</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">Sin configurar</span>
+                {% endif %}
+              </td>
+              <td>
+                <button
+                  class="btn btn-warning edit-forwarder-btn"
+                  title="Editar forwarder"
+                  data-id="{{ f.id }}"
+                  data-name="{{ f.name }}"
+                  data-emails="{{ f.contactEmails|join('; ') }}">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+                <a href="/dashboard/forwarders/{{ f.id }}/cuentas" class="btn btn-outline-secondary" title="Cuentas bancarias">
+                  <i class="bi bi-bank"></i> Cuentas bancarias
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin registros</h5>
+          <p class="card-text">Da de alta un forwarder nuevo.</p>
+          <a href="/dashboard/forwarders/nuevo" class="btn btn-primary">Nuevo forwarder</a>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      function handleEditClick(e) {
+        const btn = e.currentTarget;
+        const fwdId = btn.getAttribute("data-id");
+        const currentName = btn.getAttribute("data-name");
+        const currentEmails = btn.getAttribute("data-emails");
+
+        Swal.fire({
+          title: "Editar forwarder",
+          html: `
+            <input id="swal-name" class="swal2-input" placeholder="Nombre" value="${currentName}">
+            <input id="swal-emails" class="swal2-input" placeholder="Correos de contacto (separados por ; )" value="${currentEmails}">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          cancelButtonText: "Cancelar",
+          preConfirm: () => {
+            const name = document.getElementById("swal-name").value.trim();
+            const contactEmails = document.getElementById("swal-emails").value.trim();
+
+            if (!name) {
+              Swal.showValidationMessage("El nombre es obligatorio");
+              return false;
+            }
+
+            return { name, contactEmails };
+          }
+        }).then(result => {
+          if (result.isConfirmed) {
+            const updatedData = result.value;
+
+            fetch(`/dashboard/forwarders/${fwdId}/editar`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+              },
+              body: JSON.stringify(updatedData)
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire("¡Actualizado!", "El forwarder fue editado correctamente.", "success");
+
+                btn.setAttribute("data-name", updatedData.name);
+                btn.setAttribute("data-emails", data.contactEmails.join("; "));
+
+                const row = btn.closest("tr");
+                row.children[0].textContent = updatedData.name;
+                row.children[1].textContent = data.contactEmails.join("; ");
+              } else {
+                Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll(".edit-forwarder-btn").forEach(btn => {
+        btn.addEventListener("click", handleEditClick);
+      });
+    });
+  </script>
+{% endblock %}

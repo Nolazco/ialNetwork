@@ -1,0 +1,46 @@
+framework:
+    html_sanitizer:
+        sanitizers:
+            # Para la justificación que el ejecutivo pega del correo del
+            # clasificador (ver DashboardClassifications::confirmTariffFraction()):
+            # ese correo trae texto con colores, subrayado y enlaces a las
+            # regulaciones citadas, así que además de la lista "segura" de
+            # Symfony (negritas, listas, encabezados, enlaces...) se habilita
+            # el atributo style en los elementos que el clasificador usa para
+            # resaltar texto, y las tablas que a veces trae el correo.
+            app.classification_justification:
+                allow_safe_elements: true
+                # El correo del clasificador puede traer toda la
+                # justificación (regulaciones, anexos, tasas...) y ser mucho
+                # más largo que el límite por defecto del sanitizador
+                # (20 000 caracteres) -- sin esto, el texto se corta a la
+                # mitad de una etiqueta sin avisar. -1 = sin límite.
+                max_input_length: -1
+                allow_elements:
+                    span: [style]
+                    div: [style]
+                    font: [color, style]
+                    p: [style]
+                    li: [style]
+                    h1: [style]
+                    h2: [style]
+                    h3: [style]
+                    h4: [style]
+                    # El correo del clasificador suele poner el color en la
+                    # misma etiqueta que la negrita/subrayado (ej. <strong
+                    # style="color:red">), no en un span aparte -- sin esto,
+                    # allow_safe_elements ya deja pasar la etiqueta pero le
+                    # quita el style, y el texto llega en negro.
+                    strong: [style]
+                    b: [style]
+                    em: [style]
+                    i: [style]
+                    u: [style]
+                    table: ['*']
+                    thead: ['*']
+                    tbody: ['*']
+                    tr: ['*']
+                    td: [style]
+                    th: [style]
+                allowed_link_schemes: [http, https, mailto]
+                allow_relative_links: false

@@ -1,42 +1,87 @@
 {% extends '/dashboard/baseDashboard.html.twig' %}
 {% block body %}
-	<!-- Contenido principal -->
   <div class="content">
-    <h2 class="mb-4">Resumen</h2>
-    <div class="row g-4">
-      <div class="col-md-4">
-        <div class="card text-bg-primary shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Pedimentos pendientes de captura</h5>
-            <p class="card-text fs-4">{{ 1 }}</p>
+    <h2 class="mb-1">Inicio</h2>
+    <p class="text-body-secondary mb-4">
+      {{ activeTotal }} expediente{{ activeTotal == 1 ? '' : 's' }} en curso
+      {% if actionNeeded %} · {{ actionNeeded }} requiere{{ actionNeeded == 1 ? '' : 'n' }} algo de ti{% endif %}
+    </p>
+
+    <div class="row g-4 mb-5">
+      <div class="{{ upcomingDelivery ? 'col-lg-8' : 'col-12' }}">
+        <h5 class="text-body-secondary text-uppercase small mb-3">Tus expedientes activos</h5>
+        {% if imports|length %}
+          <div class="row g-3">
+            {% for item in imports %}
+              <div class="col-md-6">
+                <div class="card shadow-sm h-100">
+                  <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-1">
+                      <div>
+                        <a href="{{ path('case_file', { id: item.import.id }) }}" class="fw-semibold text-decoration-none">
+                          {{ item.import.clientReference }}
+                        </a>
+                        <div class="small text-body-secondary">Pedimento {{ item.import.agencyReference }}</div>
+                      </div>
+                      <span class="badge text-bg-secondary">{{ item.import.status }}</span>
+                    </div>
+                    <div class="progress my-2" style="height: 6px;" role="progressbar" aria-valuenow="{{ item.progress }}" aria-valuemin="0" aria-valuemax="100">
+                      <div class="progress-bar" style="width: {{ item.progress }}%"></div>
+                    </div>
+                    {% if item.flag %}
+                      <div class="small text-warning-emphasis">
+                        <i class="bi bi-exclamation-circle"></i> {{ item.flag }}
+                      </div>
+                    {% else %}
+                      <div class="small text-success">
+                        <i class="bi bi-check-circle"></i> Sin pendientes de tu parte
+                      </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <p class="text-body-secondary mb-0">No tienes expedientes en curso.</p>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+
+      {% if upcomingDelivery %}
+        <div class="col-lg-4">
+          <h5 class="text-body-secondary text-uppercase small mb-3">Próximo despacho</h5>
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <p class="fw-semibold mb-1">{{ upcomingDelivery.date|date('d/m/Y') }} · {{ upcomingDelivery.hour|date('H:i') }}</p>
+              <p class="text-body-secondary small mb-0">
+                {{ upcomingDelivery.references|map(r => r.agencyReference)|join(', ') }}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card text-bg-success shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Pedimentos pendientes de despacho</h5>
-            <p class="card-text fs-4">1</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-md-4">
-        <div class="card text-bg-warning shadow-sm">
-          <div class="card-body">
-            <h5 class="card-title">Otra cosa que ahorita no sé</h5>
-            <p class="card-text fs-4">0</p>
-          </div>
-        </div>
-      </div>
+      {% endif %}
     </div>
 
-    <hr class="my-5">
-
-    <h3>Actividad reciente</h3>
-    <ul class="list-group">
-      <li class="list-group-item">Usuario Juan inició sesión</li>
-      <li class="list-group-item">Nuevo reporte generado</li>
-      <li class="list-group-item">Actualización de configuración</li>
-    </ul>
+    <h5 class="text-body-secondary text-uppercase small mb-3">Empresas asociadas</h5>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        {% if companies|length %}
+          <div class="d-flex flex-wrap gap-2">
+            {% for company in companies %}
+              <span class="badge text-bg-light border text-body fs-6 fw-normal">{{ company.name }}</span>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-body-secondary mb-0">Todavía no tienes empresas asociadas.</p>
+        {% endif %}
+      </div>
+      <div class="card-footer bg-transparent">
+        <a href="{{ path('companies') }}" class="small text-decoration-none">Ver empresas <i class="bi bi-arrow-right"></i></a>
+      </div>
+    </div>
   </div>
 {% endblock %}

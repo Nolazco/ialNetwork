@@ -3,43 +3,57 @@
 namespace App\Controller;
 
 use App\Entity\Provider;
+use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Security\Http\Attribute\IsGranted;
 
+/**
+ * Catalogo interno de la agencia: ni clientes ni transportistas tienen nada que
+ * hacer aqui, y menos dando de alta o editando registros.
+ */
+#[IsGranted('ROLE_EXECUTIVE')]
 class DashboardProviders extends AbstractController {
+	use AjaxCsrfTrait;
+
 	#[Route('/dashboard/proveedores')]
-	public function providers(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function providers(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		$providerRepo = $entityManager->getRepository(Provider::class);
 		$providers = $providerRepo->findAll();
 
 		return $this->render("/dashboard/providers.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true',
 			'providers' => $providers
 		]);
 	}
 
 	#[Route('/dashboard/proveedores/nuevo')]
-	public function createProvider(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function createProvider(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		return $this->render("/dashboard/newprovider.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true'
 		]);
 	}
 
 		#[Route('/dashboard/proveedores/new', methods: ['POST'])]
 	  public function newProvider(Request $r, EntityManagerInterface $entityManager): Response {
-    	$session = $r->getSession();
+	    if (!$this->isCsrfTokenValid('create_provider', $r->request->get('_token'))) {
+	      $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+	      return $this->redirect('/dashboard/proveedores/nuevo');
+	    }
 
 	    $provider = new Provider();
 	    $provider->setName($r->request->get('name'));
@@ -56,6 +70,10 @@ class DashboardProviders extends AbstractController {
 
 	  #[Route('/dashboard/proveedores/{id}/editar', methods: ['POST'])]
 	  public function editProvider(int $id, Request $r, EntityManagerInterface $entityManager ): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
 	    $provider = $entityManager->getRepository(Provider::class)->find($id);
 
 	    if (!$provider) {

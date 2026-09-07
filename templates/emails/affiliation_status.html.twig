@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>{{ approved ? 'Afiliación autorizada' : 'Afiliación rechazada' }}</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f7f9; font-family: Arial, Helvetica, sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f7f9; padding:24px 0;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:480px; background-color:#ffffff; border-radius:12px; overflow:hidden;">
+          <tr>
+            <td style="background-color:#41b6c8; padding:20px 24px;">
+              <span style="color:#ffffff; font-size:18px; font-weight:bold;">IAL Network</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px;">
+              <p style="margin:0 0 16px; font-size:16px; color:#212529;">
+                Hola{% if association.idClient.name %}, {{ association.idClient.name }}{% endif %}.
+              </p>
+              {% if approved %}
+                <p style="margin:0 0 20px; font-size:14px; color:#404040;">
+                  Tu afiliación a <strong>{{ association.idCompany.name }}</strong> fue <strong style="color:#2e8540;">autorizada</strong>. Ya puedes ver sus expedientes, documentos y cuentas de gastos.
+                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 auto 8px;">
+                  <tr>
+                    <td>
+                      <a href="{{ url('dashboard') }}"
+                         style="display:inline-block; background-color:#41b6c8; border-radius:8px; padding:12px 28px; color:#ffffff; font-family:Arial, Helvetica, sans-serif; font-size:14px; font-weight:bold; line-height:14px; text-align:center; text-decoration:none; white-space:nowrap; mso-padding-alt:0;">
+                        Ver mis expedientes
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              {% else %}
+                <p style="margin:0 0 16px; font-size:14px; color:#404040;">
+                  Tu afiliación a <strong>{{ association.idCompany.name }}</strong> fue <strong style="color:#c0392b;">rechazada</strong>. Si crees que esto es un error, contacta a tu ejecutivo.
+                </p>
+              {% endif %}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

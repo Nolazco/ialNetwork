@@ -21,9 +21,9 @@ framework:
             messenger.bus.default: []
 
         routing:
-            Symfony\Component\Mailer\Messenger\SendEmailMessage: async
-            Symfony\Component\Notifier\Message\ChatMessage: async
-            Symfony\Component\Notifier\Message\SmsMessage: async
-
+            # Sin ruta a "async": no hay ningun worker corriendo
+            # (messenger:consume) que vacie esa cola, asi que enrutar el
+            # correo ahi lo dejaria atorado para siempre. Se manda sincrono,
+            # que es lo correcto para un correo puntual como el de modulacion.
             # Route your messages to the transports
             # 'App\Message\YourMessage': async

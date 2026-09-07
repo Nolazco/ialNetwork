@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\UserRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
@@ -42,6 +43,17 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
 
     #[ORM\Column(length: 255)]
     private ?string $status = null;
+
+    // Solo aplica a ROLE_EXECUTIVE: en que aduanas trabaja, para que
+    // RecipientResolver::executiveEmails() no le mande alertas de expedientes
+    // ajenos a las suyas. Vacio significa "todas" (default, y lo que ve
+    // cualquier ejecutivo mientras el admin no le asigne ninguna) — ver
+    // AduanaCatalog para los codigos validos.
+    /**
+     * @var list<string>
+     */
+    #[ORM\Column(type: Types::JSON)]
+    private array $aduanas = [];
 
     /**
      * @var Collection<int, Associated>
@@ -120,12 +132,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
-    public function setPasswordHash(string $password): static
-    {
-        $this->password = password_hash($this->password, PASSWORD_DEFAULT);
-        return $this;
-    }
-
     /**
      * @see UserInterface
      */
@@ -167,6 +173,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setStatus(string $status): static
     {
         $this->status = $status;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getAduanas(): array
+    {
+        return $this->aduanas;
+    }
+
+    /**
+     * @param list<string> $aduanas
+     */
+    public function setAduanas(array $aduanas): static
+    {
+        $this->aduanas = $aduanas;
 
         return $this;
     }

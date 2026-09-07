@@ -1,0 +1,85 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Domicilio fiscal · {{ company.name }}{% endblock %}
+
+{% block body %}
+  <div class="content">
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Domicilio fiscal</h2>
+        <p class="text-body-secondary mb-0">{{ company.name }} ({{ company.rfc }})</p>
+      </div>
+      <a href="{{ path('companies') }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver a empresas
+      </a>
+    </div>
+
+    <div class="alert alert-info">
+      <i class="bi bi-info-circle"></i>
+      Estos datos solo hacen falta si esta empresa recibe mercancía a través del consolidador de carga (XCF) en su domicilio fiscal, en vez de un punto de entrega del catálogo.
+    </div>
+
+    <form method="POST" action="{{ path('company_edit_address_save', { id: company.id }) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('company_edit_address') }}">
+
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label for="street" class="form-label">Calle</label>
+              <input type="text" class="form-control" id="street" name="street" value="{{ company.street }}">
+            </div>
+            <div class="col-md-2">
+              <label for="extNumber" class="form-label">Núm ext</label>
+              <input type="text" class="form-control" id="extNumber" name="extNumber" value="{{ company.extNumber }}">
+            </div>
+            <div class="col-md-2">
+              <label for="intNumber" class="form-label">Núm int</label>
+              <input type="text" class="form-control" id="intNumber" name="intNumber" value="{{ company.intNumber }}">
+            </div>
+            <div class="col-md-4">
+              <label for="neighborhood" class="form-label">Colonia</label>
+              <input type="text" class="form-control" id="neighborhood" name="neighborhood" value="{{ company.neighborhood }}">
+            </div>
+            <div class="col-md-4">
+              <label for="locality" class="form-label">Localidad</label>
+              <input type="text" class="form-control" id="locality" name="locality" value="{{ company.locality }}">
+            </div>
+            <div class="col-md-4">
+              <label for="municipality" class="form-label">Municipio</label>
+              <input type="text" class="form-control" id="municipality" name="municipality" value="{{ company.municipality }}">
+            </div>
+            <div class="col-md-4">
+              <label for="state" class="form-label">Estado</label>
+              <input type="text" class="form-control" id="state" name="state" value="{{ company.state }}">
+            </div>
+            <div class="col-md-4">
+              <label for="country" class="form-label">País</label>
+              <input type="text" class="form-control" id="country" name="country" value="{{ company.country ?? 'MEXICO' }}">
+            </div>
+            <div class="col-md-4">
+              <label for="zipCode" class="form-label">Código postal</label>
+              <input type="text" class="form-control" id="zipCode" name="zipCode" value="{{ company.zipCode }}">
+            </div>
+            <div class="col-md-4">
+              <label for="contactName" class="form-label">Contacto</label>
+              <input type="text" class="form-control" id="contactName" name="contactName" value="{{ company.contactName }}">
+            </div>
+            <div class="col-md-4">
+              <label for="contactPhone" class="form-label">Teléfono</label>
+              <input type="text" class="form-control" id="contactPhone" name="contactPhone" value="{{ company.contactPhone }}">
+            </div>
+            <div class="col-md-4">
+              <label for="contactEmail" class="form-label">Correo</label>
+              <input type="email" class="form-control" id="contactEmail" name="contactEmail" value="{{ company.contactEmail }}">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary mt-3">
+        <i class="bi bi-save"></i> Guardar
+      </button>
+    </form>
+  </div>
+{% endblock %}

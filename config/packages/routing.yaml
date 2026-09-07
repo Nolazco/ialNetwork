@@ -1,8 +1,10 @@
 framework:
     router:
-        # Configure how to generate URLs in non-HTTP contexts, such as CLI commands.
-        # See https://symfony.com/doc/current/routing.html#generating-urls-in-commands
-        #default_uri: http://localhost
+        # Para generar URLs absolutas fuera de una petición HTTP (ver
+        # PollSoiaCommand, que manda el correo de modulación por cron) —
+        # sin esto, url()/path() en un comando de consola arma enlaces con
+        # host "localhost" sin importar el entorno.
+        default_uri: '%env(APP_URL)%'
 
 when@prod:
     framework:

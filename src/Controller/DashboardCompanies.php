@@ -6,83 +6,105 @@ use App\Entity\Associated;
 use App\Entity\Company;
 use App\Entity\CompanyDocument;
 use App\Entity\User;
+use App\Security\CompanyAccess;
+use App\Service\UploadPath;
+use App\Workflow\AllowedFileExtensions;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\File\Exception\FileException;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpFoundation\ResponseHeaderBag;
 use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\String\Slugger\SluggerInterface;
 
 class DashboardCompanies extends AbstractController{
+  use AjaxCsrfTrait;
+
+  /** Mismas extensiones que se aceptan en el resto de la app (ver AllowedFileExtensions). */
+  private const ALLOWED_EXTENSIONS = AllowedFileExtensions::LIST;
+
+	public function __construct(
+		private readonly CompanyAccess $companyAccess,
+		private readonly UploadPath $uploadPath,
+	) {
+	}
+
 	#[Route(name: 'companies', path: '/dashboard/empresas')]
-	public function companies(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function companies(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		$companyRepo = $entityManager->getRepository(Company::class);
-    $userRepo = $entityManager->getRepository(User::class);
 
-    if($session->get('loged') != 'true'){
-      return $this->redirectToRoute('login');
-    }
-
-	  if($session->get('role') == 'ROLE_ADMIN' || $session->get('role') == 'ROLE_EXECUTIVE'){
+	  // Staff (admin/executive) see every company; everyone else sees only their own.
+	  if ($this->isGranted('ROLE_EXECUTIVE')) {
 		  $companies = $companyRepo->findAll();
-    }
-		elseif ($session->get('role') == 'ROLE_CLIENT') {
-			$companies = $companyRepo->findAssociatedCompanies($userRepo->find($session->get('userId')));
+    } else {
+			$companies = $companyRepo->findAssociatedCompanies($user);
 		}
 
 		return $this->render("/dashboard/companies.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true',
 			'companies' => $companies
 		]);
 	}
 
 	#[Route(name: 'createCompany', path: '/dashboard/empresas/nueva')]
-	public function createCompany(Request $r, EntityManagerInterface $entityManager): Response {
-		$session = $r->getSession();
+	public function createCompany(EntityManagerInterface $entityManager): Response {
+		/** @var User $user */
+		$user = $this->getUser();
 
 		return $this->render("/dashboard/newcompany.html.twig", [
-			'name' => $session->get('name'),
-			'role' => $session->get('role'),
+			'name' => $user->getName(),
+			'role' => $user->getRoles()[0],
 			'loged' => 'true'
 		]);
 	}
 
 	#[Route('/dashboard/empresas/new', methods: ['POST'])]
   public function newCompany(Request $r, EntityManagerInterface $entityManager, SluggerInterface $slugger): Response {
-    $session = $r->getSession();
-    $userRepo = $entityManager->getRepository(User::class);
-    $user = $userRepo->find($session->get('userId'));
+    if (!$this->isCsrfTokenValid('create_company', $r->request->get('_token'))) {
+      $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+      return $this->redirect('/dashboard/empresas/nueva');
+    }
+
+    /** @var User $user */
+    $user = $this->getUser();
 
     // 1. Crear empresa
     $company = new Company();
     $company->setName($r->request->get('name'));
     $company->setRfc($r->request->get('rfc'));
     $company->setAddress($r->request->get('address'));
+    $company->setClassificationContactEmail($this->nullableTrim($r->request->get('classificationContactEmail')));
 
     $entityManager->persist($company);
 
     // 2. Asociar con usuario actual
     //$usuario = $security->getUser();
 
+    // La empresa la esta dando de alta el propio cliente, asi que su afiliacion
+    // no necesita autorizacion: no hay nada de nadie mas que proteger.
     $asociacion = new Associated();
     $asociacion->setIdClient($user);
     $asociacion->setIdCompany($company);
+    $asociacion->setStatus(Associated::APPROVED);
     $entityManager->persist($asociacion);
 
     // 3. Manejar documentos
     $files = $r->files->all();
     $types = $r->request->all('documentTypes');
 
-    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta de carpeta
-    
-    if (!is_dir($route)) {
-      mkdir($route, 0777, true);
+    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta relativa guardada en el documento
+    $folder = $this->uploadPath->resolve($route); // Carpeta física, fuera de public/
+
+    if (!is_dir($folder)) {
+      mkdir($folder, 0777, true);
     }
 
     foreach ($files as $index => $fileGroup) {
@@ -95,7 +117,7 @@ class DashboardCompanies extends AbstractController{
           $newFilename = $safeFilename . '-' . uniqid() . '.' . $file->guessExtension();
 
           try {
-            $file->move($route, $newFilename);
+            $file->move($folder, $newFilename);
           } catch (FileException $e) {
             continue;
           }
@@ -117,78 +139,77 @@ class DashboardCompanies extends AbstractController{
     return $this->redirect('/dashboard/empresas');
   }
 
-  #[Route('/dashboard/empresas/disponibles', methods: ['GET'])]
-  public function availableCompanies(Request $r, EntityManagerInterface $entityManager): JsonResponse {
-    $session = $r->getSession();
-    $user = $entityManager->getRepository(User::class)->find($session->get('userId'));
+  /**
+   * Domicilio fiscal desglosado: solo hace falta para usar el domicilio
+   * fiscal de la empresa como destinatario en instrucciones al consolidador
+   * de carga (ver ConsolidatorInstruction) — antes solo se podia capturar
+   * desde /admin, pero el cliente es quien conoce estos datos.
+   */
+  #[Route('/dashboard/empresas/{id}/domicilio-fiscal', name: 'company_edit_address', methods: ['GET'])]
+  public function editAddress(int $id, EntityManagerInterface $entityManager): Response {
+    $company = $entityManager->getRepository(Company::class)->find($id);
 
-    if (!$user) {
-      return new JsonResponse(['error' => 'Usuario no encontrado'], 404);
+    if (!$company || !$this->companyAccess->canAccess($company)) {
+      throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
     }
 
-    // 1. Obtener IDs de empresas ya asociadas
-    $associatedCompanyIds = $entityManager->createQueryBuilder()
-      ->select('IDENTITY(a.idCompany)')
-      ->from(Associated::class, 'a')
-      ->where('a.idClient = :user')
-      ->setParameter('user', $user)
-      ->getQuery()
-      ->getResult();
+    /** @var User $user */
+    $user = $this->getUser();
 
-    // Aplanar el array de IDs (puede venir como array de arrays)
-    $ids = array_map(fn($row) => $row[1] ?? array_values($row)[0], $associatedCompanyIds);
-
-    // 2. Obtener empresas NO asociadas
-    $notAssociated = $entityManager->getRepository(Company::class)->createQueryBuilder('c');
-
-    if (!empty($ids)) {
-      $notAssociated->where($notAssociated->expr()->notIn('c.id', ':ids'))->setParameter('ids', $ids);
-    }
-
-    $companies = $notAssociated->getQuery()->getResult();
-
-    $data = array_map(function ($company) {
-      return [
-        'id' => $company->getId(),
-        'name' => $company->getName(),
-        'rfc' => $company->getRfc()
-      ];
-    }, $companies);
-
-    return new JsonResponse(['empresas' => $data]);
+    return $this->render('/dashboard/companyAddress.html.twig', [
+      'name' => $user->getName(),
+      'role' => $user->getRoles()[0],
+      'loged' => 'true',
+      'company' => $company,
+    ]);
   }
 
-  #[Route('/dashboard/empresas/afiliar/{id}', methods: ['POST'])]
-  public function associateCompany(int $id, Request $r, EntityManagerInterface $entityManager): JsonResponse {
-    $session = $r->getSession();
-    $userRepo = $entityManager->getRepository(User::class);
-    $usuario = $userRepo->find($session->get('userId'));
-    $companyRepo = $entityManager->getRepository(Company::class);
-    $company = $companyRepo->find($id);
+  #[Route('/dashboard/empresas/{id}/domicilio-fiscal', name: 'company_edit_address_save', methods: ['POST'])]
+  public function saveAddress(int $id, Request $r, EntityManagerInterface $entityManager): Response {
+    $company = $entityManager->getRepository(Company::class)->find($id);
 
-    //Buscar si ya existe una asociación previa
-    foreach ($company->getAssociateds() as $asoc) {
-      if ($asoc->getIdClient() === $usuario) {
-        return new JsonResponse(['status' => 'Ya afiliado']);
-      }
+    if (!$company || !$this->companyAccess->canAccess($company)) {
+      throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
     }
 
-    $asociacion = new Associated();
-    $asociacion->setIdClient($usuario);
-    $asociacion->setIdCompany($company);
+    if (!$this->isCsrfTokenValid('company_edit_address', $r->request->get('_token'))) {
+      $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+      return $this->redirectToRoute('company_edit_address', ['id' => $company->getId()]);
+    }
 
-    $entityManager->persist($asociacion);
+    $company->setStreet($this->nullableTrim($r->request->get('street')));
+    $company->setExtNumber($this->nullableTrim($r->request->get('extNumber')));
+    $company->setIntNumber($this->nullableTrim($r->request->get('intNumber')));
+    $company->setNeighborhood($this->nullableTrim($r->request->get('neighborhood')));
+    $company->setLocality($this->nullableTrim($r->request->get('locality')));
+    $company->setMunicipality($this->nullableTrim($r->request->get('municipality')));
+    $company->setState($this->nullableTrim($r->request->get('state')));
+    $company->setCountry($this->nullableTrim($r->request->get('country')));
+    $company->setZipCode($this->nullableTrim($r->request->get('zipCode')));
+    $company->setContactName($this->nullableTrim($r->request->get('contactName')));
+    $company->setContactPhone($this->nullableTrim($r->request->get('contactPhone')));
+    $company->setContactEmail($this->nullableTrim($r->request->get('contactEmail')));
+
     $entityManager->flush();
 
-    return new JsonResponse(['status' => 'afiliado']);
+    $this->addFlash('success', 'Domicilio fiscal actualizado.');
+    return $this->redirectToRoute('company_edit_address', ['id' => $company->getId()]);
   }
 
   #[Route('/dashboard/empresas/{id}/editar', methods: ['POST'])]
   public function editCompany(int $id, Request $r, EntityManagerInterface $entityManager ): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $company = $entityManager->getRepository(Company::class)->find($id);
 
     if (!$company) {
       return new JsonResponse(['success' => false, 'message' => 'Empresa no encontrada.'], 404);
+    }
+
+    if (!$this->companyAccess->canAccess($company)) {
+      return new JsonResponse(['error' => 'Esa empresa no está entre las tuyas.'], 403);
     }
 
     $data = json_decode($r->getContent(), true);
@@ -204,11 +225,19 @@ class DashboardCompanies extends AbstractController{
     $company->setName($name);
     $company->setAddress($address);
     $company->setRfc($rfc);
+    $company->setClassificationContactEmail($this->nullableTrim($data['classificationContactEmail'] ?? null));
 
     $entityManager->persist($company);
     $entityManager->flush();
 
     return new JsonResponse(['success' => true]);
+  }
+
+  private function nullableTrim(mixed $value): ?string
+  {
+    $value = trim((string) $value);
+
+    return $value === '' ? null : $value;
   }
 
   #[Route('/dashboard/empresas/{id}/documentos', methods: ['GET'])]
@@ -217,6 +246,10 @@ class DashboardCompanies extends AbstractController{
 
     if (!$company) {
       return new JsonResponse(['error' => 'Empresa no encontrada'], 404);
+    }
+
+    if (!$this->companyAccess->canAccess($company)) {
+      return new JsonResponse(['error' => 'Esa empresa no está entre las tuyas.'], 403);
     }
 
     $docs = [];
@@ -232,14 +265,46 @@ class DashboardCompanies extends AbstractController{
     return new JsonResponse(['documents' => $docs]);
   }
 
+  #[Route('/dashboard/empresas/documentos/{id}/archivo', name: 'company_document_download', methods: ['GET'])]
+  public function downloadDocument(int $id, EntityManagerInterface $entityManager): BinaryFileResponse {
+    $document = $entityManager->getRepository(CompanyDocument::class)->find($id);
+
+    if (!$document) {
+      throw $this->createNotFoundException();
+    }
+
+    if (!$this->companyAccess->canAccess($document->getIdCompany())) {
+      throw $this->createAccessDeniedException();
+    }
+
+    $path = $this->uploadPath->resolve($document->getRoute());
+
+    if (!is_file($path)) {
+      throw $this->createNotFoundException();
+    }
+
+    $response = new BinaryFileResponse($path);
+    $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+    return $response;
+  }
+
   #[Route('/dashboard/empresas/{id}/documentos/nuevo', methods: ['POST'])]
   public function addDocument(Request $r, int $id, EntityManagerInterface $entityManager, SluggerInterface $slugger): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $company = $entityManager->getRepository(Company::class)->find($id);
 
     if (!$company) {
       return new JsonResponse(['success' => false, 'message' => 'Empresa no encontrada.'], 404);
     }
-    
+
+    if (!$this->companyAccess->canAccess($company)) {
+      return new JsonResponse(['error' => 'Esa empresa no está entre las tuyas.'], 403);
+    }
+
     $file = $r->files->get('document');
     $type = $r->request->get('type');
 
@@ -247,17 +312,24 @@ class DashboardCompanies extends AbstractController{
       return new JsonResponse(['error' => 'Faltan datos.'], 400);
     }
 
-    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta de carpeta
-    
-    if (!is_dir($route)) {
-      mkdir($route, 0777, true);
+    $extension = strtolower(pathinfo($file->getClientOriginalName(), PATHINFO_EXTENSION));
+
+    if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+      return new JsonResponse(['error' => sprintf('Formato no permitido. Formatos permitidos: %s.', implode(', ', self::ALLOWED_EXTENSIONS))], 400);
+    }
+
+    $route = 'uploads/empresas/' . $company->getRfc(); // Ruta relativa guardada en el documento
+    $folder = $this->uploadPath->resolve($route); // Carpeta física, fuera de public/
+
+    if (!is_dir($folder)) {
+      mkdir($folder, 0777, true);
     }
 
     $originalFilename = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
     $safeFilename = $slugger->slug($originalFilename);
     $newFilename = $safeFilename.'-'.uniqid().'.'.$file->guessExtension();
 
-    $file->move($route, $newFilename);
+    $file->move($folder, $newFilename);
 
     $document = new CompanyDocument();
     $document->setType($type);
@@ -271,14 +343,22 @@ class DashboardCompanies extends AbstractController{
   }
 
   #[Route('/dashboard/empresas/documentos/{id}/eliminar', methods: ['DELETE'])]
-  public function deleteDocument(int $id, EntityManagerInterface $entityManager): JsonResponse {
+  public function deleteDocument(int $id, Request $r, EntityManagerInterface $entityManager): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
       $document = $entityManager->getRepository(CompanyDocument::class)->find($id);
 
       if (!$document) {
         return new JsonResponse(['error' => 'Documento no encontrado.'], 404);
       }
 
-      $filePath = $document->getRoute();
+      if (!$this->companyAccess->canAccess($document->getIdCompany())) {
+        return new JsonResponse(['error' => 'Ese documento no es de una de tus empresas.'], 403);
+      }
+
+      $filePath = $this->uploadPath->resolve($document->getRoute());
       if (file_exists($filePath)) {
         unlink($filePath);
       }
@@ -291,10 +371,18 @@ class DashboardCompanies extends AbstractController{
 
   #[Route('/dashboard/empresas/documentos/{id}/editar', methods: ['POST'])]
   public function editDocument(Request $r, int $id, EntityManagerInterface $entityManager, SluggerInterface $slugger): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
     $document = $entityManager->getRepository(CompanyDocument::class)->find($id);
 
     if (!$document) {
       return new JsonResponse(['error' => 'Documento no encontrado.'], 404);
+    }
+
+    if (!$this->companyAccess->canAccess($document->getIdCompany())) {
+      return new JsonResponse(['error' => 'Ese documento no es de una de tus empresas.'], 403);
     }
 
     $newType = $r->request->get('type');
@@ -305,15 +393,22 @@ class DashboardCompanies extends AbstractController{
     }
 
     if ($newFile) {
+      $extension = strtolower(pathinfo($newFile->getClientOriginalName(), PATHINFO_EXTENSION));
+
+      if (!in_array($extension, self::ALLOWED_EXTENSIONS, true)) {
+        return new JsonResponse(['error' => sprintf('Formato no permitido. Formatos permitidos: %s.', implode(', ', self::ALLOWED_EXTENSIONS))], 400);
+      }
+
       // Elimina archivo anterior
       $oldPath = $document->getRoute();
-      if ($oldPath && file_exists($oldPath)) {
-        unlink($oldPath);
+      if ($oldPath && file_exists($this->uploadPath->resolve($oldPath))) {
+        unlink($this->uploadPath->resolve($oldPath));
       }
 
       // Guarda el nuevo
       $companyRfc = $document->getIdCompany()->getRfc();
-      $folder = 'uploads/empresas/' . $companyRfc;
+      $route = 'uploads/empresas/' . $companyRfc;
+      $folder = $this->uploadPath->resolve($route);
 
       if (!is_dir($folder)) {
         mkdir($folder, 0777, true);
@@ -324,7 +419,7 @@ class DashboardCompanies extends AbstractController{
       $newFilename = $safeFilename . '-' . uniqid() . '.' . $newFile->guessExtension();
 
       $newFile->move($folder, $newFilename);
-      $document->setRoute($folder . '/' . $newFilename);
+      $document->setRoute($route . '/' . $newFilename);
     }
 
     $entityManager->flush();

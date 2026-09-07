@@ -1,0 +1,120 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-4">Custodias</h2>
+    {% if custodias %}
+      <a href="/dashboard/custodias/nueva" class="btn btn-primary">Nueva custodia</a>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th scope="col">Nombre</th>
+            <th scope="col">Correos de contacto</th>
+            <th scope="col">Opciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in custodias %}
+            <tr>
+              <td>{{ c.name }}</td>
+              <td>{{ c.contactEmails|join('; ') }}</td>
+              <td>
+                <button
+                  class="btn btn-warning edit-custodia-btn"
+                  title="Editar custodia"
+                  data-id="{{ c.id }}"
+                  data-name="{{ c.name }}"
+                  data-emails="{{ c.contactEmails|join('; ') }}">
+                  <i class="bi bi-pencil-square"></i>
+                </button>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div class="card text-center">
+        <div class="card-header">
+          Aviso
+        </div>
+        <div class="card-body">
+          <h5 class="card-title">Sin registros</h5>
+          <p class="card-text">Da de alta una custodia nueva.</p>
+          <a href="/dashboard/custodias/nueva" class="btn btn-primary">Nueva custodia</a>
+        </div>
+        <div class="card-footer text-body-secondary"></div>
+      </div>
+    {% endif %}
+  </div>
+
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      function handleEditClick(e) {
+        const btn = e.currentTarget;
+        const custId = btn.getAttribute("data-id");
+        const currentName = btn.getAttribute("data-name");
+        const currentEmails = btn.getAttribute("data-emails");
+
+        Swal.fire({
+          title: "Editar custodia",
+          html: `
+            <input id="swal-name" class="swal2-input" placeholder="Nombre" value="${currentName}">
+            <input id="swal-emails" class="swal2-input" placeholder="Correos de contacto (separados por ; )" value="${currentEmails}">
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          cancelButtonText: "Cancelar",
+          preConfirm: () => {
+            const name = document.getElementById("swal-name").value.trim();
+            const contactEmails = document.getElementById("swal-emails").value.trim();
+
+            if (!name) {
+              Swal.showValidationMessage("El nombre es obligatorio");
+              return false;
+            }
+
+            return { name, contactEmails };
+          }
+        }).then(result => {
+          if (result.isConfirmed) {
+            const updatedData = result.value;
+
+            fetch(`/dashboard/custodias/${custId}/editar`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+                "X-CSRF-Token": document.querySelector('meta[name="csrf-token"]').content
+              },
+              body: JSON.stringify(updatedData)
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                Swal.fire("¡Actualizado!", "La custodia fue editada correctamente.", "success");
+
+                btn.setAttribute("data-name", updatedData.name);
+                btn.setAttribute("data-emails", data.contactEmails.join("; "));
+
+                const row = btn.closest("tr");
+                row.children[0].textContent = updatedData.name;
+                row.children[1].textContent = data.contactEmails.join("; ");
+              } else {
+                Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll(".edit-custodia-btn").forEach(btn => {
+        btn.addEventListener("click", handleEditClick);
+      });
+    });
+  </script>
+{% endblock %}

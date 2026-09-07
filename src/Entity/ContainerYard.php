@@ -27,16 +27,9 @@ class ContainerYard
     #[ORM\OneToMany(targetEntity: ImportRequest::class, mappedBy: 'cr')]
     private Collection $importRequests;
 
-    /**
-     * @var Collection<int, EmptyReturn>
-     */
-    #[ORM\OneToMany(targetEntity: EmptyReturn::class, mappedBy: 'yard')]
-    private Collection $emptyReturns;
-
     public function __construct()
     {
         $this->importRequests = new ArrayCollection();
-        $this->emptyReturns = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -92,36 +85,6 @@ class ContainerYard
             // set the owning side to null (unless already changed)
             if ($importRequest->getCr() === $this) {
                 $importRequest->setCr(null);
-            }
-        }
-
-        return $this;
-    }
-
-    /**
-     * @return Collection<int, EmptyReturn>
-     */
-    public function getEmptyReturns(): Collection
-    {
-        return $this->emptyReturns;
-    }
-
-    public function addEmptyReturn(EmptyReturn $emptyReturn): static
-    {
-        if (!$this->emptyReturns->contains($emptyReturn)) {
-            $this->emptyReturns->add($emptyReturn);
-            $emptyReturn->setYard($this);
-        }
-
-        return $this;
-    }
-
-    public function removeEmptyReturn(EmptyReturn $emptyReturn): static
-    {
-        if ($this->emptyReturns->removeElement($emptyReturn)) {
-            // set the owning side to null (unless already changed)
-            if ($emptyReturn->getYard() === $this) {
-                $emptyReturn->setYard(null);
             }
         }
 

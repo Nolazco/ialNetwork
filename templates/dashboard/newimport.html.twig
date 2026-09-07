@@ -3,6 +3,7 @@
 	<!-- Contenido principal -->
   <div class="content">
     <form action="/dashboard/pedimentos/{{ rfc }}/new" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="_token" value="{{ csrf_token('create_import') }}">
       <div class="row">
         <div class="col">
           <label for="ref" class="form-label">Referencia</label>
@@ -15,13 +16,32 @@
       </div>
       <div class="row mt-3">
         <div class="col">
-          <label for="ref" class="form-label">Proveedor</label>
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="provider" class="form-label mb-0">Proveedor</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-provider">
+              <i class="bi bi-plus-lg"></i> Nuevo proveedor
+            </button>
+          </div>
           <select class="form-select" name="provider" id="provider" required>
-            <option selected disabled>Seleccione un proveedor</option>
+            <option value="" selected disabled>Seleccione un proveedor</option>
             {% for p in providers %}
               <option value="{{ p.id }}">{{ p.name }}</option>
             {% endfor %}
           </select>
+          <div id="new-provider-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newProviderName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newProviderName" name="newProviderName" placeholder="Nombre del proveedor">
+            </div>
+            <div class="mb-2">
+              <label for="newProviderTaxId" class="form-label small mb-1">RFC / identificador fiscal</label>
+              <input type="text" class="form-control form-control-sm" id="newProviderTaxId" name="newProviderTaxId" placeholder="RFC o tax ID">
+            </div>
+            <div class="mb-0">
+              <label for="newProviderAddress" class="form-label small mb-1">Dirección</label>
+              <input type="text" class="form-control form-control-sm" id="newProviderAddress" name="newProviderAddress" placeholder="Dirección">
+            </div>
+          </div>
         </div>
         <div class="col">
           <label for="eta" class="form-label">Fecha de arribo</label>
@@ -30,12 +50,227 @@
       </div>
       <div class="row mt-3">
         <div class="col">
-          <label for="ref" class="form-label">Tipo de carga</label>
-          <select class="form-select" name="type" id="type" required>
-            <option selected disabled>Seleccione el tipo de carga</option>
-            <option value="container">Contenedor</option>
-            <option value="lcl">Carga suelta</option>
+          <label class="form-label">Consignado a</label>
+          <select class="form-select" name="consignedTo" id="consignedTo" required>
+            <option value="cliente" selected>Cliente</option>
+            <option value="forwarder">Forwarder</option>
           </select>
+        </div>
+        <div class="col d-none" id="forwarder-wrapper">
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="forwarderId" class="form-label mb-0">Forwarder</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-forwarder">
+              <i class="bi bi-plus-lg"></i> Nuevo forwarder
+            </button>
+          </div>
+          <select class="form-select" name="forwarderId" id="forwarderId">
+            <option value="" selected disabled>Seleccione un forwarder</option>
+            {% for f in forwarders %}
+              <option value="{{ f.id }}">{{ f.name }}</option>
+            {% endfor %}
+          </select>
+          <div id="new-forwarder-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newForwarderName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newForwarderName" name="newForwarderName" placeholder="Nombre del forwarder">
+            </div>
+            <div class="mb-0">
+              <label for="newForwarderEmails" class="form-label small mb-1">Correos de contacto</label>
+              <input type="text" class="form-control form-control-sm" id="newForwarderEmails" name="newForwarderEmails" placeholder="correo1@forwarder.com; correo2@forwarder.com">
+              <div class="form-text small">Puedes capturar varios, separados por punto y coma.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label class="form-label">¿Requiere custodia?</label>
+          <select class="form-select" name="requiresCustody" id="requiresCustody" required>
+            <option value="no" selected>No</option>
+            <option value="si">Sí</option>
+          </select>
+        </div>
+        <div class="col d-none" id="custodia-wrapper">
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="custodiaId" class="form-label mb-0">Custodia</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-custodia">
+              <i class="bi bi-plus-lg"></i> Nueva custodia
+            </button>
+          </div>
+          <select class="form-select" name="custodiaId" id="custodiaId">
+            <option value="" selected disabled>Seleccione una custodia</option>
+            {% for c in custodias %}
+              <option value="{{ c.id }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+          <div id="new-custodia-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newCustodiaName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newCustodiaName" name="newCustodiaName" placeholder="Nombre de la custodia">
+            </div>
+            <div class="mb-0">
+              <label for="newCustodiaEmails" class="form-label small mb-1">Correos de contacto</label>
+              <input type="text" class="form-control form-control-sm" id="newCustodiaEmails" name="newCustodiaEmails" placeholder="correo1@custodia.com; correo2@custodia.com">
+              <div class="form-text small">Puedes capturar varios, separados por punto y coma.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="direction" class="form-label">Operación</label>
+          <select class="form-select" name="direction" id="direction" required>
+            <option selected disabled value="">Seleccione la operación</option>
+            {% for value, label in directions %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <label for="type" class="form-label">Tipo de carga</label>
+          <select class="form-select" name="type" id="type" required>
+            <option selected disabled value="">Seleccione el tipo de carga</option>
+            {% for value, label in types %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col">
+          <label for="aduana" class="form-label">Aduana</label>
+          <select class="form-select" name="aduana" id="aduana" required>
+            <option selected disabled value="">Seleccione la aduana</option>
+            {% for value, label in aduanas %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <p class="text-body-secondary small mt-2 mb-0">
+        <i class="bi bi-info-circle"></i>
+        El recinto lo asigna la agencia al dar de alta el pedimento.
+      </p>
+      <div class="row mt-3">
+        <div class="col">
+          <label class="form-label">Entregar en</label>
+          <select class="form-select" name="deliverTo" id="deliverTo" required>
+            <option value="fiscal" selected>Domicilio fiscal</option>
+            <option value="point">Punto de entrega</option>
+          </select>
+        </div>
+        <div class="col d-none" id="delivery-point-wrapper">
+          <div class="d-flex justify-content-between align-items-center">
+            <label for="deliveryPointId" class="form-label mb-0">Punto de entrega</label>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-delivery-point">
+              <i class="bi bi-plus-lg"></i> Nuevo punto
+            </button>
+          </div>
+          <select class="form-select" name="deliveryPointId" id="deliveryPointId">
+            <option value="" selected disabled>Seleccione un punto de entrega</option>
+            {% for p in deliveryPoints %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+          <div id="new-delivery-point-fields" class="d-none border rounded p-2 mt-2">
+            <div class="mb-2">
+              <label for="newDeliveryPointName" class="form-label small mb-1">Nombre</label>
+              <input type="text" class="form-control form-control-sm" id="newDeliveryPointName" name="newDeliveryPointName" placeholder="Ej. Almacén Norte">
+            </div>
+            <div class="mb-2">
+              <label for="newDeliveryPointAddress" class="form-label small mb-1">Dirección</label>
+              <input type="text" class="form-control form-control-sm" id="newDeliveryPointAddress" name="newDeliveryPointAddress" placeholder="Dirección">
+            </div>
+            <p class="small text-body-secondary mb-2">
+              Datos adicionales (opcionales) — solo hacen falta si este punto se usa después como destinatario en instrucciones al consolidador de carga (XCF):
+            </p>
+            <div class="row g-2">
+              <div class="col-6">
+                <label for="newDeliveryPointRfc" class="form-label small mb-1">RFC</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointRfc" name="newDeliveryPointRfc">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointZipCode" class="form-label small mb-1">Código postal</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointZipCode" name="newDeliveryPointZipCode">
+              </div>
+              <div class="col-8">
+                <label for="newDeliveryPointStreet" class="form-label small mb-1">Calle</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointStreet" name="newDeliveryPointStreet">
+              </div>
+              <div class="col-2">
+                <label for="newDeliveryPointExtNumber" class="form-label small mb-1">Núm ext</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointExtNumber" name="newDeliveryPointExtNumber">
+              </div>
+              <div class="col-2">
+                <label for="newDeliveryPointIntNumber" class="form-label small mb-1">Núm int</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointIntNumber" name="newDeliveryPointIntNumber">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointNeighborhood" class="form-label small mb-1">Colonia</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointNeighborhood" name="newDeliveryPointNeighborhood">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointLocality" class="form-label small mb-1">Localidad</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointLocality" name="newDeliveryPointLocality">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointMunicipality" class="form-label small mb-1">Municipio</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointMunicipality" name="newDeliveryPointMunicipality">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointState" class="form-label small mb-1">Estado</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointState" name="newDeliveryPointState">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointCountry" class="form-label small mb-1">País</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointCountry" name="newDeliveryPointCountry" value="MEXICO">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointContactName" class="form-label small mb-1">Contacto</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointContactName" name="newDeliveryPointContactName">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointContactPhone" class="form-label small mb-1">Teléfono</label>
+                <input type="text" class="form-control form-control-sm" id="newDeliveryPointContactPhone" name="newDeliveryPointContactPhone">
+              </div>
+              <div class="col-6">
+                <label for="newDeliveryPointContactEmail" class="form-label small mb-1">Correo</label>
+                <input type="email" class="form-control form-control-sm" id="newDeliveryPointContactEmail" name="newDeliveryPointContactEmail">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="deliveryInstructions" class="form-label">Instrucciones de entrega (opcional)</label>
+          <textarea class="form-control" name="deliveryInstructions" id="deliveryInstructions" rows="2" placeholder="Ej. Entregar 20 bultos en Almacén A y el resto en Almacén B"></textarea>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" value="1" name="travelsWithConsolidator" id="travelsWithConsolidator">
+            <label class="form-check-label" for="travelsWithConsolidator">
+              La mercancía viajará con el consolidador de carga (XCF)
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="row mt-3">
+        <div class="col">
+          <label for="inspectionAuthority" class="form-label">¿Requiere inspección?</label>
+          <select class="form-select" name="inspectionAuthority" id="inspectionAuthority" required>
+            <option selected disabled value="">Seleccione una opción</option>
+            <option value="{{ inspectionNone }}">{{ inspectionNone }}</option>
+            {% for a in inspectionAuthorities %}
+              <option value="{{ a }}">{{ a }}</option>
+            {% endfor %}
+            <option value="{{ inspectionOther }}">Otra autoridad (especificar)…</option>
+            <option value="{{ inspectionUnsure }}">{{ inspectionUnsure }}</option>
+          </select>
+        </div>
+        <div class="col d-none" id="custom-inspection-wrapper">
+          <label for="customInspectionAuthority" class="form-label">¿Cuál autoridad?</label>
+          <input type="text" class="form-control" name="customInspectionAuthority" id="customInspectionAuthority" placeholder="Nombre de la autoridad">
         </div>
       </div>
       <div id="container-fields-wrapper" style="display: none;">
@@ -48,11 +283,9 @@
             <div class="col">
               <select class="form-select" name="contTypes[]">
                 <option selected disabled>Seleccione el tipo de contenedor</option>
-                <option value="20DC">20 pies estandar</option>
-                <option value="20HC">20 pies cubo alto</option>
-                <option value="40DC">40 pies estandar</option>
-                <option value="40HC">40 pies cubo alto</option>
-                <option value="40RH">40 pies refrigerado</option>
+                {% for value, label in containerTypes %}
+                  <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
               </select>
             </div>
             <div class="col-auto">
@@ -90,6 +323,7 @@
 {% endblock %}
 
 {% block javascripts %}
+  {{ parent() }}
   <script>
     document.addEventListener("DOMContentLoaded", function () {
       const container = document.getElementById("documents-container");
@@ -116,6 +350,198 @@
             // Limpiar la fila si es la única
             row.querySelectorAll("input").forEach(input => input.value = "");
           }
+        }
+      });
+
+      // Alterna entre elegir un proveedor del catalogo o capturar uno nuevo.
+      const providerSelect = document.getElementById("provider");
+      const toggleProviderBtn = document.getElementById("toggle-new-provider");
+      const newProviderFields = document.getElementById("new-provider-fields");
+      let creatingProvider = false;
+
+      toggleProviderBtn.addEventListener("click", function () {
+        creatingProvider = !creatingProvider;
+
+        providerSelect.classList.toggle("d-none", creatingProvider);
+        providerSelect.required = !creatingProvider;
+        providerSelect.value = "";
+
+        newProviderFields.classList.toggle("d-none", !creatingProvider);
+        newProviderFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingProvider;
+          input.value = "";
+        });
+
+        toggleProviderBtn.innerHTML = creatingProvider
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo proveedor';
+      });
+
+      // Alterna si el embarque viene consignado al cliente o a un forwarder,
+      // y dentro de forwarder, entre elegir uno del catalogo o capturar uno
+      // nuevo (mismo mecanismo que el bloque de proveedor de arriba).
+      const consignedToSelect = document.getElementById("consignedTo");
+      const forwarderWrapper = document.getElementById("forwarder-wrapper");
+      const forwarderSelect = document.getElementById("forwarderId");
+      const toggleForwarderBtn = document.getElementById("toggle-new-forwarder");
+      const newForwarderFields = document.getElementById("new-forwarder-fields");
+      let creatingForwarder = false;
+
+      function toggleForwarderVisibility() {
+        const showForwarder = consignedToSelect.value === "forwarder";
+        forwarderWrapper.classList.toggle("d-none", !showForwarder);
+        forwarderSelect.required = showForwarder && !creatingForwarder;
+
+        if (!showForwarder) {
+          creatingForwarder = false;
+          forwarderSelect.classList.remove("d-none");
+          forwarderSelect.value = "";
+          newForwarderFields.classList.add("d-none");
+          newForwarderFields.querySelectorAll("input").forEach(function (input) {
+            input.required = false;
+            input.value = "";
+          });
+          toggleForwarderBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nuevo forwarder';
+        }
+      }
+
+      consignedToSelect.addEventListener("change", toggleForwarderVisibility);
+      toggleForwarderVisibility();
+
+      toggleForwarderBtn.addEventListener("click", function () {
+        creatingForwarder = !creatingForwarder;
+
+        forwarderSelect.classList.toggle("d-none", creatingForwarder);
+        forwarderSelect.required = !creatingForwarder;
+        forwarderSelect.value = "";
+
+        newForwarderFields.classList.toggle("d-none", !creatingForwarder);
+        newForwarderFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingForwarder;
+          input.value = "";
+        });
+
+        toggleForwarderBtn.innerHTML = creatingForwarder
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo forwarder';
+      });
+
+      // Igual que el bloque de forwarder: si requiere custodia o no, y dentro
+      // de "si", entre elegir una del catalogo o capturar una nueva.
+      const requiresCustodySelect = document.getElementById("requiresCustody");
+      const custodiaWrapper = document.getElementById("custodia-wrapper");
+      const custodiaSelect = document.getElementById("custodiaId");
+      const toggleCustodiaBtn = document.getElementById("toggle-new-custodia");
+      const newCustodiaFields = document.getElementById("new-custodia-fields");
+      let creatingCustodia = false;
+
+      function toggleCustodiaVisibility() {
+        const showCustodia = requiresCustodySelect.value === "si";
+        custodiaWrapper.classList.toggle("d-none", !showCustodia);
+        custodiaSelect.required = showCustodia && !creatingCustodia;
+
+        if (!showCustodia) {
+          creatingCustodia = false;
+          custodiaSelect.classList.remove("d-none");
+          custodiaSelect.value = "";
+          newCustodiaFields.classList.add("d-none");
+          newCustodiaFields.querySelectorAll("input").forEach(function (input) {
+            input.required = false;
+            input.value = "";
+          });
+          toggleCustodiaBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nueva custodia';
+        }
+      }
+
+      requiresCustodySelect.addEventListener("change", toggleCustodiaVisibility);
+      toggleCustodiaVisibility();
+
+      toggleCustodiaBtn.addEventListener("click", function () {
+        creatingCustodia = !creatingCustodia;
+
+        custodiaSelect.classList.toggle("d-none", creatingCustodia);
+        custodiaSelect.required = !creatingCustodia;
+        custodiaSelect.value = "";
+
+        newCustodiaFields.classList.toggle("d-none", !creatingCustodia);
+        newCustodiaFields.querySelectorAll("input").forEach(function (input) {
+          input.required = creatingCustodia;
+          input.value = "";
+        });
+
+        toggleCustodiaBtn.innerHTML = creatingCustodia
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nueva custodia';
+      });
+
+      // Igual que el bloque de forwarder: domicilio fiscal vs punto de
+      // entrega del catalogo, y dentro de este ultimo, elegir uno existente
+      // o capturar uno nuevo.
+      const deliverToSelect = document.getElementById("deliverTo");
+      const deliveryPointWrapper = document.getElementById("delivery-point-wrapper");
+      const deliveryPointSelect = document.getElementById("deliveryPointId");
+      const toggleDeliveryPointBtn = document.getElementById("toggle-new-delivery-point");
+      const newDeliveryPointFields = document.getElementById("new-delivery-point-fields");
+      let creatingDeliveryPoint = false;
+
+      function toggleDeliveryPointVisibility() {
+        const showPoint = deliverToSelect.value === "point";
+        deliveryPointWrapper.classList.toggle("d-none", !showPoint);
+        deliveryPointSelect.required = showPoint && !creatingDeliveryPoint;
+
+        if (!showPoint) {
+          creatingDeliveryPoint = false;
+          deliveryPointSelect.classList.remove("d-none");
+          deliveryPointSelect.value = "";
+          newDeliveryPointFields.classList.add("d-none");
+          newDeliveryPointFields.querySelectorAll("input").forEach(function (input) {
+            input.required = false;
+            if (input.name !== "newDeliveryPointCountry") {
+              input.value = "";
+            }
+          });
+          toggleDeliveryPointBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nuevo punto';
+        }
+      }
+
+      deliverToSelect.addEventListener("change", toggleDeliveryPointVisibility);
+      toggleDeliveryPointVisibility();
+
+      toggleDeliveryPointBtn.addEventListener("click", function () {
+        creatingDeliveryPoint = !creatingDeliveryPoint;
+
+        deliveryPointSelect.classList.toggle("d-none", creatingDeliveryPoint);
+        deliveryPointSelect.required = !creatingDeliveryPoint;
+        deliveryPointSelect.value = "";
+
+        newDeliveryPointFields.classList.toggle("d-none", !creatingDeliveryPoint);
+        newDeliveryPointFields.querySelectorAll("input").forEach(function (input) {
+          // Nombre y Dirección son los únicos obligatorios: el resto son
+          // datos extra para XCF, opcionales incluso al capturar un punto nuevo.
+          if (input.name === "newDeliveryPointName" || input.name === "newDeliveryPointAddress") {
+            input.required = creatingDeliveryPoint;
+          }
+          if (input.name !== "newDeliveryPointCountry") {
+            input.value = "";
+          }
+        });
+
+        toggleDeliveryPointBtn.innerHTML = creatingDeliveryPoint
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo punto';
+      });
+
+      // El campo libre solo aparece cuando la autoridad no esta en el catalogo.
+      const inspectionSelect = document.getElementById("inspectionAuthority");
+      const inspectionWrapper = document.getElementById("custom-inspection-wrapper");
+      const inspectionCustom = document.getElementById("customInspectionAuthority");
+
+      inspectionSelect.addEventListener("change", function () {
+        const isOther = inspectionSelect.value === {{ inspectionOther|json_encode|raw }};
+        inspectionWrapper.classList.toggle("d-none", !isOther);
+        inspectionCustom.required = isOther;
+        if (!isOther) {
+          inspectionCustom.value = "";
         }
       });
 

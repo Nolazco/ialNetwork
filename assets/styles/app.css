@@ -1,1 +1,228 @@
 /*@import "~bootstrap/scss/bootstrap";*/
+
+/* Paginas de login/registro. */
+
+.auth-page {
+	min-height: 100vh;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2rem 1rem;
+	background: linear-gradient(135deg, #eafbfd 0%, #f4f7f9 100%);
+}
+
+.auth-card {
+	width: 100%;
+	max-width: 420px;
+	background: #ffffff;
+	border-radius: 16px;
+	box-shadow: 0 10px 40px rgba(33, 37, 41, 0.08);
+	padding: 2.5rem 2rem;
+}
+
+.auth-card-wide {
+	max-width: 520px;
+}
+
+.auth-back {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: 0.9rem;
+	color: #666262;
+	text-decoration: none;
+	margin-bottom: 1.5rem;
+}
+
+.auth-back:hover {
+	color: #41b6c8;
+}
+
+.auth-brand {
+	text-align: center;
+	margin-bottom: 1rem;
+}
+
+.auth-logo {
+	height: 72px;
+	width: auto;
+}
+
+.auth-title {
+	text-align: center;
+	font-size: 1.5rem;
+	font-weight: 600;
+	margin-bottom: 1.5rem;
+	color: #212529;
+}
+
+.auth-card .form-control:focus {
+	border-color: #41b6c8;
+	box-shadow: 0 0 0 0.2rem rgba(65, 182, 200, 0.25);
+}
+
+.auth-submit {
+	width: 100%;
+	background-color: #41b6c8;
+	border-color: #41b6c8;
+	padding: 0.6rem;
+	font-weight: 600;
+	border-radius: 8px;
+	margin-top: 0.5rem;
+}
+
+.auth-submit:hover {
+	background-color: #379baa;
+	border-color: #379baa;
+}
+
+/* Roadmap de avance del expediente (templates/dashboard/caseFile.html.twig). */
+
+.roadmap-wrapper {
+	overflow-x: auto;
+	padding: 0.5rem 0.25rem 0.75rem;
+}
+
+.roadmap {
+	display: flex;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	min-width: max-content;
+}
+
+.roadmap-step {
+	position: relative;
+	flex: 0 0 128px;
+	padding-top: 4px;
+	text-align: center;
+}
+
+.roadmap-step:not(:first-child)::before {
+	content: '';
+	position: absolute;
+	top: 24px;
+	left: -50%;
+	width: 100%;
+	height: 3px;
+	background-color: #dee2e6;
+	z-index: 0;
+}
+
+.roadmap-step.is-complete:not(:first-child)::before {
+	background-color: #198754;
+}
+
+.roadmap-marker {
+	position: relative;
+	z-index: 1;
+	width: 40px;
+	height: 40px;
+	margin: 0 auto 0.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border-radius: 50%;
+	border: 3px solid #dee2e6;
+	background-color: #fff;
+	color: #adb5bd;
+	font-weight: 600;
+}
+
+.roadmap-step.is-complete .roadmap-marker {
+	background-color: #198754;
+	border-color: #198754;
+	color: #fff;
+}
+
+.roadmap-step.is-current .roadmap-marker {
+	border-color: #0d6efd;
+	color: #0d6efd;
+	box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.15);
+}
+
+.roadmap-step.is-skipped .roadmap-marker {
+	border-style: dashed;
+	background-color: #f8f9fa;
+}
+
+/* El pedimento salio seleccionado para reconocimiento aduanero: el SOIA
+   todavia no da un resultado final, asi que el paso se marca en rojo en vez
+   de dejarlo como "pendiente" normal (ver caseFile.html.twig). */
+.roadmap-step.is-alert .roadmap-marker {
+	border-color: #dc3545;
+	color: #dc3545;
+	box-shadow: 0 0 0 4px rgba(220, 53, 69, 0.15);
+}
+
+.roadmap-step.is-alert .roadmap-label {
+	color: #dc3545;
+	font-weight: 600;
+}
+
+.roadmap-label {
+	font-size: 0.8rem;
+	line-height: 1.25;
+	color: #6c757d;
+}
+
+.roadmap-step.is-complete .roadmap-label,
+.roadmap-step.is-current .roadmap-label {
+	color: #212529;
+	font-weight: 500;
+}
+
+.roadmap-tag {
+	display: block;
+	margin-top: 0.15rem;
+	font-size: 0.7rem;
+	font-weight: 400;
+	color: #adb5bd;
+}
+
+.roadmap-tag-current {
+	color: #0d6efd;
+	font-weight: 600;
+}
+
+.roadmap-tag-alert {
+	color: #dc3545;
+	font-weight: 600;
+}
+
+/* Selector de archivos con clic o arrastrar-y-soltar (ver multi_file_input.js). */
+
+.file-drop-area {
+	position: relative;
+	border: 2px dashed #adb5bd;
+	border-radius: 0.375rem;
+	padding: 1.5rem;
+	text-align: center;
+	color: #6c757d;
+	transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.file-drop-area:hover {
+	border-color: #41b6c8;
+	background-color: #f4fbfc;
+}
+
+.file-drop-area input[type="file"] {
+	cursor: pointer;
+}
+
+.file-drop-hint i {
+	font-size: 1.5rem;
+	display: block;
+	margin-bottom: 0.25rem;
+}
+
+.file-drop-list {
+	margin-top: 0.75rem;
+	max-height: 220px;
+	overflow-y: auto;
+}
+
+.file-drop-list:empty {
+	display: none;
+}

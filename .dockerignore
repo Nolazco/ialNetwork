@@ -1,0 +1,12 @@
+# El contexto de build solo necesita docker/ y los archivos de configuracion:
+# las dependencias las instala el entrypoint dentro del contenedor. Sin esto se
+# enviaban ~82 MB al daemon en cada build.
+/vendor/
+/node_modules/
+/var/
+/public/build/
+/public/bundles/
+/public/uploads/
+/.git/
+/.env.local
+/backup.sql

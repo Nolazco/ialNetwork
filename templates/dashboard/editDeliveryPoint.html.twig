@@ -1,0 +1,84 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+{% block body %}
+  <!-- Contenido principal -->
+  <div class="content">
+    <h2 class="mb-1">Editar punto de entrega</h2>
+    <p class="text-body-secondary mb-4">{{ company.name }} ({{ company.rfc }})</p>
+
+    <form action="{{ path('delivery_point_edit', { rfc: company.rfc, id: point.id }) }}" method="POST">
+      <input type="hidden" name="_token" value="{{ csrf_token('edit_delivery_point') }}">
+
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label for="name" class="form-label">Nombre</label>
+          <input type="text" class="form-control" id="name" name="name" value="{{ point.name }}" required>
+        </div>
+        <div class="col-md-6">
+          <label for="address" class="form-label">Dirección</label>
+          <input type="text" class="form-control" id="address" name="address" value="{{ point.address }}" required>
+        </div>
+      </div>
+
+      <p class="small text-body-secondary mt-3 mb-2">
+        Datos adicionales (opcionales) — solo hacen falta si este punto se usa después como destinatario en instrucciones al consolidador de carga (XCF):
+      </p>
+      <div class="row g-2">
+        <div class="col-6 col-md-3">
+          <label for="rfc" class="form-label small mb-1">RFC</label>
+          <input type="text" class="form-control form-control-sm" id="rfc" name="rfc" value="{{ point.rfc }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="zipCode" class="form-label small mb-1">Código postal</label>
+          <input type="text" class="form-control form-control-sm" id="zipCode" name="zipCode" value="{{ point.zipCode }}">
+        </div>
+        <div class="col-8 col-md-4">
+          <label for="street" class="form-label small mb-1">Calle</label>
+          <input type="text" class="form-control form-control-sm" id="street" name="street" value="{{ point.street }}">
+        </div>
+        <div class="col-2 col-md-1">
+          <label for="extNumber" class="form-label small mb-1">Núm ext</label>
+          <input type="text" class="form-control form-control-sm" id="extNumber" name="extNumber" value="{{ point.extNumber }}">
+        </div>
+        <div class="col-2 col-md-1">
+          <label for="intNumber" class="form-label small mb-1">Núm int</label>
+          <input type="text" class="form-control form-control-sm" id="intNumber" name="intNumber" value="{{ point.intNumber }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="neighborhood" class="form-label small mb-1">Colonia</label>
+          <input type="text" class="form-control form-control-sm" id="neighborhood" name="neighborhood" value="{{ point.neighborhood }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="locality" class="form-label small mb-1">Localidad</label>
+          <input type="text" class="form-control form-control-sm" id="locality" name="locality" value="{{ point.locality }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="municipality" class="form-label small mb-1">Municipio</label>
+          <input type="text" class="form-control form-control-sm" id="municipality" name="municipality" value="{{ point.municipality }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="state" class="form-label small mb-1">Estado</label>
+          <input type="text" class="form-control form-control-sm" id="state" name="state" value="{{ point.state }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="country" class="form-label small mb-1">País</label>
+          <input type="text" class="form-control form-control-sm" id="country" name="country" value="{{ point.country ?? 'MEXICO' }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="contactName" class="form-label small mb-1">Contacto</label>
+          <input type="text" class="form-control form-control-sm" id="contactName" name="contactName" value="{{ point.contactName }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="contactPhone" class="form-label small mb-1">Teléfono</label>
+          <input type="text" class="form-control form-control-sm" id="contactPhone" name="contactPhone" value="{{ point.contactPhone }}">
+        </div>
+        <div class="col-6 col-md-3">
+          <label for="contactEmail" class="form-label small mb-1">Correo</label>
+          <input type="email" class="form-control form-control-sm" id="contactEmail" name="contactEmail" value="{{ point.contactEmail }}">
+        </div>
+      </div>
+
+      <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
+      <a href="{{ path('delivery_points', { rfc: company.rfc }) }}" class="btn btn-outline-secondary mt-3">Cancelar</a>
+    </form>
+  </div>
+{% endblock %}
