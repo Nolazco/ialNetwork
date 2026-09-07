@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Delivery;
+use App\Entity\Biller;
 use App\Entity\Container;
 use App\Entity\ConsolidatorInstruction;
 use App\Entity\ContainerYard;
@@ -237,6 +238,7 @@ class DashboardCaseFiles extends AbstractController
             'canAssignTransport' => $this->workflow->canAssignTransport($import),
             'awaitsTransport' => $this->workflow->awaitsTransport($import),
             'haulers' => $this->entityManager->getRepository(FreightHauler::class)->findBy([], ['companyName' => 'ASC']),
+            'billers' => $this->entityManager->getRepository(Biller::class)->findBy([], ['name' => 'ASC']),
             'yards' => $this->entityManager->getRepository(ContainerYard::class)->findBy([], ['name' => 'ASC']),
             'emptyReturnYards' => $this->entityManager->getRepository(EmptyReturnYard::class)->findBy([], ['name' => 'ASC']),
             'containerTypes' => ContainerTypeCatalog::LABELS,
@@ -925,6 +927,47 @@ class DashboardCaseFiles extends AbstractController
                 return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
             }
         }
+
+        // A quien se factura el movimiento: al cliente directo (default) o a
+        // un facturador del catalogo, o uno nuevo dado de alta aqui mismo. Se
+        // decide hasta ahora, al avisar al transporte, porque es cuando se
+        // sabe con certeza el detalle del despacho (su razon social/domicilio/
+        // RFC aparecen en el aviso — ver DeliveryMailer).
+        $billedTo = $r->request->get('billedTo', 'cliente');
+        $billTo = null;
+
+        if ($billedTo === 'facturador') {
+            $billerId = $r->request->get('billerId');
+
+            if ($billerId) {
+                $billTo = $this->entityManager->getRepository(Biller::class)->find($billerId);
+
+                if (!$billTo) {
+                    $this->addFlash('error', 'Selecciona un facturador válido.');
+
+                    return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+                }
+            } else {
+                $billerName = trim((string) $r->request->get('newBillerName'));
+                $billerAddress = trim((string) $r->request->get('newBillerAddress'));
+                $billerRfc = trim((string) $r->request->get('newBillerRfc'));
+
+                if ($billerName === '' || $billerAddress === '' || $billerRfc === '') {
+                    $this->addFlash('error', 'Selecciona un facturador del catálogo o captura uno nuevo completo.');
+
+                    return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+                }
+
+                $billTo = new Biller();
+                $billTo->setName($billerName);
+                $billTo->setAddress($billerAddress);
+                $billTo->setRfc($billerRfc);
+
+                $this->entityManager->persist($billTo);
+            }
+        }
+
+        $import->setBillTo($billTo);
 
         $delivery = new Delivery();
 

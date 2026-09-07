@@ -898,6 +898,42 @@
                 <input type="file" class="form-control" name="pedimentoSimplificado" id="pedimentoSimplificado">
               </div>
 
+              <div class="col-md-4">
+                <label class="form-label">¿Se factura a?</label>
+                <select class="form-select" name="billedTo" id="billedTo" required>
+                  <option value="cliente" {{ import.billTo ? '' : 'selected' }}>Cliente</option>
+                  <option value="facturador" {{ import.billTo ? 'selected' : '' }}>Facturador</option>
+                </select>
+              </div>
+              <div class="col-md-8 {{ import.billTo ? '' : 'd-none' }}" id="biller-wrapper">
+                <div class="d-flex justify-content-between align-items-center">
+                  <label for="billerId" class="form-label mb-0">Facturador</label>
+                  <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-biller">
+                    <i class="bi bi-plus-lg"></i> Nuevo facturador
+                  </button>
+                </div>
+                <select class="form-select" name="billerId" id="billerId">
+                  <option value="" {{ import.billTo ? '' : 'selected disabled' }}>Seleccione un facturador</option>
+                  {% for b in billers %}
+                    <option value="{{ b.id }}" {{ import.billTo and import.billTo.id == b.id ? 'selected' : '' }}>{{ b.name }}</option>
+                  {% endfor %}
+                </select>
+                <div id="new-biller-fields" class="d-none border rounded p-2 mt-2">
+                  <div class="mb-2">
+                    <label for="newBillerName" class="form-label small mb-1">Razón social</label>
+                    <input type="text" class="form-control form-control-sm" id="newBillerName" name="newBillerName" placeholder="Razón social del facturador">
+                  </div>
+                  <div class="mb-2">
+                    <label for="newBillerAddress" class="form-label small mb-1">Domicilio</label>
+                    <input type="text" class="form-control form-control-sm" id="newBillerAddress" name="newBillerAddress" placeholder="Domicilio fiscal">
+                  </div>
+                  <div class="mb-0">
+                    <label for="newBillerRfc" class="form-label small mb-1">RFC</label>
+                    <input type="text" class="form-control form-control-sm" id="newBillerRfc" name="newBillerRfc" placeholder="RFC">
+                  </div>
+                </div>
+              </div>
+
               {% if shareableImports|length > 0 %}
                 <div class="col-12">
                   <label class="form-label">
@@ -1470,6 +1506,60 @@
           toggleUnregisteredHauler(select);
         });
       });
+
+      // A quien se factura el movimiento, elegido al avisar al transporte:
+      // cliente directo o un facturador del catalogo (o uno nuevo, capturado
+      // ahi mismo). Igual patron que el select de custodia en el alta de la
+      // solicitud.
+      (function () {
+        const billedToSelect = document.getElementById("billedTo");
+        if (!billedToSelect) return;
+
+        const billerWrapper = document.getElementById("biller-wrapper");
+        const billerSelect = document.getElementById("billerId");
+        const toggleBillerBtn = document.getElementById("toggle-new-biller");
+        const newBillerFields = document.getElementById("new-biller-fields");
+        let creatingBiller = false;
+
+        function toggleBillerVisibility() {
+          const showBiller = billedToSelect.value === "facturador";
+          billerWrapper.classList.toggle("d-none", !showBiller);
+          billerSelect.required = showBiller && !creatingBiller;
+
+          if (!showBiller) {
+            creatingBiller = false;
+            billerSelect.classList.remove("d-none");
+            billerSelect.value = "";
+            newBillerFields.classList.add("d-none");
+            newBillerFields.querySelectorAll("input").forEach(function (input) {
+              input.required = false;
+              input.value = "";
+            });
+            toggleBillerBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nuevo facturador';
+          }
+        }
+
+        billedToSelect.addEventListener("change", toggleBillerVisibility);
+        toggleBillerVisibility();
+
+        toggleBillerBtn.addEventListener("click", function () {
+          creatingBiller = !creatingBiller;
+
+          billerSelect.classList.toggle("d-none", creatingBiller);
+          billerSelect.required = !creatingBiller;
+          billerSelect.value = "";
+
+          newBillerFields.classList.toggle("d-none", !creatingBiller);
+          newBillerFields.querySelectorAll("input").forEach(function (input) {
+            input.required = creatingBiller;
+            input.value = "";
+          });
+
+          toggleBillerBtn.innerHTML = creatingBiller
+            ? '<i class="bi bi-list"></i> Elegir del catálogo'
+            : '<i class="bi bi-plus-lg"></i> Nuevo facturador';
+        });
+      })();
 
       // Al marcar un expediente adicional para compartir la unidad, se
       // muestran sus propios contenedores sin asignar (ya vienen precargados
