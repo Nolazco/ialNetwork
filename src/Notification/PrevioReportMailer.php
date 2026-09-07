@@ -53,10 +53,10 @@ final class PrevioReportMailer
      *
      * @return list<string>
      */
-    public function resolveCc(): array
+    public function resolveCc(ImportRequest $import): array
     {
         return $this->dedupe(array_merge(
-            $this->recipients->executiveEmails(),
+            $this->recipients->executiveEmails($import->getAduana()),
             $this->notificationRecipients->emailsFor(self::CC_KEY),
         ));
     }
@@ -66,7 +66,7 @@ final class PrevioReportMailer
         $import = $previo->getReference();
         $to = $this->resolveTo($import);
         $cc = $this->dedupe(array_merge(
-            $this->resolveCc(),
+            $this->resolveCc($import),
             array_filter([$previo->getCreatedBy()?->getEmail()]),
         ));
 

@@ -10,6 +10,7 @@
           <th scope="col">Apellidos</th>
           <th scope="col">correo</th>
           <th scope="col">Rol</th>
+          <th scope="col">Aduanas</th>
           <th scope="col">Estatus</th>
           <th scope="col">Opciones</th>
         </tr>
@@ -29,6 +30,19 @@
               Cliente
             {% elseif u.roles[0] == 'ROLE_FH' %}
               Transportista
+            {% endif %}
+          </td>
+          <td id="aduanas-{{ u.id }}">
+            {% if u.roles[0] == 'ROLE_EXECUTIVE' %}
+              {% if u.aduanas is empty %}
+                <span class="badge bg-secondary">Todas</span>
+              {% else %}
+                {% for code in u.aduanas %}
+                  <span class="badge bg-info text-dark">{{ aduanas[code]|default(code) }}</span>
+                {% endfor %}
+              {% endif %}
+            {% else %}
+              <span class="text-body-secondary">—</span>
             {% endif %}
           </td>
           <td id="status-{{ u.id }}">
@@ -69,6 +83,14 @@
                     title="Cambiar rol">
               <i class="bi bi-wrench"></i>
             </button>
+            {% if u.roles[0] == 'ROLE_EXECUTIVE' %}
+              <button class="btn btn-info assign-aduanas-btn"
+                      title="Asignar aduanas"
+                      data-id="{{ u.id }}"
+                      data-aduanas="{{ u.aduanas|join(',') }}">
+                <i class="bi bi-geo-alt"></i>
+              </button>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}
@@ -380,6 +402,68 @@
 
       document.querySelectorAll(".change-role-btn").forEach(btn => {
         btn.addEventListener("click", handleChangeRoleClick);
+      });
+
+      // Aduanas que trabaja cada ejecutivo (ver User::$aduanas): sin marcar
+      // ninguna sigue viendo todas, igual que antes de este campo.
+      const aduanaLabels = {{ aduanas|json_encode|raw }};
+
+      function handleAssignAduanasClick(e) {
+        const btn = e.currentTarget;
+        const userId = btn.getAttribute("data-id");
+        const current = btn.getAttribute("data-aduanas").split(",").filter(Boolean);
+
+        const checkboxesHtml = Object.entries(aduanaLabels).map(([code, label]) => `
+          <div class="form-check text-start">
+            <input class="form-check-input swal-aduana-check" type="checkbox" value="${code}" id="aduana-${code}" ${current.includes(code) ? "checked" : ""}>
+            <label class="form-check-label" for="aduana-${code}">${label}</label>
+          </div>
+        `).join('');
+
+        Swal.fire({
+          title: "Asignar aduanas",
+          html: `
+            <p class="text-start small text-muted">Sin ninguna marcada, este ejecutivo sigue recibiendo alertas de cualquier aduana.</p>
+            ${checkboxesHtml}
+          `,
+          focusConfirm: false,
+          showCancelButton: true,
+          confirmButtonText: "Guardar",
+          cancelButtonText: "Cancelar",
+          preConfirm: () => Array.from(document.querySelectorAll(".swal-aduana-check:checked")).map(cb => cb.value)
+        }).then(result => {
+          if (result.isConfirmed) {
+            const selected = result.value;
+
+            fetch(`/dashboard/usuarios/${userId}/aduanas`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: JSON.stringify({ aduanas: selected })
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                btn.setAttribute("data-aduanas", data.aduanas.join(","));
+
+                const cell = document.getElementById(`aduanas-${userId}`);
+                cell.innerHTML = data.aduanas.length === 0
+                  ? '<span class="badge bg-secondary">Todas</span>'
+                  : data.aduanas.map(code => `<span class="badge bg-info text-dark">${aduanaLabels[code] || code}</span>`).join(' ');
+
+                Swal.fire("¡Actualizado!", "Las aduanas fueron asignadas correctamente.", "success");
+              } else {
+                Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
+              }
+            });
+          }
+        });
+      }
+
+      document.querySelectorAll(".assign-aduanas-btn").forEach(btn => {
+        btn.addEventListener("click", handleAssignAduanasClick);
       });
     });
   </script>

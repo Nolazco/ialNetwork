@@ -74,7 +74,7 @@ class DashboardPrevios extends AbstractController
             'presentations' => self::PRESENTATIONS,
             'maxPhotos' => self::MAX_PHOTOS,
             'previewTo' => $this->mailer->resolveTo($import),
-            'previewCc' => $this->mailer->resolveCc(),
+            'previewCc' => $this->mailer->resolveCc($import),
         ]);
     }
 

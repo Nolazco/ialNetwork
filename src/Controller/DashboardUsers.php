@@ -11,6 +11,7 @@ use App\Entity\ImportRequest;
 use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Notification\UserStatusMailer;
+use App\Workflow\AduanaCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\TransportCoordinator;
 use Doctrine\ORM\EntityManagerInterface;
@@ -340,7 +341,8 @@ class DashboardUsers extends AbstractController {
 			'name' => $user->getName(),
 			'role' => $user->getRoles()[0],
 			'loged' => 'true',
-			'users' => $users
+			'users' => $users,
+			'aduanas' => AduanaCatalog::LABELS,
 		]);
 	}
 
@@ -496,5 +498,45 @@ class DashboardUsers extends AbstractController {
     $entityManager->flush();
 
     return new JsonResponse(['success' => true]);
+  }
+
+  /**
+   * Solo aplica a ejecutivos: en que aduanas trabajan, para que
+   * RecipientResolver::executiveEmails() no les mande alertas de expedientes
+   * ajenos a las suyas (ver User::$aduanas). Vacio es valido: significa
+   * "todas", el mismo comportamiento que tenian antes de este campo.
+   */
+  #[Route(name: 'assignAduanas', path: '/dashboard/usuarios/{id}/aduanas', methods: ['POST'])]
+  #[IsGranted('ROLE_ADMIN')]
+  public function assignAduanas(int $id, Request $r, EntityManagerInterface $entityManager, AduanaCatalog $aduanaCatalog): JsonResponse {
+    if ($csrf = $this->rejectInvalidAjaxCsrf($r)) {
+      return $csrf;
+    }
+
+    $user = $entityManager->getRepository(User::class)->find($id);
+
+    if (!$user) {
+      return new JsonResponse(['success' => false, 'message' => 'Usuario no encontrado.'], 404);
+    }
+
+    $data = json_decode($r->getContent(), true);
+    $submitted = is_array($data['aduanas'] ?? null) ? $data['aduanas'] : [];
+
+    // Nada de array_keys() sobre un array asociativo aqui: los codigos son
+    // strings numericos ("16", "48"...) y PHP los convertiria de vuelta a
+    // int como llaves de array, guardando aduanas que ya no coinciden con
+    // AduanaCatalog::LABELS ni con lo que manda ImportRequest::getAduana().
+    $aduanas = [];
+
+    foreach ($submitted as $aduana) {
+      if (is_string($aduana) && $aduanaCatalog->isValid($aduana) && !in_array($aduana, $aduanas, true)) {
+        $aduanas[] = $aduana;
+      }
+    }
+
+    $user->setAduanas($aduanas);
+    $entityManager->flush();
+
+    return new JsonResponse(['success' => true, 'aduanas' => $user->getAduanas()]);
   }
 }

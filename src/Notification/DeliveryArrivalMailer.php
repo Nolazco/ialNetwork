@@ -41,7 +41,7 @@ final class DeliveryArrivalMailer
                 continue;
             }
 
-            $cc = $this->recipients->executiveEmails();
+            $cc = $this->recipients->executiveEmails($import->getAduana());
 
             $email = (new TemplatedEmail())
                 ->from($this->fromAddress)

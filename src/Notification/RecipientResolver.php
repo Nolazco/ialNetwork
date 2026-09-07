@@ -48,9 +48,16 @@ final class RecipientResolver
     }
 
     /**
+     * Si se manda $aduana, un ejecutivo con aduanas asignadas solo entra
+     * cuando esa aduana esta entre las suyas — el admin ve todo sin importar
+     * la aduana, y un ejecutivo sin ninguna aduana asignada tambien ve todo
+     * (para no dejar de avisarle a alguien que todavia no se configuro). Sin
+     * $aduana (llamadas que no tienen un expediente detras, como las
+     * solicitudes de clasificacion) se regresan todos, igual que antes.
+     *
      * @return list<string>
      */
-    public function executiveEmails(): array
+    public function executiveEmails(?string $aduana = null): array
     {
         $emails = [];
 
@@ -59,10 +66,22 @@ final class RecipientResolver
             // security.yaml), pero getRoles() del entity no resuelve la
             // jerarquia, asi que se comprueban ambos explicitamente.
             $roles = $user->getRoles();
+            $isAdmin = in_array('ROLE_ADMIN', $roles, true);
+            $isExecutive = in_array('ROLE_EXECUTIVE', $roles, true);
 
-            if ((in_array('ROLE_EXECUTIVE', $roles, true) || in_array('ROLE_ADMIN', $roles, true)) && $user->getEmail()) {
-                $emails[$user->getEmail()] = true;
+            if ((!$isAdmin && !$isExecutive) || !$user->getEmail()) {
+                continue;
             }
+
+            if (!$isAdmin && $aduana !== null) {
+                $assigned = $user->getAduanas();
+
+                if ($assigned !== [] && !in_array($aduana, $assigned, true)) {
+                    continue;
+                }
+            }
+
+            $emails[$user->getEmail()] = true;
         }
 
         return array_keys($emails);

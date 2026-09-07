@@ -75,7 +75,7 @@ final class ModuladoMailer
             $this->notificationRecipients->emailsFor(self::TO_KEY),
         ));
         $cc = $this->dedupe(array_merge(
-            $this->recipients->executiveEmails(),
+            $this->recipients->executiveEmails($import->getAduana()),
             $this->notificationRecipients->emailsFor(self::CC_KEY),
         ));
 
