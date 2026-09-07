@@ -3,9 +3,7 @@
 namespace App\Notification;
 
 use App\Entity\Delivery;
-use App\Entity\ImportRequest;
 use App\Service\UploadPath;
-use App\Workflow\RequiredDocumentType;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\Mailer\MailerInterface;
@@ -44,14 +42,13 @@ final class DeliveryMailer
         $references = [];
         $attachments = [];
 
-        // El pedimento simplificado adjunto manualmente en el despacho (si lo
-        // hay) aplica a todo el camion y tiene prioridad; si no se adjunto
-        // ninguno, cada referencia toma el suyo del expediente (subido desde
-        // la fase "Pagado" — ver RequiredDocumentType::SIMPLIFIED_PEDIMENTO).
-        $manualPedimentoRoute = $delivery->getPedimentoSimplificadoRoute();
+        // La maniobra es opcional: si se adjunto una, se le manda al
+        // transporte renombrada con el contenedor (o "MANIOBRA CS ..." si es
+        // carga suelta) en vez de con el nombre original del archivo.
+        $maniobraRoute = $delivery->getManiobraRoute();
 
-        if ($manualPedimentoRoute) {
-            $attachments[] = ['route' => $manualPedimentoRoute, 'name' => 'Pedimento simplificado.'.pathinfo($manualPedimentoRoute, PATHINFO_EXTENSION)];
+        if ($maniobraRoute) {
+            $attachments[] = ['route' => $maniobraRoute, 'name' => $this->maniobraFilename($delivery, pathinfo($maniobraRoute, PATHINFO_EXTENSION))];
         }
 
         foreach ($delivery->getReferences() as $reference) {
@@ -83,20 +80,6 @@ final class DeliveryMailer
                 'deliveryInstructions' => $reference->getDeliveryInstructions(),
                 'yard' => $yard ? sprintf('%s (CR %s)', $yard->getName(), $yard->getCr()) : null,
             ];
-
-            if (!$manualPedimentoRoute) {
-                $route = $this->documentRoute($reference, RequiredDocumentType::SIMPLIFIED_PEDIMENTO);
-
-                if ($route !== null) {
-                    $attachments[] = ['route' => $route, 'name' => sprintf('Pedimento simplificado %s.%s', $reference->getAgencyReference(), pathinfo($route, PATHINFO_EXTENSION))];
-                }
-            }
-
-            $bl = $this->documentRoute($reference, RequiredDocumentType::REVALIDATED_BL);
-
-            if ($bl !== null) {
-                $attachments[] = ['route' => $bl, 'name' => sprintf('BL revalidado %s.%s', $reference->getAgencyReference(), pathinfo($bl, PATHINFO_EXTENSION))];
-            }
         }
 
         $email = (new TemplatedEmail())
@@ -121,14 +104,30 @@ final class DeliveryMailer
         $this->mailer->send($email);
     }
 
-    private function documentRoute(ImportRequest $import, string $type): ?string
+    /**
+     * Contenedor: el nombre del archivo es el numero de cada contenedor
+     * (separados por coma si hay mas de uno). Carga suelta: no hay
+     * contenedor con que identificarla, asi que se usa "MANIOBRA CS
+     * <empresa> - <recinto>" de la primera referencia del despacho.
+     */
+    private function maniobraFilename(Delivery $delivery, string $extension): string
     {
-        foreach ($import->getRequiredDocuments() as $document) {
-            if ($document->getType() === $type && $document->getRoute() !== null) {
-                return $document->getRoute();
+        $containers = $delivery->getContainers();
+
+        if (!$containers->isEmpty()) {
+            $names = [];
+
+            foreach ($containers as $container) {
+                $names[] = $container->getNum();
             }
+
+            return implode(', ', $names).'.'.$extension;
         }
 
-        return null;
+        $primary = $delivery->getReferences()->first() ?: null;
+        $company = $primary?->getIdCompany()->getName() ?? '';
+        $yard = $primary?->getCr()?->getName() ?? 'recinto pendiente';
+
+        return strtoupper(sprintf('MANIOBRA CS %s - %s', $company, $yard)).'.'.$extension;
     }
 }

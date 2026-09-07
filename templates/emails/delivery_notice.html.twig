@@ -101,9 +101,11 @@
                   </tr>
                 {% endif %}
               </table>
-              <p style="margin:24px 0 0; font-size:13px; color:#909090;">
-                Se adjunta el pedimento simplificado y, si ya se subió, el BL revalidado de cada referencia.
-              </p>
+              {% if delivery.maniobraRoute %}
+                <p style="margin:24px 0 0; font-size:13px; color:#909090;">
+                  Se adjunta la maniobra.
+                </p>
+              {% endif %}
             </td>
           </tr>
         </table>

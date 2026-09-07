@@ -603,10 +603,10 @@
                       {% if d.xcfFolio %}
                         <div class="small text-body-secondary">Folio XCF: {{ d.xcfFolio }}</div>
                       {% endif %}
-                      {% if d.pedimentoSimplificadoRoute %}
+                      {% if d.maniobraRoute %}
                         <div class="small">
-                          <a href="{{ path('case_file_delivery_pedimento_download', { id: import.id, delivery: d.id }) }}" target="_blank" rel="noopener">
-                            <i class="bi bi-file-earmark-text"></i> Pedimento simplificado
+                          <a href="{{ path('case_file_delivery_maniobra_download', { id: import.id, delivery: d.id }) }}" target="_blank" rel="noopener">
+                            <i class="bi bi-file-earmark-text"></i> Maniobra
                           </a>
                         </div>
                       {% endif %}
@@ -772,10 +772,10 @@
                         {% endif %}
                         <div class="col-md-4">
                           <label class="form-label small">
-                            Pedimento simplificado
-                            {% if d.pedimentoSimplificadoRoute %}<span class="text-body-secondary">(ya adjunto, opcional reemplazar)</span>{% endif %}
+                            Subir maniobra
+                            {% if d.maniobraRoute %}<span class="text-body-secondary">(ya adjunta, opcional reemplazar)</span>{% endif %}
                           </label>
-                          <input type="file" class="form-control form-control-sm" name="pedimentoSimplificado">
+                          <input type="file" class="form-control form-control-sm" name="maniobra">
                         </div>
                         <div class="col-md-2">
                           <button type="submit" class="btn btn-sm btn-primary">
@@ -891,11 +891,11 @@
               {% endif %}
 
               <div class="col-md-4">
-                <label for="pedimentoSimplificado" class="form-label">
-                  Pedimento simplificado
-                  <span class="text-body-secondary">(opcional, se toma el ya subido en el expediente si no adjuntas otro)</span>
+                <label for="maniobra" class="form-label">
+                  Subir maniobra
+                  <span class="text-body-secondary">(opcional)</span>
                 </label>
-                <input type="file" class="form-control" name="pedimentoSimplificado" id="pedimentoSimplificado">
+                <input type="file" class="form-control" name="maniobra" id="maniobra">
               </div>
 
               <div class="col-md-4">

@@ -903,10 +903,10 @@ class DashboardCaseFiles extends AbstractController
         $bultos = (int) $r->request->get('bultos');
         $weightKg = (float) str_replace(',', '.', (string) $r->request->get('weightKg'));
         $cubicaje = (float) str_replace(',', '.', (string) $r->request->get('cubicaje'));
-        // El pedimento simplificado es opcional aqui: si no se adjunta uno,
-        // el aviso al transporte toma el que ya se subio en la fase "Pagado"
-        // (ver DeliveryMailer). Mismo criterio que editTransport().
-        $pedimentoFile = $r->files->get('pedimentoSimplificado');
+        // La maniobra es opcional: si se adjunta, se le manda al transporte
+        // renombrada con el contenedor (o "MANIOBRA CS ..." si es carga
+        // suelta) — ver DeliveryMailer. Mismo criterio que editTransport().
+        $maniobraFile = $r->files->get('maniobra');
 
         if ($claveSat === '' || $descripcion === '' || $embalaje === '' || $bultos < 1 || $weightKg <= 0 || $cubicaje <= 0) {
             $this->addFlash('error', 'Clave SAT, mercancía, embalaje, bultos, peso y cubicaje son obligatorios.');
@@ -1033,32 +1033,30 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->persist($delivery);
         $this->entityManager->flush();
 
-        // Hasta aqui ya tiene id: la carpeta del pedimento simplificado se
-        // nombra con el, igual que uploads/entregas/{id} para la prueba de
-        // entrega (ver DashboardDeliveries::storeProof()). Si no se adjunta
-        // uno aqui, el aviso al transporte toma el que ya se subio en la
-        // fase "Pagado" (ver DeliveryMailer).
-        if ($pedimentoFile && $pedimentoFile->isValid()) {
+        // Hasta aqui ya tiene id: la carpeta de la maniobra se nombra con el,
+        // igual que uploads/entregas/{id} para la prueba de entrega (ver
+        // DashboardDeliveries::storeProof()).
+        if ($maniobraFile && $maniobraFile->isValid()) {
             $route = 'uploads/despachos/'.$delivery->getId();
             $folder = $this->uploadPath->resolve($route);
 
             if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
-                $this->addFlash('error', 'No se pudo preparar la carpeta del pedimento simplificado.');
+                $this->addFlash('error', 'No se pudo preparar la carpeta de la maniobra.');
 
                 return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
             }
 
-            $name = 'pedimento-simplificado-'.uniqid().'.'.$pedimentoFile->guessExtension();
+            $name = 'maniobra-'.uniqid().'.'.$maniobraFile->guessExtension();
 
             try {
-                $pedimentoFile->move($folder, $name);
+                $maniobraFile->move($folder, $name);
             } catch (FileException) {
-                $this->addFlash('error', 'No se pudo guardar el pedimento simplificado.');
+                $this->addFlash('error', 'No se pudo guardar la maniobra.');
 
                 return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
             }
 
-            $delivery->setPedimentoSimplificadoRoute($route.'/'.$name);
+            $delivery->setManiobraRoute($route.'/'.$name);
         }
 
         $this->entityManager->flush();
@@ -1212,38 +1210,37 @@ class DashboardCaseFiles extends AbstractController
         $delivery->setCubicaje($cubicaje);
         $delivery->setXcfFolio($xcfFolio);
 
-        // El pedimento simplificado es opcional aqui: si no se adjunta uno
-        // nuevo, se queda el que ya tenia (ver el mismo patron en
-        // uploadEmptyReturnEir()).
-        $pedimentoFile = $r->files->get('pedimentoSimplificado');
+        // La maniobra es opcional aqui: si no se adjunta una nueva, se queda
+        // la que ya tenia (ver el mismo patron en uploadEmptyReturnEir()).
+        $maniobraFile = $r->files->get('maniobra');
 
-        if ($pedimentoFile && $pedimentoFile->isValid()) {
+        if ($maniobraFile && $maniobraFile->isValid()) {
             $route = 'uploads/despachos/'.$delivery->getId();
             $folder = $this->uploadPath->resolve($route);
 
             if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
-                $this->addFlash('error', 'No se pudo preparar la carpeta del pedimento simplificado.');
+                $this->addFlash('error', 'No se pudo preparar la carpeta de la maniobra.');
 
                 return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
             }
 
-            $name = 'pedimento-simplificado-'.uniqid().'.'.$pedimentoFile->guessExtension();
+            $name = 'maniobra-'.uniqid().'.'.$maniobraFile->guessExtension();
 
             try {
-                $pedimentoFile->move($folder, $name);
+                $maniobraFile->move($folder, $name);
             } catch (FileException) {
-                $this->addFlash('error', 'No se pudo guardar el pedimento simplificado.');
+                $this->addFlash('error', 'No se pudo guardar la maniobra.');
 
                 return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
             }
 
-            $oldPath = $delivery->getPedimentoSimplificadoRoute() ? $this->uploadPath->resolve($delivery->getPedimentoSimplificadoRoute()) : null;
+            $oldPath = $delivery->getManiobraRoute() ? $this->uploadPath->resolve($delivery->getManiobraRoute()) : null;
 
             if ($oldPath && is_file($oldPath)) {
                 unlink($oldPath);
             }
 
-            $delivery->setPedimentoSimplificadoRoute($route.'/'.$name);
+            $delivery->setManiobraRoute($route.'/'.$name);
         }
 
         $this->entityManager->flush();
@@ -1858,12 +1855,12 @@ class DashboardCaseFiles extends AbstractController
     }
 
     /**
-     * Descarga el pedimento simplificado de un despacho. Mismo criterio de
-     * acceso que la prueba de entrega: cliente/ejecutivo, o el transportista
-     * dueño de ese despacho en concreto.
+     * Descarga la maniobra de un despacho. Mismo criterio de acceso que la
+     * prueba de entrega: cliente/ejecutivo, o el transportista dueño de ese
+     * despacho en concreto.
      */
-    #[Route('/dashboard/pedimentos/expediente/{id}/despachos/{delivery}/pedimento-simplificado', name: 'case_file_delivery_pedimento_download', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['GET'])]
-    public function downloadDeliveryPedimento(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery): BinaryFileResponse
+    #[Route('/dashboard/pedimentos/expediente/{id}/despachos/{delivery}/maniobra', name: 'case_file_delivery_maniobra_download', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['GET'])]
+    public function downloadDeliveryManiobra(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery): BinaryFileResponse
     {
         if (!$delivery->getReferences()->contains($import)) {
             throw $this->createNotFoundException();
@@ -1877,7 +1874,7 @@ class DashboardCaseFiles extends AbstractController
             throw $this->createAccessDeniedException('Ese despacho no pertenece a ninguna de tus empresas.');
         }
 
-        $path = $this->uploadPath->resolve((string) $delivery->getPedimentoSimplificadoRoute());
+        $path = $this->uploadPath->resolve((string) $delivery->getManiobraRoute());
 
         if (!is_file($path)) {
             throw $this->createNotFoundException();

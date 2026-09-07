@@ -109,9 +109,14 @@ class Delivery
     #[ORM\Column(nullable: true)]
     private ?float $cubicaje = null;
 
-    /** Documento del pedimento simplificado, adjunto al aviso. */
+    /**
+     * Documento de la maniobra (ej. foto/constancia de la carga), adjunto al
+     * aviso de transporte — se le manda al transportista renombrado con el
+     * contenedor, o "MANIOBRA CS <empresa> - <recinto>" si es carga suelta
+     * (ver DeliveryMailer).
+     */
     #[ORM\Column(length: 255, nullable: true)]
-    private ?string $pedimentoSimplificadoRoute = null;
+    private ?string $maniobraRoute = null;
 
     /**
      * Folio que XCF genera al recibir las instrucciones (ver
@@ -382,14 +387,14 @@ class Delivery
         return $this;
     }
 
-    public function getPedimentoSimplificadoRoute(): ?string
+    public function getManiobraRoute(): ?string
     {
-        return $this->pedimentoSimplificadoRoute;
+        return $this->maniobraRoute;
     }
 
-    public function setPedimentoSimplificadoRoute(?string $pedimentoSimplificadoRoute): static
+    public function setManiobraRoute(?string $maniobraRoute): static
     {
-        $this->pedimentoSimplificadoRoute = $pedimentoSimplificadoRoute;
+        $this->maniobraRoute = $maniobraRoute;
 
         return $this;
     }
