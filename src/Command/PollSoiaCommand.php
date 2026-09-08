@@ -20,10 +20,14 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * después de la cita más próxima, y no antes de 5 minutos desde la última
  * consulta), así que no importa que el cron corra más seguido que esa regla.
  *
- * Se rinde tras 100 intentos por expediente (~8 horas de reintentos a razón
- * de uno cada 5 minutos): pasado ese punto ya no vale la pena seguir
- * golpeando el portal solo, y el ejecutivo puede forzar una consulta manual
- * en cualquier momento con el botón "Consultar SOIA" del expediente.
+ * Se rinde tras 288 intentos por expediente (aprox. 24 a 48 horas de
+ * reintentos, según el cron corra cada 5 o cada ~10 minutos en la práctica —
+ * ver el comentario de RECHECK_INTERVAL): pasado ese punto ya no vale la pena
+ * seguir golpeando el portal solo, y el ejecutivo puede forzar una consulta
+ * manual en cualquier momento con el botón "Consultar SOIA" del expediente.
+ * El presupuesto de intentos se reinicia cada vez que se fija o corrige la
+ * fecha/hora de un despacho (ver ImportRequest::resetSoiaPolling()), para
+ * que siempre cuente desde la cita vigente y no desde una que ya se corrigió.
  */
 #[AsCommand(
     name: 'app:soia:poll',
@@ -40,7 +44,7 @@ class PollSoiaCommand extends Command
     // termina revisando cada ~10 minutos, no cada 5. Confirmado en
     // var/log/soia_poll.log: patrón alternado "Revisados: 1"/"Revisados: 0".
     private const RECHECK_INTERVAL = '+4 minutes';
-    private const MAX_AUTO_ATTEMPTS = 100;
+    private const MAX_AUTO_ATTEMPTS = 288;
 
     /** Pausa entre consultas de la misma corrida, para no golpear el portal de un jalón. */
     private const PAUSE_BETWEEN_CHECKS_SECONDS = 1;

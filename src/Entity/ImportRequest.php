@@ -665,6 +665,25 @@ class ImportRequest
     }
 
     /**
+     * El poller cuenta intentos desde que se asigna el primer despacho, pero
+     * nunca los reiniciaba si la fecha/hora de un despacho se corregia
+     * despues (transportista reasignado, cita recorrida...): el limite de
+     * PollSoiaCommand::MAX_AUTO_ATTEMPTS se consumia con intentos de una cita
+     * vieja, y el expediente se rendia mucho antes de lo esperado respecto a
+     * la cita real. Se llama cada vez que se fija la fecha/hora de un
+     * despacho (ver DashboardCaseFiles::assignTransport()/editTransport()),
+     * para que el presupuesto de reintentos siempre cuente desde la cita
+     * vigente.
+     */
+    public function resetSoiaPolling(): static
+    {
+        $this->soiaPollAttempts = 0;
+        $this->lastSoiaCheckAt = null;
+
+        return $this;
+    }
+
+    /**
      * @return Collection<int, Container>
      */
     public function getContainers(): Collection

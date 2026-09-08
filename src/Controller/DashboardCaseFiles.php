@@ -977,6 +977,10 @@ class DashboardCaseFiles extends AbstractController
         // $imp->getDeliveries() dentro de esta misma peticion.
         foreach ($allImports as $imp) {
             $imp->addDelivery($delivery);
+            // Nueva cita: el presupuesto de reintentos del poller cuenta
+            // desde aqui, no desde una cita anterior (ver
+            // ImportRequest::resetSoiaPolling()).
+            $imp->resetSoiaPolling();
         }
 
         $delivery->setTransport($hauler);
@@ -1195,6 +1199,16 @@ class DashboardCaseFiles extends AbstractController
             $delivery->setVehicle(null);
             $delivery->setDriver(null);
             $delivery->setCfdiFolio(null);
+        }
+
+        // Si la cita se recorre, el presupuesto de reintentos del poller
+        // tiene que contar desde la cita nueva, no desde la vieja (ver
+        // ImportRequest::resetSoiaPolling() — si no, un despacho reagendado
+        // se rinde mucho antes de lo esperado respecto a la cita real).
+        if ($delivery->getDate() != $date->setTime(0, 0) || $delivery->getHour() != $hour) {
+            foreach ($delivery->getReferences() as $reference) {
+                $reference->resetSoiaPolling();
+            }
         }
 
         $delivery->setTransport($hauler);
