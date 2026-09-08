@@ -99,6 +99,10 @@ final class DeliveryMailer
             $billTo = $reference->getBillTo();
             $company = $reference->getIdCompany();
 
+            // Si viaja con el consolidador de carga, la mercancia no se
+            // entrega en el domicilio del cliente sino en XCF: mostrar ese
+            // domicilio ahi era enganoso. El folio se sube desde el bottom
+            // de la ficha para que no se pierda hasta abajo del correo.
             $deliveryPoint = $reference->getDeliveryPoint();
             $deliveryAddress = $deliveryPoint
                 ? sprintf('%s (%s)', $deliveryPoint->getName(), $deliveryPoint->getAddress())
@@ -114,6 +118,7 @@ final class DeliveryMailer
                 'billingName' => $billTo ? $billTo->getName() : $company->getName(),
                 'billingAddress' => $billTo ? $billTo->getAddress() : $company->getAddress(),
                 'billingRfc' => $billTo ? $billTo->getRfc() : $company->getRfc(),
+                'travelsWithConsolidator' => $reference->travelsWithConsolidator(),
                 'deliveryAddress' => $deliveryAddress,
                 'deliveryInstructions' => $reference->getDeliveryInstructions(),
                 'yard' => $yard ? sprintf('%s (CR %s)', $yard->getName(), $yard->getCr()) : null,
