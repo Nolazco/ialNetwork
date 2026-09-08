@@ -144,14 +144,32 @@ final class ImportRequestStatusMailer
         );
     }
 
+    /**
+     * A diferencia de las demas, el documento no es unico: puede haber un
+     * EIR por cada contenedor devuelto (ver ImportRequest::$emptyReturns).
+     */
     public function notifyEmptyReturned(ImportRequest $import): void
     {
+        $documents = [];
+        $attachments = [];
+
+        foreach ($import->getEmptyReturns() as $return) {
+            $route = $return->getEirRoute();
+            $label = sprintf('EIR %s', $return->getContainer()->getNum());
+
+            $documents[] = ['label' => $label, 'attached' => $route !== null];
+
+            if ($route !== null) {
+                $attachments[] = ['route' => $route, 'name' => $label.'.'.pathinfo($route, PATHINFO_EXTENSION)];
+            }
+        }
+
         $this->send(
             $import,
             sprintf('Expediente %s: vacío devuelto', $import->getClientReference()),
             'Ya se devolvió el contenedor vacío de tu expediente.',
-            [],
-            [],
+            $documents,
+            $attachments,
         );
     }
 
