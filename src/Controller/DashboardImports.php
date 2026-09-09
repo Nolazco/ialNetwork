@@ -109,7 +109,7 @@ class DashboardImports extends AbstractController {
   	$forwarders = $entityManager->getRepository(Forwarder::class)->findAll();
   	$custodias = $entityManager->getRepository(Custodia::class)->findAll();
   	$company = $entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
-  	$deliveryPoints = $entityManager->getRepository(DeliveryPoint::class)->findBy(['company' => $company]);
+  	$deliveryPoints = $entityManager->getRepository(DeliveryPoint::class)->findByCompany($company);
 
   	return $this->render("/dashboard/newimport.html.twig", [
   		'name' => $user->getName(),
@@ -263,7 +263,7 @@ class DashboardImports extends AbstractController {
   		if ($deliveryPointId) {
   			$deliveryPoint = $entityManager->getRepository(DeliveryPoint::class)->find($deliveryPointId);
 
-  			if (!$deliveryPoint || $deliveryPoint->getCompany() !== $company) {
+  			if (!$deliveryPoint || !$deliveryPoint->belongsTo($company)) {
   				$this->addFlash('error', 'Selecciona un punto de entrega válido.');
   				return $this->redirect('/dashboard/pedimentos/' . $rfc . '/nuevo');
   			}
@@ -277,7 +277,7 @@ class DashboardImports extends AbstractController {
   			}
 
   			$deliveryPoint = new DeliveryPoint();
-  			$deliveryPoint->setCompany($company);
+  			$deliveryPoint->addCompany($company);
   			$deliveryPoint->setName($newPointName);
   			$deliveryPoint->setAddress($newPointAddress);
 

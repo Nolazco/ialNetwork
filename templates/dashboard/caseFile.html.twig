@@ -232,14 +232,17 @@
 
               <dt class="col-sm-5">Entregar en</dt>
               <dd class="col-sm-7">
-                {% if import.deliveryPoint %}
-                  {{ import.deliveryPoint.name }} ({{ import.deliveryPoint.address }})
-                {% else %}
-                  Domicilio fiscal ({{ import.idCompany.address }})
-                {% endif %}
-                {% if import.deliveryInstructions %}
-                  <div class="small text-body-secondary">{{ import.deliveryInstructions }}</div>
-                {% endif %}
+                <form method="POST" action="{{ path('case_file_delivery_point', { id: import.id }) }}" class="d-flex flex-column gap-2">
+                  <input type="hidden" name="_token" value="{{ csrf_token('case_file_delivery_point') }}">
+                  <select class="form-select form-select-sm" name="deliveryPointId" style="max-width:320px">
+                    <option value="" {{ import.deliveryPoint is null ? 'selected' : '' }}>Domicilio fiscal ({{ import.idCompany.address }})</option>
+                    {% for p in deliveryPoints %}
+                      <option value="{{ p.id }}" {{ import.deliveryPoint and import.deliveryPoint.id == p.id ? 'selected' : '' }}>{{ p.name }} ({{ p.address }})</option>
+                    {% endfor %}
+                  </select>
+                  <input type="text" class="form-control form-control-sm" name="deliveryInstructions" placeholder="Instrucciones de entrega (opcional)" value="{{ import.deliveryInstructions }}">
+                  <button type="submit" class="btn btn-sm btn-outline-primary align-self-start">Guardar</button>
+                </form>
               </dd>
 
               <dt class="col-sm-5">Mercancía</dt>
@@ -585,8 +588,8 @@
                           {{ d.vehicle ? d.vehicle.plates : '' }}{{ d.vehicle and d.driver ? ' · ' : '' }}{{ d.driver ? d.driver.name : '' }}
                         </div>
                       {% endif %}
-                      {% if d.cfdiFolio %}
-                        <div class="small text-body-secondary">CFDI: {{ d.cfdiFolio }}</div>
+                      {% if d.cfdiFolios|length %}
+                        <div class="small text-body-secondary">CFDI: {{ d.cfdiFolios|join(', ') }}</div>
                       {% endif %}
                       {% if d.descripcion %}
                         <div class="small text-body-secondary">

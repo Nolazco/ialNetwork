@@ -77,6 +77,22 @@
         </div>
       </div>
 
+      {% if otherCompanies|length %}
+        <p class="small text-body-secondary mt-3 mb-2">
+          Compartir este punto con otras de tus empresas (evita registrarlo por duplicado si entregan en la misma bodega):
+        </p>
+        <div class="row g-2">
+          {% for c in otherCompanies %}
+            <div class="col-md-6">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="companies[]" value="{{ c.rfc }}" id="company-{{ c.id }}">
+                <label class="form-check-label" for="company-{{ c.id }}">{{ c.name }} ({{ c.rfc }})</label>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
       <input class="btn btn-primary mt-3" type="submit" name="submit" id="submit" value="Guardar">
     </form>
   </div>

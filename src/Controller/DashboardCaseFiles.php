@@ -7,6 +7,7 @@ use App\Entity\Biller;
 use App\Entity\Container;
 use App\Entity\ConsolidatorInstruction;
 use App\Entity\ContainerYard;
+use App\Entity\DeliveryPoint;
 use App\Entity\EmptyReturn;
 use App\Entity\EmptyReturnYard;
 use App\Entity\FreightHauler;
@@ -261,6 +262,7 @@ class DashboardCaseFiles extends AbstractController
             'requiredDocumentTypes' => RequiredDocumentType::SINGLE_SLOT,
             'requiredDocuments' => $singleSlotDocuments,
             'advanceRequests' => $advanceRequests,
+            'deliveryPoints' => $this->entityManager->getRepository(DeliveryPoint::class)->findByCompany($import->getIdCompany()),
         ]);
     }
 
@@ -469,6 +471,54 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Fecha de arribo actualizada.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * A donde se entrega el expediente ya dado de alta: domicilio fiscal
+     * (default) o un punto del catalogo propio de la empresa — antes solo se
+     * fijaba una vez, al dar de alta la solicitud (ver
+     * DashboardImports::newImport()). Igual que la ETA o el tipo de
+     * contenedor, es cosa de quien vea el expediente (cliente o agencia), no
+     * solo del ejecutivo; para dar de alta un punto nuevo hay que hacerlo
+     * antes desde el catalogo (ver DashboardDeliveryPoints), aqui solo se
+     * elige entre lo que ya existe.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/entregar-en', name: 'case_file_delivery_point', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updateDeliveryPoint(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        if (!$this->isCsrfTokenValid('case_file_delivery_point', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $deliveryPointId = $r->request->get('deliveryPointId');
+        $deliveryPoint = null;
+
+        if ($deliveryPointId) {
+            $deliveryPoint = $this->entityManager->getRepository(DeliveryPoint::class)->find($deliveryPointId);
+
+            if (!$deliveryPoint || !$deliveryPoint->belongsTo($import->getIdCompany())) {
+                $this->addFlash('error', 'Selecciona un punto de entrega válido.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        }
+
+        $import->setDeliveryPoint($deliveryPoint);
+
+        $instructions = trim((string) $r->request->get('deliveryInstructions'));
+        $import->setDeliveryInstructions($instructions !== '' ? $instructions : null);
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Destino de entrega actualizado.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
@@ -1198,7 +1248,7 @@ class DashboardCaseFiles extends AbstractController
         if ($delivery->getTransport() !== $hauler || $delivery->getUnregisteredHaulerName() !== $unregisteredName) {
             $delivery->setVehicle(null);
             $delivery->setDriver(null);
-            $delivery->setCfdiFolio(null);
+            $delivery->setCfdiFolios([]);
         }
 
         // Si la cita se recorre, el presupuesto de reintentos del poller

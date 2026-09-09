@@ -21,6 +21,7 @@
             <th scope="col">Nombre</th>
             <th scope="col">Dirección</th>
             <th scope="col">Contacto</th>
+            <th scope="col">Compartido con</th>
             <th scope="col">Opciones</th>
           </tr>
         </thead>
@@ -33,6 +34,13 @@
                 {{ p.contactName }}
                 {%- if p.contactPhone %} · {{ p.contactPhone }}{% endif -%}
                 {%- if p.contactEmail %} · {{ p.contactEmail }}{% endif %}
+              </td>
+              <td>
+                {% for c in p.companies %}
+                  {% if c.id != company.id %}
+                    <span class="badge text-bg-secondary">{{ c.name }}</span>
+                  {% endif %}
+                {% endfor %}
               </td>
               <td>
                 <a href="{{ path('delivery_point_edit_form', { rfc: company.rfc, id: p.id }) }}" class="btn btn-warning" title="Editar punto de entrega">

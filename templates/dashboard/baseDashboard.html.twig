@@ -93,7 +93,7 @@
             <a href="/dashboard/empresas" class="nav-link {% if app.request.pathinfo starts with '/dashboard/empresas' %}active{% endif %}">Empresas</a>
           </li>
         {% endif %}
-        {% if is_granted('ROLE_ADMIN') or is_granted('ROLE_CLIENT') %}
+        {% if is_granted('ROLE_ADMIN') or is_granted('ROLE_EXECUTIVE') or is_granted('ROLE_CLIENT') %}
           <li>
             <a href="/dashboard/puntos-entrega" class="nav-link {% if app.request.pathinfo starts with '/dashboard/puntos-entrega' %}active{% endif %}">Puntos de entrega</a>
           </li>

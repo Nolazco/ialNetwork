@@ -78,13 +78,16 @@ class Delivery
     private ?Driver $driver = null;
 
     /**
-     * Folio (UUID) del CFDI que el transportista debe darnos junto con la
-     * unidad y el chofer — la agencia lo necesita para adjuntarlo a un
-     * documento propio. Nullable igual que $vehicle/$driver: solo aplica
-     * cuando ya hay transportista elegido.
+     * Folios (UUID) de los CFDI que el transportista debe darnos junto con la
+     * unidad y el chofer — la agencia los necesita para adjuntarlos a un
+     * documento propio. Un despacho puede facturarse con mas de un CFDI (ej.
+     * flete dividido entre varias facturas), asi que es una lista y no un
+     * solo folio.
+     *
+     * @var list<string>
      */
-    #[ORM\Column(length: 36, nullable: true)]
-    private ?string $cfdiFolio = null;
+    #[ORM\Column(type: Types::JSON)]
+    private array $cfdiFolios = [];
 
     /**
      * Ficha de la mercancia que se le manda al transportista junto con el
@@ -303,14 +306,20 @@ class Delivery
         return $this;
     }
 
-    public function getCfdiFolio(): ?string
+    /**
+     * @return list<string>
+     */
+    public function getCfdiFolios(): array
     {
-        return $this->cfdiFolio;
+        return $this->cfdiFolios;
     }
 
-    public function setCfdiFolio(?string $cfdiFolio): static
+    /**
+     * @param list<string> $cfdiFolios
+     */
+    public function setCfdiFolios(array $cfdiFolios): static
     {
-        $this->cfdiFolio = $cfdiFolio;
+        $this->cfdiFolios = $cfdiFolios;
 
         return $this;
     }

@@ -60,7 +60,7 @@ class DashboardConsolidatorInstructions extends AbstractController
             'role' => $user->getRoles()[0],
             'loged' => 'true',
             'import' => $import,
-            'deliveryPoints' => $this->entityManager->getRepository(DeliveryPoint::class)->findBy(['company' => $import->getIdCompany()], ['name' => 'ASC']),
+            'deliveryPoints' => $this->entityManager->getRepository(DeliveryPoint::class)->findByCompany($import->getIdCompany()),
             'merchandiseProfiles' => $this->entityManager->getRepository(MerchandiseProfile::class)->findBy(['company' => $import->getIdCompany()], ['descripcion' => 'ASC']),
             'haulers' => $this->entityManager->getRepository(FreightHauler::class)->findBy([], ['companyName' => 'ASC']),
             'testRecipient' => ConsolidatorMailer::TEST_RECIPIENT,
@@ -241,7 +241,7 @@ class DashboardConsolidatorInstructions extends AbstractController
         if ($deliveryPointId) {
             $deliveryPoint = $this->entityManager->getRepository(DeliveryPoint::class)->find($deliveryPointId);
 
-            return ($deliveryPoint && $deliveryPoint->getCompany() === $company) ? $deliveryPoint : null;
+            return ($deliveryPoint && $deliveryPoint->belongsTo($company)) ? $deliveryPoint : null;
         }
 
         $name = trim((string) $r->request->get('newDeliveryPointName'));
@@ -262,7 +262,7 @@ class DashboardConsolidatorInstructions extends AbstractController
         $country = $this->nullableTrim($r->request->get('newDeliveryPointCountry')) ?? 'MEXICO';
 
         $deliveryPoint = new DeliveryPoint();
-        $deliveryPoint->setCompany($company);
+        $deliveryPoint->addCompany($company);
         $deliveryPoint->setName($name);
         $deliveryPoint->setAddress($this->composeAddress($street, $extNumber, $neighborhood, $municipality, $state, $zipCode));
         $deliveryPoint->setRfc($rfc);

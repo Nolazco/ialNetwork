@@ -220,8 +220,8 @@
                       </select>
                     </div>
                     <div class="col-md-4">
-                      <label class="form-label small">Folio CFDI</label>
-                      <input type="text" class="form-control form-control-sm" name="cfdiFolio" value="{{ d.cfdiFolio }}" placeholder="Ej. 051a1466-0732-4f9c-9192-56a9736a2dd4" pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}" title="Formato UUID, ej. 051a1466-0732-4f9c-9192-56a9736a2dd4" required>
+                      <label class="form-label small">Folio(s) CFDI</label>
+                      <textarea class="form-control form-control-sm" name="cfdiFolios" rows="2" placeholder="Uno por línea, ej. 051a1466-0732-4f9c-9192-56a9736a2dd4" required>{{ d.cfdiFolios|join('\n') }}</textarea>
                     </div>
                     <div class="col-md-2">
                       <button type="submit" class="btn btn-sm btn-primary w-100">

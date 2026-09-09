@@ -175,20 +175,20 @@ class DashboardDeliveries extends AbstractController
             return $this->redirectToRoute('deliveries');
         }
 
-        $cfdiFolio = trim((string) $r->request->get('cfdiFolio'));
+        $cfdiFolios = $this->parseCfdiFolios((string) $r->request->get('cfdiFolios'));
 
-        if (!$this->isValidCfdiFolio($cfdiFolio)) {
-            $this->addFlash('error', 'Captura el folio del CFDI (formato UUID).');
+        if ($cfdiFolios === null || $cfdiFolios === []) {
+            $this->addFlash('error', 'Captura al menos un folio de CFDI válido (formato UUID), uno por línea.');
 
             return $this->redirectToRoute('deliveries');
         }
 
         $delivery->setVehicle($vehicle);
         $delivery->setDriver($driver);
-        $delivery->setCfdiFolio($cfdiFolio);
+        $delivery->setCfdiFolios($cfdiFolios);
         $this->entityManager->flush();
 
-        $this->addFlash('success', 'Unidad, chofer y folio CFDI enviados a la agencia.');
+        $this->addFlash('success', sprintf('Unidad, chofer y %d folio(s) CFDI enviados a la agencia.', count($cfdiFolios)));
 
         return $this->redirectToRoute('deliveries');
     }
@@ -1213,6 +1213,36 @@ class DashboardDeliveries extends AbstractController
     private function isValidCfdiFolio(string $folio): bool
     {
         return preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $folio) === 1;
+    }
+
+    /**
+     * El textarea de "Folio(s) CFDI" trae uno por linea (o separados por
+     * coma/punto y coma). A diferencia de EmailListParser, un folio invalido
+     * no se descarta en silencio: es un dato fiscal, no un correo de
+     * contacto opcional, asi que cualquier folio mal capturado rechaza todo
+     * el envio en vez de guardar solo los buenos.
+     *
+     * @return list<string>|null null si algun folio no tiene formato UUID valido
+     */
+    private function parseCfdiFolios(string $raw): ?array
+    {
+        $folios = [];
+
+        foreach (preg_split('/[\r\n,;]+/', $raw) ?: [] as $candidate) {
+            $candidate = trim($candidate);
+
+            if ($candidate === '') {
+                continue;
+            }
+
+            if (!$this->isValidCfdiFolio($candidate)) {
+                return null;
+            }
+
+            $folios[$candidate] = true;
+        }
+
+        return array_keys($folios);
     }
 
     /**

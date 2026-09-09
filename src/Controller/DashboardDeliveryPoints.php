@@ -16,17 +16,20 @@ use Symfony\Component\Routing\Annotation\Route;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 
 /**
- * Puntos de entrega (almacenes) del catalogo propio de cada empresa — antes
+ * Puntos de entrega (almacenes) del catalogo propio de cada cliente — antes
  * solo se podian dar de alta al vuelo desde el formulario de nueva solicitud
  * (ver DashboardImports::newImport()), sin forma de editarlos despues ni de
  * prepararlos con calma antes de la primera solicitud.
  *
- * Es cosa del cliente (los suyos) y del administrador (los de cualquier
- * empresa) — a diferencia de Provider/Forwarder/Custodia, que son catalogos
- * de toda la agencia, este es un catalogo propio de cada cliente, asi que no
- * le corresponde al ejecutivo en general.
+ * A diferencia de Provider/Forwarder/Custodia (catalogos de toda la agencia),
+ * este es un catalogo propio de cada cliente: el ejecutivo entra aqui para
+ * ayudarle a mantener su catalogo, no porque el punto sea suyo.
+ *
+ * Un mismo punto puede compartirse entre varias Company del mismo cliente
+ * (ver DeliveryPoint::$companies) — evita duplicar el registro cuando dos
+ * empresas del cliente entregan en la misma bodega.
  */
-#[IsGranted(new Expression('is_granted("ROLE_ADMIN") or is_granted("ROLE_CLIENT")'))]
+#[IsGranted(new Expression('is_granted("ROLE_ADMIN") or is_granted("ROLE_EXECUTIVE") or is_granted("ROLE_CLIENT")'))]
 class DashboardDeliveryPoints extends AbstractController
 {
     use AjaxCsrfTrait;
@@ -43,15 +46,11 @@ class DashboardDeliveryPoints extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
 
-        $companies = $this->isGranted('ROLE_ADMIN')
-            ? $this->entityManager->getRepository(Company::class)->findAll()
-            : $this->entityManager->getRepository(Company::class)->findAssociatedCompanies($user);
-
         return $this->render('/dashboard/deliveryPointsCompanies.html.twig', [
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
             'loged' => 'true',
-            'companies' => $companies,
+            'companies' => $this->accessibleCompanies($user),
         ]);
     }
 
@@ -67,7 +66,7 @@ class DashboardDeliveryPoints extends AbstractController
             throw $this->createAccessDeniedException('Esa empresa no está entre las tuyas.');
         }
 
-        $points = $this->entityManager->getRepository(DeliveryPoint::class)->findBy(['company' => $company]);
+        $points = $this->entityManager->getRepository(DeliveryPoint::class)->findByCompany($company);
 
         return $this->render('/dashboard/deliveryPoints.html.twig', [
             'name' => $user->getName(),
@@ -95,12 +94,16 @@ class DashboardDeliveryPoints extends AbstractController
             'role' => $user->getRoles()[0],
             'loged' => 'true',
             'company' => $company,
+            'otherCompanies' => $this->otherAccessibleCompanies($user, $company),
         ]);
     }
 
     #[Route('/dashboard/puntos-entrega/{rfc}/new', name: 'delivery_point_new', methods: ['POST'])]
     public function newPoint(string $rfc, Request $r): Response
     {
+        /** @var User $user */
+        $user = $this->getUser();
+
         $company = $this->entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
 
         if (!$this->companyAccess->canAccess($company)) {
@@ -123,8 +126,9 @@ class DashboardDeliveryPoints extends AbstractController
         }
 
         $point = new DeliveryPoint();
-        $point->setCompany($company);
+        $point->addCompany($company);
         $this->fillFromRequest($point, $r);
+        $this->syncSharedCompanies($point, $this->otherAccessibleCompanies($user, $company), $r);
 
         $this->entityManager->persist($point);
         $this->entityManager->flush();
@@ -140,7 +144,9 @@ class DashboardDeliveryPoints extends AbstractController
         /** @var User $user */
         $user = $this->getUser();
 
-        if (!$this->companyAccess->canAccess($point->getCompany()) || $point->getCompany()->getRfc() !== $rfc) {
+        $company = $this->entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
+
+        if (!$this->companyAccess->canAccess($company) || !$point->belongsTo($company)) {
             throw $this->createAccessDeniedException('Ese punto de entrega no está entre los tuyos.');
         }
 
@@ -148,15 +154,21 @@ class DashboardDeliveryPoints extends AbstractController
             'name' => $user->getName(),
             'role' => $user->getRoles()[0],
             'loged' => 'true',
-            'company' => $point->getCompany(),
+            'company' => $company,
             'point' => $point,
+            'otherCompanies' => $this->otherAccessibleCompanies($user, $company),
         ]);
     }
 
     #[Route('/dashboard/puntos-entrega/{rfc}/{id}/editar', name: 'delivery_point_edit', requirements: ['id' => '\d+'], methods: ['POST'])]
     public function editPoint(string $rfc, #[MapEntity(id: 'id')] DeliveryPoint $point, Request $r): Response
     {
-        if (!$this->companyAccess->canAccess($point->getCompany()) || $point->getCompany()->getRfc() !== $rfc) {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $company = $this->entityManager->getRepository(Company::class)->findOneBy(['rfc' => $rfc]);
+
+        if (!$this->companyAccess->canAccess($company) || !$point->belongsTo($company)) {
             throw $this->createAccessDeniedException('Ese punto de entrega no está entre los tuyos.');
         }
 
@@ -176,12 +188,62 @@ class DashboardDeliveryPoints extends AbstractController
         }
 
         $this->fillFromRequest($point, $r);
+        $this->syncSharedCompanies($point, $this->otherAccessibleCompanies($user, $company), $r);
 
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Punto de entrega actualizado correctamente.');
 
         return $this->redirectToRoute('delivery_points', ['rfc' => $rfc]);
+    }
+
+    /**
+     * Empresas que este usuario puede ver en el catalogo de puntos de
+     * entrega: el admin/ejecutivo ven todas (entran a ayudarle al cliente,
+     * ver clase docblock), el cliente solo las suyas aprobadas.
+     *
+     * @return list<Company>
+     */
+    private function accessibleCompanies(User $user): array
+    {
+        return $this->isGranted('ROLE_ADMIN') || $this->isGranted('ROLE_EXECUTIVE')
+            ? $this->entityManager->getRepository(Company::class)->findAll()
+            : $this->entityManager->getRepository(Company::class)->findAssociatedCompanies($user);
+    }
+
+    /**
+     * Candidatas para compartir un punto ademas de $home: las mismas
+     * accessibleCompanies() menos la empresa actual.
+     *
+     * @return list<Company>
+     */
+    private function otherAccessibleCompanies(User $user, Company $home): array
+    {
+        return array_values(array_filter(
+            $this->accessibleCompanies($user),
+            static fn (Company $c) => $c !== $home,
+        ));
+    }
+
+    /**
+     * Agrega o quita $point de cada empresa en $candidates segun venga
+     * marcada en el formulario ("companies[]", por RFC) — nunca toca una
+     * empresa fuera de $candidates, que ya viene acotada a lo que el usuario
+     * puede ver, para que nadie comparta un punto con una empresa ajena.
+     *
+     * @param list<Company> $candidates
+     */
+    private function syncSharedCompanies(DeliveryPoint $point, array $candidates, Request $r): void
+    {
+        $selected = $r->request->all('companies');
+
+        foreach ($candidates as $candidate) {
+            if (in_array($candidate->getRfc(), $selected, true)) {
+                $point->addCompany($candidate);
+            } else {
+                $point->removeCompany($candidate);
+            }
+        }
     }
 
     private function fillFromRequest(DeliveryPoint $point, Request $r): void

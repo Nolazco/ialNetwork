@@ -3,13 +3,19 @@
 namespace App\Entity;
 
 use App\Repository\DeliveryPointRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * Almacen/punto de entrega del catalogo propio de una empresa. Cada cliente
- * tiene su propia red de bodegas, asi que este catalogo esta acotado a una
- * sola Company (a diferencia de Provider/Forwarder, que son de toda la
- * agencia) — primer catalogo de este tipo en el proyecto.
+ * Almacen/punto de entrega del catalogo propio de un cliente. Cada cliente
+ * tiene su propia red de bodegas (a diferencia de Provider/Forwarder, que son
+ * de toda la agencia) — primer catalogo de este tipo en el proyecto.
+ *
+ * Un mismo punto puede pertenecer a varias Company a la vez: un cliente con
+ * mas de una empresa suele compartir la misma bodega entre ellas, y antes
+ * tenia que darla de alta por duplicado en cada una (ver
+ * DashboardDeliveryPoints, que administra ese compartir).
  */
 #[ORM\Entity(repositoryClass: DeliveryPointRepository::class)]
 class DeliveryPoint
@@ -19,9 +25,12 @@ class DeliveryPoint
     #[ORM\Column]
     private ?int $id = null;
 
-    #[ORM\ManyToOne]
-    #[ORM\JoinColumn(nullable: false)]
-    private ?Company $company = null;
+    /**
+     * @var Collection<int, Company>
+     */
+    #[ORM\ManyToMany(targetEntity: Company::class)]
+    #[ORM\JoinTable(name: 'delivery_point_company')]
+    private Collection $companies;
 
     #[ORM\Column(length: 255)]
     private ?string $name = null;
@@ -74,21 +83,43 @@ class DeliveryPoint
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $contactEmail = null;
 
+    public function __construct()
+    {
+        $this->companies = new ArrayCollection();
+    }
+
     public function getId(): ?int
     {
         return $this->id;
     }
 
-    public function getCompany(): ?Company
+    /**
+     * @return Collection<int, Company>
+     */
+    public function getCompanies(): Collection
     {
-        return $this->company;
+        return $this->companies;
     }
 
-    public function setCompany(?Company $company): static
+    public function addCompany(Company $company): static
     {
-        $this->company = $company;
+        if (!$this->companies->contains($company)) {
+            $this->companies->add($company);
+        }
 
         return $this;
+    }
+
+    public function removeCompany(Company $company): static
+    {
+        $this->companies->removeElement($company);
+
+        return $this;
+    }
+
+    public function belongsTo(Company $company): bool
+    {
+        return $this->companies->contains($company);
     }
 
     public function getName(): ?string
