@@ -9,6 +9,7 @@ use App\Entity\User;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Workflow\AllowedFileExtensions;
+use App\Workflow\EmailListParser;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -82,6 +83,7 @@ class DashboardCompanies extends AbstractController{
     $company->setRfc($r->request->get('rfc'));
     $company->setAddress($r->request->get('address'));
     $company->setClassificationContactEmail($this->nullableTrim($r->request->get('classificationContactEmail')));
+    $company->setAlertContactEmails(EmailListParser::parse((string) $r->request->get('alertContactEmails')));
 
     $entityManager->persist($company);
 
@@ -226,11 +228,15 @@ class DashboardCompanies extends AbstractController{
     $company->setAddress($address);
     $company->setRfc($rfc);
     $company->setClassificationContactEmail($this->nullableTrim($data['classificationContactEmail'] ?? null));
+    $company->setAlertContactEmails(EmailListParser::parse((string) ($data['alertContactEmails'] ?? '')));
 
     $entityManager->persist($company);
     $entityManager->flush();
 
-    return new JsonResponse(['success' => true]);
+    return new JsonResponse([
+        'success' => true,
+        'alertContactEmails' => $company->getAlertContactEmails(),
+    ]);
   }
 
   private function nullableTrim(mixed $value): ?string

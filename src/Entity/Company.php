@@ -5,6 +5,7 @@ namespace App\Entity;
 use App\Repository\CompanyRepository;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
+use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CompanyRepository::class)]
@@ -31,6 +32,18 @@ class Company
      */
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $classificationContactEmail = null;
+
+    /**
+     * Correos de contacto de la empresa que se copian en las alertas de sus
+     * expedientes (modulado, vacío devuelto, etc.), ademas de los clientes
+     * afiliados con cuenta (ver RecipientResolver::clientEmails()). Sirve
+     * para gente del cliente que debe enterarse sin tener cuenta en el
+     * sistema — igual que Forwarder::$contactEmails.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(type: Types::JSON)]
+    private array $alertContactEmails = [];
 
     /**
      * Campos nullable de aqui en adelante: solo hacen falta para llenar el
@@ -147,6 +160,24 @@ class Company
     public function setClassificationContactEmail(?string $classificationContactEmail): static
     {
         $this->classificationContactEmail = $classificationContactEmail;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getAlertContactEmails(): array
+    {
+        return $this->alertContactEmails;
+    }
+
+    /**
+     * @param list<string> $alertContactEmails
+     */
+    public function setAlertContactEmails(array $alertContactEmails): static
+    {
+        $this->alertContactEmails = $alertContactEmails;
 
         return $this;
     }

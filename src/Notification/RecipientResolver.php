@@ -8,8 +8,9 @@ use Doctrine\ORM\EntityManagerInterface;
 
 /**
  * A quien le toca enterarse de lo que pasa con un expediente: los clientes
- * afiliados a la empresa (aprobados) y todos los ejecutivos, porque los
- * expedientes rotan entre ellos.
+ * afiliados a la empresa (aprobados), los correos de contacto que la empresa
+ * haya agregado sin necesidad de cuenta (ver Company::$alertContactEmails) y
+ * todos los ejecutivos, porque los expedientes rotan entre ellos.
  *
  * Compartido entre los distintos mailers (ModuladoMailer, PrevioReportMailer)
  * para no repetir la misma resolucion en cada uno.
@@ -31,6 +32,10 @@ final class RecipientResolver
             if ($associated->isApproved() && $associated->getIdClient()?->getEmail()) {
                 $emails[$associated->getIdClient()->getEmail()] = true;
             }
+        }
+
+        foreach ($import->getIdCompany()->getAlertContactEmails() as $contactEmail) {
+            $emails[$contactEmail] = true;
         }
 
         return array_keys($emails);
