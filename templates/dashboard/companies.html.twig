@@ -153,8 +153,8 @@
 
                 const row = btn.closest("tr");
                 row.children[0].textContent = updatedData.name;
-                row.children[1].textContent = updatedData.address;
-                row.children[2].textContent = updatedData.rfc;
+                row.children[1].textContent = updatedData.rfc;
+                row.children[2].textContent = updatedData.address;
               } else {
                 Swal.fire("Error", data.message || "Ocurrió un error al actualizar.", "error");
               }
