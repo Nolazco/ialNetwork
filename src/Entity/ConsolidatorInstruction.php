@@ -88,9 +88,23 @@ class ConsolidatorInstruction
     #[ORM\Column]
     private bool $billedToClient = false;
 
-    /** Ruta del xlsx generado, resuelta via UploadPath igual que el resto de documentos protegidos. */
+    /**
+     * Ruta del documento de instrucciones, resuelta via UploadPath igual que
+     * el resto de documentos protegidos. Normalmente es el xlsx que genera
+     * ConsolidatorInstructionSheetGenerator, pero puede ser el archivo que ya
+     * traiga el cliente cuando el propio XCF se lo entrega desde su portal
+     * (ver $xcfBlNumber) — en ese caso se sube tal cual, sin generar nada.
+     */
     #[ORM\Column(length: 255, nullable: true)]
     private ?string $fileRoute = null;
+
+    /**
+     * Numero de BL que XCF asigna cuando el cliente ya trae su propio
+     * documento de instrucciones (ver $fileRoute) — no aplica cuando la hoja
+     * se genera aqui, asi que es nullable.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $xcfBlNumber = null;
 
     #[ORM\Column(type: 'datetime_immutable')]
     private ?\DateTimeImmutable $createdAt = null;
@@ -272,11 +286,25 @@ class ConsolidatorInstruction
         return $this;
     }
 
+    public function getXcfBlNumber(): ?string
+    {
+        return $this->xcfBlNumber;
+    }
+
+    public function setXcfBlNumber(?string $xcfBlNumber): static
+    {
+        $this->xcfBlNumber = $xcfBlNumber;
+
+        return $this;
+    }
+
     /**
-     * Nombre con el que se manda el xlsx a XCF (adjunto de correo) y con el
-     * que se descarga desde el expediente — nunca el nombre real del archivo
-     * en disco (un id/uniqid), que a ojos de XCF se ve como un hash sin
-     * explicación y puede levantar sospechas.
+     * Nombre con el que se manda el documento a XCF (adjunto de correo) y con
+     * el que se descarga desde el expediente — nunca el nombre real del
+     * archivo en disco (un id/uniqid), que a ojos de XCF se ve como un hash
+     * sin explicación y puede levantar sospechas. La extension sigue la del
+     * archivo real: xlsx cuando lo genera ConsolidatorInstructionSheetGenerator,
+     * o la que traiga el archivo del cliente cuando viene de $xcfBlNumber.
      */
     public function suggestedFileName(): string
     {
@@ -284,8 +312,9 @@ class ConsolidatorInstruction
         $name = sprintf('INST XCF %s - %s', $company, $this->descripcion);
         $name = preg_replace('/[\\\\\/:*?"<>|]/', '', $name);
         $name = trim(preg_replace('/\s+/', ' ', $name));
+        $extension = $this->fileRoute ? pathinfo($this->fileRoute, PATHINFO_EXTENSION) : 'xlsx';
 
-        return $name.'.xlsx';
+        return $name.'.'.$extension;
     }
 
     public function getCreatedAt(): ?\DateTimeImmutable

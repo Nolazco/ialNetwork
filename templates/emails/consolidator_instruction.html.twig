@@ -20,6 +20,12 @@
                 Instrucciones de entrega para el pedimento <strong>{{ import.agencyReference }}</strong> de <strong>{{ import.idCompany.name }}</strong>.
               </p>
               <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040;">
+                {% if instruction.xcfBlNumber %}
+                  <tr>
+                    <td style="color:#909090;">BL de XCF</td>
+                    <td><strong>{{ instruction.xcfBlNumber }}</strong></td>
+                  </tr>
+                {% endif %}
                 <tr>
                   <td style="color:#909090;">Mercancía</td>
                   <td><strong>{{ instruction.descripcion }}</strong></td>
@@ -56,7 +62,7 @@
                 </tr>
               </table>
               <p style="margin:24px 0 0; font-size:13px; color:#909090;">
-                Se adjuntan la orden de remisión y el pedimento completo.
+                Se adjuntan las instrucciones de entrega y el pedimento completo.
               </p>
             </td>
           </tr>

@@ -13,6 +13,7 @@ use App\Notification\ConsolidatorMailer;
 use App\Security\CompanyAccess;
 use App\Service\ConsolidatorInstructionSheetGenerator;
 use App\Service\UploadPath;
+use App\Workflow\AllowedFileExtensions;
 use App\Workflow\RequiredDocumentType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
@@ -130,6 +131,36 @@ class DashboardConsolidatorInstructions extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        // Algunos clientes (hoy Sinbiotik) generan su propio documento de
+        // instrucciones desde su portal, con su propio folio de BL — en ese
+        // caso no hay nada que generar aqui, solo adjuntar lo que ya traen.
+        $useUploadedFile = $r->request->get('useUploadedFile') === '1';
+        $xcfBlNumber = $this->nullableTrim($r->request->get('xcfBlNumber'));
+
+        if ($useUploadedFile && $xcfBlNumber === null) {
+            $this->addFlash('error', 'Captura el número de BL de XCF.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $uploadedFile = $useUploadedFile ? $r->files->get('xcfFile') : null;
+
+        if ($useUploadedFile && (!$uploadedFile || !$uploadedFile->isValid())) {
+            $this->addFlash('error', 'Adjunta el documento de instrucciones que generó el cliente.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($uploadedFile) {
+            $extension = strtolower((string) $uploadedFile->getClientOriginalExtension());
+
+            if (!in_array($extension, AllowedFileExtensions::LIST, true)) {
+                $this->addFlash('error', sprintf('Formato no permitido. Formatos permitidos: %s.', implode(', ', AllowedFileExtensions::LIST)));
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+        }
+
         /** @var User $user */
         $user = $this->getUser();
 
@@ -147,6 +178,7 @@ class DashboardConsolidatorInstructions extends AbstractController
         $instruction->setWeightKg($weightKg);
         $instruction->setDeliveryDate($this->parseDeliveryDate($r));
         $instruction->setBilledToClient($r->request->get('billedToClient') === '1');
+        $instruction->setXcfBlNumber($useUploadedFile ? $xcfBlNumber : null);
         $instruction->setCreatedAt(new \DateTimeImmutable());
         $instruction->setCreatedBy($user);
 
@@ -163,19 +195,28 @@ class DashboardConsolidatorInstructions extends AbstractController
             $this->entityManager->flush();
         }
 
-        $xlsxBytes = $this->sheetGenerator->generate($instruction);
         $route = 'uploads/consolidador/'.($testMode ? 'pruebas' : $import->getId());
         $absoluteFolder = $this->uploadPath->resolve($route);
 
         if (!is_dir($absoluteFolder) && !mkdir($absoluteFolder, 0777, true) && !is_dir($absoluteFolder)) {
-            $this->addFlash('error', 'No se pudo preparar la carpeta del archivo generado.');
+            $this->addFlash('error', 'No se pudo preparar la carpeta del archivo.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        $fileName = ($testMode ? uniqid('prueba-') : $instruction->getId()).'.xlsx';
-        $absolutePath = $absoluteFolder.'/'.$fileName;
-        file_put_contents($absolutePath, $xlsxBytes);
+        $baseName = $testMode ? uniqid('prueba-') : (string) $instruction->getId();
+
+        if ($uploadedFile) {
+            $fileName = $baseName.'.'.strtolower((string) $uploadedFile->getClientOriginalExtension());
+            $uploadedFile->move($absoluteFolder, $fileName);
+            $absolutePath = $absoluteFolder.'/'.$fileName;
+        } else {
+            $xlsxBytes = $this->sheetGenerator->generate($instruction);
+            $fileName = $baseName.'.xlsx';
+            $absolutePath = $absoluteFolder.'/'.$fileName;
+            file_put_contents($absolutePath, $xlsxBytes);
+        }
+
         $instruction->setFileRoute($route.'/'.$fileName);
 
         if (!$testMode) {
@@ -188,7 +229,7 @@ class DashboardConsolidatorInstructions extends AbstractController
             unlink($absolutePath);
             $this->addFlash('success', sprintf('Prueba enviada a %s. No se guardó ningún registro ni se mandó a XCF.', ConsolidatorMailer::TEST_RECIPIENT));
         } else {
-            $this->addFlash('success', 'Instrucciones generadas y enviadas a XCF.');
+            $this->addFlash('success', $useUploadedFile ? 'Instrucciones enviadas a XCF.' : 'Instrucciones generadas y enviadas a XCF.');
         }
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
