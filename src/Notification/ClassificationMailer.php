@@ -37,7 +37,7 @@ final class ClassificationMailer
         $cc = $this->dedupe(array_merge(
             [$request->getRequestedBy()->getEmail()],
             $this->recipients->executiveEmails(),
-            array_filter([$request->getCompany()->getClassificationContactEmail()]),
+            $request->getCompany()->getCompras(),
             $this->notificationRecipients->emailsFor(self::CC_KEY),
         ));
 

@@ -35,7 +35,7 @@ final class DeliveryArrivalMailer
         $hasProof = $proofPath && is_file($proofPath);
 
         foreach ($delivery->getReferences() as $import) {
-            $to = $this->recipients->clientEmails($import);
+            $to = $this->recipients->traficoEmails($import);
 
             if ($to === []) {
                 continue;

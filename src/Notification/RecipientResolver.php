@@ -7,10 +7,9 @@ use App\Entity\User;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * A quien le toca enterarse de lo que pasa con un expediente: los clientes
- * afiliados a la empresa (aprobados), los correos de contacto que la empresa
- * haya agregado sin necesidad de cuenta (ver Company::$alertContactEmails) y
- * todos los ejecutivos, porque los expedientes rotan entre ellos.
+ * A quien le toca enterarse de lo que pasa con un expediente: los correos de
+ * trafico que la propia empresa configuro (ver Company::$trafico) y todos
+ * los ejecutivos, porque los expedientes rotan entre ellos.
  *
  * Compartido entre los distintos mailers (ModuladoMailer, PrevioReportMailer)
  * para no repetir la misma resolucion en cada uno.
@@ -22,23 +21,17 @@ final class RecipientResolver
     }
 
     /**
+     * Ya no importa quien tenga cuenta aprobada en el portal — antes se
+     * avisaba a todos los usuarios afiliados y aprobados de la empresa,
+     * ahora la empresa decide quien se entera poniendolo en su lista de
+     * trafico (discriminacion pedida explicitamente por el cliente: quiere
+     * que solo trafico se entere de esto, no cualquiera con cuenta).
+     *
      * @return list<string>
      */
-    public function clientEmails(ImportRequest $import): array
+    public function traficoEmails(ImportRequest $import): array
     {
-        $emails = [];
-
-        foreach ($import->getIdCompany()->getAssociateds() as $associated) {
-            if ($associated->isApproved() && $associated->getIdClient()?->getEmail()) {
-                $emails[$associated->getIdClient()->getEmail()] = true;
-            }
-        }
-
-        foreach ($import->getIdCompany()->getAlertContactEmails() as $contactEmail) {
-            $emails[$contactEmail] = true;
-        }
-
-        return array_keys($emails);
+        return $import->getIdCompany()->getTrafico();
     }
 
     /**

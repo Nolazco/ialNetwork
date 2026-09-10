@@ -26,24 +26,32 @@ class Company
     private ?string $rfc = null;
 
     /**
-     * Se agrega en copia a toda solicitud de clasificación de esta empresa,
-     * ademas del equipo fijo de clasificadores. Opcional: la mayoria de las
-     * empresas no necesita uno.
-     */
-    #[ORM\Column(length: 255, nullable: true)]
-    private ?string $classificationContactEmail = null;
-
-    /**
-     * Correos de contacto de la empresa que se copian en las alertas de sus
-     * expedientes (modulado, vacío devuelto, etc.), ademas de los clientes
-     * afiliados con cuenta (ver RecipientResolver::clientEmails()). Sirve
-     * para gente del cliente que debe enterarse sin tener cuenta en el
-     * sistema — igual que Forwarder::$contactEmails.
+     * Correos de trafico/logistica de la empresa: reciben las alertas del
+     * expediente (modulado, vacío devuelto, instrucciones a XCF, etc.) — todo
+     * lo que no sea el aviso al transportista del camion (ver DeliveryMailer,
+     * que usa su propia lista por aduana, no este campo).
+     *
+     * Es la unica fuente de "a quien le toca enterarse" del lado del
+     * cliente: ya no importa quien tenga cuenta aprobada en el portal (ver
+     * RecipientResolver::traficoEmails()) — antes se avisaba a todos los
+     * usuarios afiliados y aprobados, ahora solo a quien la propia empresa
+     * ponga aqui.
      *
      * @var list<string>
      */
     #[ORM\Column(type: Types::JSON)]
-    private array $alertContactEmails = [];
+    private array $trafico = [];
+
+    /**
+     * Correos de compras de la empresa: reciben las solicitudes de
+     * clasificación de mercancía — nada mas (ver ClassificationMailer).
+     * Antes era un solo correo suelto (classificationContactEmail); ahora es
+     * una lista, igual que $trafico.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(type: Types::JSON)]
+    private array $compras = [];
 
     /**
      * Campos nullable de aqui en adelante: solo hacen falta para llenar el
@@ -152,14 +160,20 @@ class Company
         return $this;
     }
 
-    public function getClassificationContactEmail(): ?string
+    /**
+     * @return list<string>
+     */
+    public function getTrafico(): array
     {
-        return $this->classificationContactEmail;
+        return $this->trafico;
     }
 
-    public function setClassificationContactEmail(?string $classificationContactEmail): static
+    /**
+     * @param list<string> $trafico
+     */
+    public function setTrafico(array $trafico): static
     {
-        $this->classificationContactEmail = $classificationContactEmail;
+        $this->trafico = $trafico;
 
         return $this;
     }
@@ -167,17 +181,17 @@ class Company
     /**
      * @return list<string>
      */
-    public function getAlertContactEmails(): array
+    public function getCompras(): array
     {
-        return $this->alertContactEmails;
+        return $this->compras;
     }
 
     /**
-     * @param list<string> $alertContactEmails
+     * @param list<string> $compras
      */
-    public function setAlertContactEmails(array $alertContactEmails): static
+    public function setCompras(array $compras): static
     {
-        $this->alertContactEmails = $alertContactEmails;
+        $this->compras = $compras;
 
         return $this;
     }

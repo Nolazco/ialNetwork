@@ -59,8 +59,8 @@ final class ForwarderMailer
             ->to(...$to);
 
         // El cliente tambien debe enterarse de la devolucion, aunque el
-        // expediente venga consignado al forwarder (ver clientEmails()).
-        $cc = $this->recipients->clientEmails($import);
+        // expediente venga consignado al forwarder (ver traficoEmails()).
+        $cc = $this->recipients->traficoEmails($import);
 
         if ($cc !== []) {
             $email->cc(...$cc);

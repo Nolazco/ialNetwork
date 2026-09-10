@@ -82,8 +82,8 @@ class DashboardCompanies extends AbstractController{
     $company->setName($r->request->get('name'));
     $company->setRfc($r->request->get('rfc'));
     $company->setAddress($r->request->get('address'));
-    $company->setClassificationContactEmail($this->nullableTrim($r->request->get('classificationContactEmail')));
-    $company->setAlertContactEmails(EmailListParser::parse((string) $r->request->get('alertContactEmails')));
+    $company->setTrafico(EmailListParser::parse((string) $r->request->get('trafico')));
+    $company->setCompras(EmailListParser::parse((string) $r->request->get('compras')));
 
     $entityManager->persist($company);
 
@@ -227,15 +227,16 @@ class DashboardCompanies extends AbstractController{
     $company->setName($name);
     $company->setAddress($address);
     $company->setRfc($rfc);
-    $company->setClassificationContactEmail($this->nullableTrim($data['classificationContactEmail'] ?? null));
-    $company->setAlertContactEmails(EmailListParser::parse((string) ($data['alertContactEmails'] ?? '')));
+    $company->setTrafico(EmailListParser::parse((string) ($data['trafico'] ?? '')));
+    $company->setCompras(EmailListParser::parse((string) ($data['compras'] ?? '')));
 
     $entityManager->persist($company);
     $entityManager->flush();
 
     return new JsonResponse([
         'success' => true,
-        'alertContactEmails' => $company->getAlertContactEmails(),
+        'trafico' => $company->getTrafico(),
+        'compras' => $company->getCompras(),
     ]);
   }
 

@@ -30,8 +30,8 @@
                   data-name="{{ c.name }}"
                   data-address="{{ c.address }}"
                   data-rfc="{{ c.rfc }}"
-                  data-classification-contact-email="{{ c.classificationContactEmail }}"
-                  data-alert-contact-emails="{{ c.alertContactEmails|join('; ') }}">
+                  data-trafico="{{ c.trafico|join('; ') }}"
+                  data-compras="{{ c.compras|join('; ') }}">
                   <i class="bi bi-pencil-square"></i>
                 </button>
                 <button
@@ -98,8 +98,8 @@
         const currentName = btn.getAttribute("data-name");
         const currentAddress = btn.getAttribute("data-address");
         const currentRfc = btn.getAttribute("data-rfc");
-        const currentClassificationContactEmail = btn.getAttribute("data-classification-contact-email");
-        const currentAlertContactEmails = btn.getAttribute("data-alert-contact-emails");
+        const currentTrafico = btn.getAttribute("data-trafico");
+        const currentCompras = btn.getAttribute("data-compras");
 
         Swal.fire({
           title: "Editar empresa",
@@ -107,8 +107,8 @@
             <input id="swal-name" class="swal2-input" placeholder="Razon Social" value="${currentName}">
             <input id="swal-address" class="swal2-input" placeholder="Domicilio" value="${currentAddress}">
             <input id="swal-rfc" class="swal2-input" placeholder="RFC" value="${currentRfc}">
-            <input id="swal-classification-contact-email" class="swal2-input" placeholder="Contacto de clasificación (opcional)" value="${currentClassificationContactEmail}">
-            <input id="swal-alert-contact-emails" class="swal2-input" placeholder="Correos de contacto (separados por ; )" value="${currentAlertContactEmails}">
+            <input id="swal-trafico" class="swal2-input" placeholder="Correos de tráfico (separados por ; )" value="${currentTrafico}">
+            <input id="swal-compras" class="swal2-input" placeholder="Correos de compras (separados por ; )" value="${currentCompras}">
           `,
           focusConfirm: false,
           showCancelButton: true,
@@ -118,15 +118,15 @@
             const name = document.getElementById("swal-name").value.trim();
             const address = document.getElementById("swal-address").value.trim();
             const rfc = document.getElementById("swal-rfc").value.trim();
-            const classificationContactEmail = document.getElementById("swal-classification-contact-email").value.trim();
-            const alertContactEmails = document.getElementById("swal-alert-contact-emails").value.trim();
+            const trafico = document.getElementById("swal-trafico").value.trim();
+            const compras = document.getElementById("swal-compras").value.trim();
 
             if (!name || !address || !rfc) {
               Swal.showValidationMessage("Todos los campos son obligatorios");
               return false;
             }
 
-            return { name, address, rfc, classificationContactEmail, alertContactEmails };
+            return { name, address, rfc, trafico, compras };
           }
         }).then(result => {
           if (result.isConfirmed) {
@@ -148,8 +148,8 @@
                 btn.setAttribute("data-name", updatedData.name);
                 btn.setAttribute("data-address", updatedData.address);
                 btn.setAttribute("data-rfc", updatedData.rfc);
-                btn.setAttribute("data-classification-contact-email", updatedData.classificationContactEmail);
-                btn.setAttribute("data-alert-contact-emails", data.alertContactEmails.join("; "));
+                btn.setAttribute("data-trafico", data.trafico.join("; "));
+                btn.setAttribute("data-compras", data.compras.join("; "));
 
                 const row = btn.closest("tr");
                 row.children[0].textContent = updatedData.name;

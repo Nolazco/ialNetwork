@@ -54,7 +54,7 @@ final class ConsolidatorMailer
         $cc = $test ? [] : $this->dedupe(array_merge(
             $this->notificationRecipients->emailsFor(self::CC_KEY),
             array_filter([$instruction->getCreatedBy()?->getEmail()]),
-            $this->recipients->clientEmails($import),
+            $this->recipients->traficoEmails($import),
         ));
 
         $email = (new TemplatedEmail())
