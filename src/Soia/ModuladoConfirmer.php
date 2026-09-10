@@ -4,6 +4,7 @@ namespace App\Soia;
 
 use App\Entity\ImportRequest;
 use App\Notification\ModuladoMailer;
+use App\Notification\WhatsAppSender;
 use App\Workflow\AduanaCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use Doctrine\ORM\EntityManagerInterface;
@@ -23,6 +24,7 @@ final class ModuladoConfirmer
         private readonly ModuladoMailer $mailer,
         private readonly EntityManagerInterface $entityManager,
         private readonly AduanaCatalog $aduanaCatalog,
+        private readonly WhatsAppSender $whatsApp,
     ) {
     }
 
@@ -56,6 +58,7 @@ final class ModuladoConfirmer
 
             // isResolved() ya garantiza que $result->estado viene lleno.
             $this->mailer->notify($import, $result->estado);
+            $this->whatsApp->notifySupervisors($this->moduladoMessage($import, $result->estado));
 
             return $result;
         }
@@ -63,5 +66,22 @@ final class ModuladoConfirmer
         $this->entityManager->flush();
 
         return $result;
+    }
+
+    /**
+     * Aviso corto de WhatsApp — solo a supervisores por ahora (ver
+     * WhatsAppSender), sin destinatario por capturista: el expediente
+     * todavia no registra quien lo capturo.
+     */
+    private function moduladoMessage(ImportRequest $import, string $soiaEstado): string
+    {
+        return sprintf(
+            "✅ Modulado: %s — %s (%s)\nAduana: %s\nEstado SOIA: %s",
+            $import->getAgencyReference(),
+            $import->getIdCompany()->getName(),
+            $import->getClientReference(),
+            AduanaCatalog::LABELS[$import->getAduana()] ?? $import->getAduana(),
+            $soiaEstado,
+        );
     }
 }
