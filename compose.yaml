@@ -10,7 +10,8 @@ services:
     environment:
       APP_ENV: ${APP_ENV:-dev}
       # Dentro de la red de compose la base se resuelve por el nombre del servicio.
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-!ChangeMe!}@database:5432/${POSTGRES_DB:-app}?serverVersion=${POSTGRES_VERSION:-16}&charset=utf8"
+      # Mismo motor (MariaDB) y version que producción — ver database más abajo.
+      DATABASE_URL: "mysql://${MARIADB_USER:-app}:${MARIADB_PASSWORD:-!ChangeMe!}@database:3306/${MARIADB_DATABASE:-app}?serverVersion=${MARIADB_VERSION:-11.8.8-MariaDB}&charset=utf8mb4"
       MAILER_DSN: "smtp://mailer:1025"
     volumes:
       # El codigo que se edita a mano se comparte con el host.
@@ -33,25 +34,28 @@ services:
 
 ###> doctrine/doctrine-bundle ###
   database:
-    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    # Mismo motor y version que producción (hosting compartido, MariaDB), para
+    # no traducir cada migración a mano al desplegar — ver DATABASE_URL arriba.
+    image: mariadb:${MARIADB_VERSION_TAG:-11.8}
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-app}
+      MARIADB_DATABASE: ${MARIADB_DATABASE:-app}
       # You should definitely change the password in production
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-!ChangeMe!}
-      POSTGRES_USER: ${POSTGRES_USER:-app}
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-!ChangeMe!}
+      MARIADB_USER: ${MARIADB_USER:-app}
+      MARIADB_RANDOM_ROOT_PASSWORD: "yes"
     healthcheck:
-      test: ["CMD", "pg_isready", "-d", "${POSTGRES_DB:-app}", "-U", "${POSTGRES_USER:-app}"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
       timeout: 5s
       retries: 5
       start_period: 60s
     volumes:
-      - database_data:/var/lib/postgresql/data:rw
+      - database_data:/var/lib/mysql:rw
       # El esquema lo construyen las migraciones y los datos de prueba salen de
       # las fixtures, asi que ya no se siembra desde backup.sql:
       #   docker compose exec app php bin/console doctrine:migrations:migrate
       #   docker compose exec app php bin/console doctrine:fixtures:load
       # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
-      # - ./docker/db/data:/var/lib/postgresql/data:rw
+      # - ./docker/db/data:/var/lib/mysql:rw
 ###< doctrine/doctrine-bundle ###
 
 volumes:

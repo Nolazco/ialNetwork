@@ -9,7 +9,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
         unzip \
         libicu-dev \
-        libpq-dev \
         libzip-dev \
         libjpeg62-turbo-dev \
         libpng-dev \
@@ -29,12 +28,12 @@ RUN update-ca-certificates
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
 
 # --- Extensiones de PHP ----------------------------------------------------
-# intl  -> symfony/intl        pdo_pgsql -> Doctrine + PostgreSQL
+# intl  -> symfony/intl        pdo_mysql -> Doctrine + MariaDB (mismo motor que produccion)
 # zip   -> Composer            opcache   -> rendimiento
 # gd    -> reescalar fotos antes de incrustarlas en el PDF del reporte de previo
 RUN docker-php-ext-configure intl \
     && docker-php-ext-configure gd --with-jpeg --with-webp \
-    && docker-php-ext-install -j"$(nproc)" intl pdo pdo_pgsql zip opcache gd
+    && docker-php-ext-install -j"$(nproc)" intl pdo pdo_mysql zip opcache gd
 
 # --- Node 20 (Webpack Encore) ---------------------------------------------
 # Se copia desde la imagen oficial en vez de bajarlo de deb.nodesource.com:
