@@ -17,9 +17,10 @@ use Doctrine\Migrations\AbstractMigration;
  *
  * company.alert_contact_emails se renombra a trafico sin perder los
  * correos que ya tuviera configurados. company.classification_contact_email
- * (un solo correo suelto) se convierte en compras (lista): el valor
- * existente, si habia, se envuelve en un arreglo de un elemento antes de
- * tirar la columna vieja.
+ * (un solo campo de texto) se convierte en compras (lista): el valor
+ * existente, si habia, se separa por ; o , (el mismo criterio de
+ * EmailListParser, por si alguien ya metio mas de un correo ahi a mano)
+ * antes de tirar la columna vieja.
  */
 final class Version20260910101831 extends AbstractMigration
 {
@@ -37,7 +38,11 @@ final class Version20260910101831 extends AbstractMigration
             ALTER TABLE company ADD compras JSON NOT NULL DEFAULT '[]'
         SQL);
         $this->addSql(<<<'SQL'
-            UPDATE company SET compras = json_build_array(classification_contact_email) WHERE classification_contact_email IS NOT NULL
+            UPDATE company
+            SET compras = to_jsonb(ARRAY(
+                SELECT trim(x) FROM unnest(regexp_split_to_array(classification_contact_email, '[;,]')) AS x WHERE trim(x) <> ''
+            ))
+            WHERE classification_contact_email IS NOT NULL
         SQL);
         $this->addSql(<<<'SQL'
             ALTER TABLE company ALTER compras DROP DEFAULT
