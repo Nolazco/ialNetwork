@@ -10,6 +10,7 @@ use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Workflow\AllowedFileExtensions;
 use Doctrine\ORM\EntityManagerInterface;
+use Psr\Log\LoggerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -52,6 +53,7 @@ class DashboardClassifications extends AbstractController
         private readonly UploadPath $uploadPath,
         #[Autowire(service: 'html_sanitizer.sanitizer.app.classification_justification')]
         private readonly HtmlSanitizerInterface $justificationSanitizer,
+        private readonly LoggerInterface $logger,
     ) {
     }
 
@@ -287,7 +289,22 @@ class DashboardClassifications extends AbstractController
         $classificationRequest->setAttachments($attachments);
         $this->entityManager->flush();
 
-        $this->mailer->notify($classificationRequest);
+        // La solicitud ya quedo guardada arriba: un tropiezo transitorio del
+        // correo (SMTP externo, no algo que controlemos) no debe verse como
+        // un error 500 que invite a reintentar y duplicar la solicitud entera
+        // — se avisa aparte, sin perder lo ya guardado.
+        try {
+            $this->mailer->notify($classificationRequest);
+        } catch (\Throwable $e) {
+            $this->logger->error('No se pudo mandar el correo de solicitud de clasificación.', [
+                'classificationRequestId' => $classificationRequest->getId(),
+                'error' => $e->getMessage(),
+            ]);
+
+            $this->addFlash('error', 'La solicitud se guardó, pero hubo un problema al mandar el correo de aviso. El equipo de clasificación puede verla de todos modos; si no la atienden pronto, avísanos.');
+
+            return $this->redirectToRoute('classifications');
+        }
 
         if ($rejected !== []) {
             $this->addFlash('error', sprintf(
