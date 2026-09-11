@@ -2144,7 +2144,11 @@ class DashboardCaseFiles extends AbstractController
 
         $delivery = $this->transport->deliveryFor($container);
 
-        if ($delivery === null || $delivery->getTransport() === null) {
+        // getHaulerDisplayName() cubre tanto transportista del catalogo como
+        // "no registrado" (ver Delivery::$unregisteredHaulerName) — checar
+        // solo getTransport() rechazaba de forma incorrecta los despachos con
+        // transporte no registrado, que si tienen a quien avisarle la cita.
+        if ($delivery === null || $delivery->getHaulerDisplayName() === null) {
             $this->addFlash('error', 'Asigna primero el transporte de este contenedor (Avisar al transporte) antes de programar la devolución de vacío.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
