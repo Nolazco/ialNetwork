@@ -1483,6 +1483,75 @@ class DashboardCaseFiles extends AbstractController
     }
 
     /**
+     * Genera un pedimento secundario a partir de este expediente: la mercancia
+     * se tuvo que declarar en mas de un pedimento por su naturaleza (ej. una
+     * parte no puede ir en el mismo pedimento que el resto). Copia los datos
+     * de intake del cliente (empresa, proveedor, forwarder, custodia, punto de
+     * entrega, mercancia, ETA, aduana, direccion/tipo) a un expediente nuevo,
+     * en Pendiente, listo para que el ejecutivo lo capture igual que
+     * cualquier otro. Los contenedores elegidos NO se mueven — se comparten
+     * (ver Container::$reference, ManyToMany), porque el mismo contenedor
+     * puede tener mercancia de ambos pedimentos.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/pedimento-secundario', name: 'case_file_secondary', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function createSecondary(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_secondary', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $clientReference = trim((string) $r->request->get('clientReference'));
+
+        if ($clientReference === '') {
+            $this->addFlash('error', 'La referencia del cliente para el pedimento secundario es obligatoria.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $secondary = new ImportRequest();
+        $secondary->setOriginRequest($import);
+        $secondary->setClientReference($clientReference);
+        $secondary->setIdCompany($import->getIdCompany());
+        $secondary->setIdProvider($import->getIdProvider());
+        $secondary->setForwarder($import->getForwarder());
+        $secondary->setCustodia($import->getCustodia());
+        $secondary->setBillTo($import->getBillTo());
+        $secondary->setDeliveryPoint($import->getDeliveryPoint());
+        $secondary->setDeliveryInstructions($import->getDeliveryInstructions());
+        $secondary->setGoods($import->getGoods());
+        $secondary->setDirection($import->getDirection());
+        $secondary->setType($import->getType());
+        $secondary->setAduana($import->getAduana());
+        $secondary->setEta($import->getEta());
+        $secondary->setExpectedInspectionAuthority($import->getExpectedInspectionAuthority());
+        $secondary->setTravelsWithConsolidator($import->travelsWithConsolidator());
+        $secondary->setAgencyReference('Pendiente');
+        $secondary->setImportNumber('Pendiente');
+        $secondary->setStatus(ImportRequestWorkflow::PENDING);
+
+        $this->entityManager->persist($secondary);
+
+        // Contenedores que tambien llevan mercancia de este pedimento nuevo
+        // (se agregan, no se quitan del original — ver docblock de arriba).
+        foreach ($r->request->all('containers') as $containerId) {
+            $container = $this->entityManager->getRepository(Container::class)->find($containerId);
+
+            if ($container && $import->getContainers()->contains($container)) {
+                $secondary->addContainer($container);
+            }
+        }
+
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Pedimento secundario generado. Da de alta sus datos de captura.');
+
+        return $this->redirectToRoute('case_file', ['id' => $secondary->getId()]);
+    }
+
+    /**
      * Avanza el expediente al siguiente estado de su secuencia.
      */
     #[IsGranted('ROLE_EXECUTIVE')]

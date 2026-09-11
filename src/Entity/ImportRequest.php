@@ -242,9 +242,29 @@ class ImportRequest
     #[ORM\Column(options: ['default' => false])]
     private bool $travelsWithConsolidator = false;
 
+    /**
+     * Si no es nulo, este expediente es un pedimento secundario: la agencia lo
+     * genero a partir de $originRequest porque la mercancia se tuvo que
+     * declarar en mas de un pedimento (ej. una parte no puede ir en el mismo
+     * pedimento que el resto). El cliente sigue viendo una sola solicitud en
+     * su lista (ver DashboardImports::getImports(), que filtra los
+     * secundarios) — este campo es solo para enlazar los dos expedientes
+     * entre si en la vista de "expediente".
+     */
+    #[ORM\ManyToOne(inversedBy: 'secondaryRequests')]
+    #[ORM\JoinColumn(nullable: true)]
+    private ?ImportRequest $originRequest = null;
+
+    /**
+     * @var Collection<int, ImportRequest>
+     */
+    #[ORM\OneToMany(targetEntity: self::class, mappedBy: 'originRequest')]
+    private Collection $secondaryRequests;
+
     public function __construct()
     {
         $this->importDocuments = new ArrayCollection();
+        $this->secondaryRequests = new ArrayCollection();
         $this->requiredDocuments = new ArrayCollection();
         $this->previoReports = new ArrayCollection();
         $this->containers = new ArrayCollection();
@@ -834,5 +854,25 @@ class ImportRequest
         $this->travelsWithConsolidator = $travelsWithConsolidator;
 
         return $this;
+    }
+
+    public function getOriginRequest(): ?self
+    {
+        return $this->originRequest;
+    }
+
+    public function setOriginRequest(?self $originRequest): static
+    {
+        $this->originRequest = $originRequest;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, ImportRequest>
+     */
+    public function getSecondaryRequests(): Collection
+    {
+        return $this->secondaryRequests;
     }
 }

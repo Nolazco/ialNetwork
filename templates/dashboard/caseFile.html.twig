@@ -20,6 +20,25 @@
       </a>
     </div>
 
+    {% if import.originRequest %}
+      <div class="alert alert-info">
+        <i class="bi bi-diagram-2"></i>
+        Este es un <strong>pedimento secundario</strong> del expediente
+        <a href="{{ path('case_file', { id: import.originRequest.id }) }}">{{ import.originRequest.clientReference }}</a>:
+        la mercancía se tuvo que declarar en más de un pedimento.
+      </div>
+    {% endif %}
+
+    {% if import.secondaryRequests|length %}
+      <div class="alert alert-info">
+        <i class="bi bi-diagram-2"></i>
+        Esta solicitud se dividió en {{ import.secondaryRequests|length + 1 }} pedimentos. Secundario(s):
+        {% for secondary in import.secondaryRequests %}
+          <a href="{{ path('case_file', { id: secondary.id }) }}">{{ secondary.clientReference }}</a>{% if not loop.last %}, {% endif %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
     {# ---------- Avance del expediente ---------- #}
     <div class="card shadow-sm mb-4">
       <div class="card-body">
@@ -329,6 +348,48 @@
         </div>
       </div>
     </div>
+
+    {# ---------- Pedimento secundario ---------- #}
+    {% if is_granted('ROLE_EXECUTIVE') %}
+      <div class="card shadow-sm mt-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Pedimento secundario</h5>
+          <p class="text-body-secondary">
+            Úsalo cuando la mercancía de esta solicitud se tenga que declarar en más de un pedimento
+            (ej. una parte no puede ir en el mismo pedimento que el resto). Se crea un expediente nuevo
+            con los mismos datos del cliente, listo para capturarse por separado.
+          </p>
+          <form method="POST" action="{{ path('case_file_secondary', { id: import.id }) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('case_file_secondary') }}">
+
+            <div class="mb-3" style="max-width:320px">
+              <label for="secondaryClientReference" class="form-label">Referencia del cliente (pedimento secundario)</label>
+              <input type="text" class="form-control" id="secondaryClientReference" name="clientReference"
+                     placeholder="Ej. {{ import.clientReference }} (2)" required>
+            </div>
+
+            {% if import.type == 'container' and import.containers|length %}
+              <div class="mb-3">
+                <label class="form-label">Contenedores que también llevan mercancía del pedimento secundario (opcional)</label>
+                <div class="d-flex flex-wrap gap-3">
+                  {% for c in import.containers %}
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" name="containers[]" value="{{ c.id }}" id="secondaryContainer-{{ c.id }}">
+                      <label class="form-check-label" for="secondaryContainer-{{ c.id }}">{{ c.num }} ({{ containerTypes[c.type]|default(c.type) }})</label>
+                    </div>
+                  {% endfor %}
+                </div>
+                <div class="form-text">No se quitan del pedimento original — se comparten entre los dos.</div>
+              </div>
+            {% endif %}
+
+            <button type="submit" class="btn btn-outline-primary">
+              <i class="bi bi-diagram-2"></i> Generar pedimento secundario
+            </button>
+          </form>
+        </div>
+      </div>
+    {% endif %}
 
     {# ---------- Documentos del ejecutivo ---------- #}
     <div class="card shadow-sm mt-4">

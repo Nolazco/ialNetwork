@@ -74,7 +74,11 @@ class DashboardImports extends AbstractController {
     }
 
     $aduana = $r->query->get('aduana');
-    $criteria = ['idCompany' => $company];
+    // originRequest => null: los pedimentos secundarios no salen aqui como
+    // renglon aparte (el cliente sigue viendo una sola solicitud, ver
+    // DashboardCaseFiles::createSecondary()) — se llega a ellos desde el link
+    // en el expediente original.
+    $criteria = ['idCompany' => $company, 'originRequest' => null];
 
     if ($this->aduanaCatalog->isValid($aduana)) {
     	$criteria['aduana'] = $aduana;
