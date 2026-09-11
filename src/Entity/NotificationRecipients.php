@@ -41,6 +41,15 @@ class NotificationRecipients
     private array $emails = [];
 
     /**
+     * Numeros de WhatsApp — solo la fila 'modulado_whatsapp' los usa por
+     * ahora (ver WhatsAppSender); vacio/sin uso en el resto de las filas.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(type: Types::JSON)]
+    private array $phones = [];
+
+    /**
      * true en las que siempre tuvieron una dirección real (to() sin ningún
      * destinatario revienta el envío); false en las que solo agregan copia a
      * lo que ya manda RecipientResolver, y por eso pueden quedar vacías.
@@ -91,6 +100,24 @@ class NotificationRecipients
     public function setEmails(array $emails): static
     {
         $this->emails = array_values($emails);
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getPhones(): array
+    {
+        return $this->phones;
+    }
+
+    /**
+     * @param list<string> $phones
+     */
+    public function setPhones(array $phones): static
+    {
+        $this->phones = array_values($phones);
 
         return $this;
     }

@@ -13,8 +13,9 @@ use EasyCorp\Bundle\EasyAdminBundle\Field\IdField;
 use EasyCorp\Bundle\EasyAdminBundle\Field\TextField;
 
 /**
- * Las 6 filas (una por cada Mailer::TO_KEY/CC_KEY) las siembra la migración;
- * aquí solo se edita la lista de correos de cada una — key/label quedan de
+ * Las filas (una por cada Mailer::TO_KEY/CC_KEY, o por cada lista de
+ * WhatsApp como 'modulado_whatsapp') las siembra la migración; aquí solo se
+ * edita la lista de correos/telefonos de cada una — key/label quedan de
  * solo lectura porque el código las busca por ese nombre exacto, y "Nuevo"/
  * "Eliminar" se deshabilitan para que no se creen filas huérfanas ni se
  * borre una que algún Mailer sigue buscando.
@@ -46,6 +47,7 @@ class NotificationRecipientsCrudController extends AbstractCrudController
             TextField::new('label', 'Descripción')->setFormTypeOption('disabled', true),
             BooleanField::new('required', 'Obligatoria')->renderAsSwitch(false)->hideOnForm(),
             ArrayField::new('emails', 'Correos'),
+            ArrayField::new('phones', 'WhatsApp'),
         ];
     }
 }

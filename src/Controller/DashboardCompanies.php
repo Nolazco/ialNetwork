@@ -10,6 +10,7 @@ use App\Security\CompanyAccess;
 use App\Service\UploadPath;
 use App\Workflow\AllowedFileExtensions;
 use App\Workflow\EmailListParser;
+use App\Workflow\PhoneListParser;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -84,6 +85,7 @@ class DashboardCompanies extends AbstractController{
     $company->setAddress($r->request->get('address'));
     $company->setTrafico(EmailListParser::parse((string) $r->request->get('trafico')));
     $company->setCompras(EmailListParser::parse((string) $r->request->get('compras')));
+    $company->setWhatsapp(PhoneListParser::parse((string) $r->request->get('whatsapp')));
 
     $entityManager->persist($company);
 
@@ -229,6 +231,7 @@ class DashboardCompanies extends AbstractController{
     $company->setRfc($rfc);
     $company->setTrafico(EmailListParser::parse((string) ($data['trafico'] ?? '')));
     $company->setCompras(EmailListParser::parse((string) ($data['compras'] ?? '')));
+    $company->setWhatsapp(PhoneListParser::parse((string) ($data['whatsapp'] ?? '')));
 
     $entityManager->persist($company);
     $entityManager->flush();
@@ -237,6 +240,7 @@ class DashboardCompanies extends AbstractController{
         'success' => true,
         'trafico' => $company->getTrafico(),
         'compras' => $company->getCompras(),
+        'whatsapp' => $company->getWhatsapp(),
     ]);
   }
 

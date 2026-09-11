@@ -5,9 +5,12 @@ namespace App\Soia;
 use App\Entity\ImportRequest;
 use App\Notification\ModuladoMailer;
 use App\Notification\WhatsAppSender;
+use App\Repository\NotificationRecipientsRepository;
 use App\Workflow\AduanaCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
+use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
  * Unico punto que decide "¿ya se puede pasar a Modulado?" y lo ejecuta.
@@ -18,6 +21,8 @@ use Doctrine\ORM\EntityManagerInterface;
  */
 final class ModuladoConfirmer
 {
+    private const WHATSAPP_EXECUTIVES_KEY = 'modulado_whatsapp';
+
     public function __construct(
         private readonly SoiaClient $client,
         private readonly ImportRequestWorkflow $workflow,
@@ -25,6 +30,10 @@ final class ModuladoConfirmer
         private readonly EntityManagerInterface $entityManager,
         private readonly AduanaCatalog $aduanaCatalog,
         private readonly WhatsAppSender $whatsApp,
+        private readonly NotificationRecipientsRepository $notificationRecipients,
+        private readonly UrlGeneratorInterface $urlGenerator,
+        #[Autowire(env: 'SOIA_PATENTE')]
+        private readonly string $patente,
     ) {
     }
 
@@ -44,6 +53,7 @@ final class ModuladoConfirmer
                 $this->entityManager->flush();
 
                 $this->mailer->notifyReconocimiento($import);
+                $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientReconocimientoMessage($import));
             } else {
                 $this->entityManager->flush();
             }
@@ -58,7 +68,8 @@ final class ModuladoConfirmer
 
             // isResolved() ya garantiza que $result->estado viene lleno.
             $this->mailer->notify($import, $result->estado);
-            $this->whatsApp->notifySupervisors($this->moduladoMessage($import, $result->estado));
+            $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $this->executiveModuladoMessage($import, $result->estado));
+            $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientModuladoMessage($import, $result->estado));
 
             return $result;
         }
@@ -69,11 +80,10 @@ final class ModuladoConfirmer
     }
 
     /**
-     * Aviso corto de WhatsApp — solo a supervisores por ahora (ver
-     * WhatsAppSender), sin destinatario por capturista: el expediente
-     * todavia no registra quien lo capturo.
+     * Aviso de WhatsApp para ejecutivos: con detalle tecnico (estado crudo
+     * del SOIA), pensado para quien le da seguimiento al expediente.
      */
-    private function moduladoMessage(ImportRequest $import, string $soiaEstado): string
+    private function executiveModuladoMessage(ImportRequest $import, string $soiaEstado): string
     {
         return sprintf(
             "✅ Modulado: %s — %s (%s)\nAduana: %s\nEstado SOIA: %s",
@@ -82,6 +92,50 @@ final class ModuladoConfirmer
             $import->getClientReference(),
             AduanaCatalog::LABELS[$import->getAduana()] ?? $import->getAduana(),
             $soiaEstado,
+        );
+    }
+
+    /**
+     * Aviso de WhatsApp para el cliente final: sin jerga tecnica, con el
+     * mismo formato que ya usaba la agencia en su sistema anterior (VCA).
+     */
+    private function clientModuladoMessage(ImportRequest $import, string $soiaEstado): string
+    {
+        return $this->clientMessage($import, '🟢', $soiaEstado, $import->getModuladoAt());
+    }
+
+    private function clientReconocimientoMessage(ImportRequest $import): string
+    {
+        return $this->clientMessage($import, '🔴', 'RECONOCIMIENTO ADUANERO', $import->getReconocimientoAt());
+    }
+
+    private function clientMessage(ImportRequest $import, string $semaforo, string $estado, ?\DateTimeImmutable $fecha): string
+    {
+        $company = $import->getIdCompany();
+
+        return sprintf(
+            "🚨 Aviso de Modulación\n".
+            "📍 Aduana: %s - %s\n".
+            "========================================\n".
+            "📄 Pedimento: %s (Patente: %s)\n".
+            "🔖 Referencia: %s\n".
+            "🏬 Recinto: %s\n".
+            "🏢 Cliente: %s (%s)\n".
+            "📈 Estado: %s %s\n".
+            "🕒 Fecha: %s\n".
+            "🔗 Archivo Digital:\n%s",
+            $import->getAduana(),
+            AduanaCatalog::LABELS[$import->getAduana()] ?? $import->getAduana(),
+            $import->getImportNumber(),
+            $this->patente,
+            $import->getAgencyReference(),
+            $import->getCr()?->getName() ?? 'Por asignar',
+            $company->getName(),
+            $company->getRfc(),
+            $semaforo,
+            $estado,
+            ($fecha ?? new \DateTimeImmutable())->format('d/m/Y H:i:s'),
+            $this->urlGenerator->generate('case_file', ['id' => $import->getId()], UrlGeneratorInterface::ABSOLUTE_URL),
         );
     }
 }

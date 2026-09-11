@@ -54,6 +54,17 @@ class Company
     private array $compras = [];
 
     /**
+     * Numeros de WhatsApp de la empresa: reciben el mismo tipo de aviso que
+     * $trafico (modulado, reconocimiento aduanero), pero en una version corta
+     * sin jerga tecnica, pensada para el cliente final (ver
+     * ModuladoConfirmer). Vacio = no se manda WhatsApp a esta empresa.
+     *
+     * @var list<string>
+     */
+    #[ORM\Column(type: Types::JSON)]
+    private array $whatsapp = [];
+
+    /**
      * Campos nullable de aqui en adelante: solo hacen falta para llenar el
      * bloque "facturador" de las instrucciones al consolidador de carga (ver
      * ConsolidatorInstruction) — nombre/rfc ya existen arriba y se reusan.
@@ -192,6 +203,24 @@ class Company
     public function setCompras(array $compras): static
     {
         $this->compras = $compras;
+
+        return $this;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getWhatsapp(): array
+    {
+        return $this->whatsapp;
+    }
+
+    /**
+     * @param list<string> $whatsapp
+     */
+    public function setWhatsapp(array $whatsapp): static
+    {
+        $this->whatsapp = $whatsapp;
 
         return $this;
     }

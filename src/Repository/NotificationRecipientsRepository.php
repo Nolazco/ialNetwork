@@ -23,4 +23,12 @@ class NotificationRecipientsRepository extends ServiceEntityRepository
     {
         return $this->findOneBy(['key' => $key])?->getEmails() ?? [];
     }
+
+    /**
+     * @return list<string>
+     */
+    public function phonesFor(string $key): array
+    {
+        return $this->findOneBy(['key' => $key])?->getPhones() ?? [];
+    }
 }

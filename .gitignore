@@ -41,3 +41,7 @@ public/uploads/
 # Las CAs de antivirus/proxy son especificas de cada maquina, no se versionan.
 /docker/certs/*.crt
 ###< certificados locales ###
+
+###> ngrok ###
+/ngrok.log
+###< ngrok ###

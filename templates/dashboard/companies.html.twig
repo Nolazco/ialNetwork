@@ -31,7 +31,8 @@
                   data-address="{{ c.address }}"
                   data-rfc="{{ c.rfc }}"
                   data-trafico="{{ c.trafico|join('; ') }}"
-                  data-compras="{{ c.compras|join('; ') }}">
+                  data-compras="{{ c.compras|join('; ') }}"
+                  data-whatsapp="{{ c.whatsapp|join('; ') }}">
                   <i class="bi bi-pencil-square"></i>
                 </button>
                 <button
@@ -100,6 +101,7 @@
         const currentRfc = btn.getAttribute("data-rfc");
         const currentTrafico = btn.getAttribute("data-trafico");
         const currentCompras = btn.getAttribute("data-compras");
+        const currentWhatsapp = btn.getAttribute("data-whatsapp");
 
         Swal.fire({
           title: "Editar empresa",
@@ -109,6 +111,7 @@
             <input id="swal-rfc" class="swal2-input" placeholder="RFC" value="${currentRfc}">
             <input id="swal-trafico" class="swal2-input" placeholder="Correos de tráfico (separados por ; )" value="${currentTrafico}">
             <input id="swal-compras" class="swal2-input" placeholder="Correos de compras (separados por ; )" value="${currentCompras}">
+            <input id="swal-whatsapp" class="swal2-input" placeholder="Números de WhatsApp (separados por ; )" value="${currentWhatsapp}">
           `,
           focusConfirm: false,
           showCancelButton: true,
@@ -120,13 +123,14 @@
             const rfc = document.getElementById("swal-rfc").value.trim();
             const trafico = document.getElementById("swal-trafico").value.trim();
             const compras = document.getElementById("swal-compras").value.trim();
+            const whatsapp = document.getElementById("swal-whatsapp").value.trim();
 
             if (!name || !address || !rfc) {
               Swal.showValidationMessage("Todos los campos son obligatorios");
               return false;
             }
 
-            return { name, address, rfc, trafico, compras };
+            return { name, address, rfc, trafico, compras, whatsapp };
           }
         }).then(result => {
           if (result.isConfirmed) {
@@ -150,6 +154,7 @@
                 btn.setAttribute("data-rfc", updatedData.rfc);
                 btn.setAttribute("data-trafico", data.trafico.join("; "));
                 btn.setAttribute("data-compras", data.compras.join("; "));
+                btn.setAttribute("data-whatsapp", data.whatsapp.join("; "));
 
                 const row = btn.closest("tr");
                 row.children[0].textContent = updatedData.name;
