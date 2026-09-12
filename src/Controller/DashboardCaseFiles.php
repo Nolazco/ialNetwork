@@ -279,6 +279,7 @@ class DashboardCaseFiles extends AbstractController
             'requiredDocuments' => $singleSlotDocuments,
             'advanceRequests' => $advanceRequests,
             'deliveryPoints' => $this->entityManager->getRepository(DeliveryPoint::class)->findByCompany($import->getIdCompany()),
+            'nextRectificationReference' => str_repeat('R', $import->getRectifications()->count() + 1).$import->getAgencyReference(),
         ]);
     }
 
@@ -1740,16 +1741,22 @@ class DashboardCaseFiles extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        $agencyReference = trim((string) $r->request->get('agencyReference'));
         $importNumber = trim((string) $r->request->get('importNumber'));
         $fullFile = $r->files->get('fullPedimento');
         $simplifiedFile = $r->files->get('simplifiedPedimento');
 
-        if ($agencyReference === '' || $importNumber === '' || !$fullFile || !$simplifiedFile) {
-            $this->addFlash('error', 'La referencia, el número de pedimento y los dos documentos (completo y simplificado) son obligatorios.');
+        if ($importNumber === '' || !$fullFile || !$simplifiedFile) {
+            $this->addFlash('error', 'El número de pedimento y los dos documentos (completo y simplificado) son obligatorios.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
+
+        // La referencia se arma sola: una "R" mas por cada rectificacion que
+        // ya tenga el expediente, sobre la referencia del pedimento original
+        // (nunca sobre la de la rectificacion anterior) — asi siempre queda
+        // Z2608244, RZ2608244, RRZ2608244... sin depender de que el ejecutivo
+        // la escriba bien.
+        $agencyReference = str_repeat('R', $import->getRectifications()->count() + 1).$import->getAgencyReference();
 
         $route = 'uploads/rectificaciones/'.$import->getId();
         $folder = $this->uploadPath->resolve($route);

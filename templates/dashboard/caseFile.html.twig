@@ -546,17 +546,18 @@
           <form method="POST" enctype="multipart/form-data" action="{{ path('case_file_rectification', { id: import.id }) }}" class="row g-2 align-items-end mb-4">
             <input type="hidden" name="_token" value="{{ csrf_token('case_file_rectification') }}">
 
-            <div class="col-md-3">
-              <label for="rectAgencyReference" class="form-label">Referencia</label>
-              <input type="text" class="form-control" id="rectAgencyReference" name="agencyReference" placeholder="Ej. RZ2608244" required>
+            <div class="col-md-4">
+              <label class="form-label">Referencia</label>
+              <input type="text" class="form-control" value="{{ nextRectificationReference }}" disabled>
+              <div class="form-text">Se arma sola: una "R" más sobre la referencia del pedimento original.</div>
             </div>
 
             <div class="col-md-3">
-              <label for="rectImportNumber" class="form-label">Número de pedimento</label>
-              <input type="text" class="form-control" id="rectImportNumber" name="importNumber" placeholder="Ej. 26 16 1861 6008745" required>
+              <label for="rectImportNumber" class="form-label">Número de pedimento (7 dígitos)</label>
+              <input type="text" class="form-control" id="rectImportNumber" name="importNumber" placeholder="Ej. 6008745" required>
             </div>
 
-            <div class="col-md-3">
+            <div class="col-md-2">
               <label for="rectFullFile" class="form-label">Pedimento completo</label>
               <input type="file" class="form-control" id="rectFullFile" name="fullPedimento" required>
             </div>
