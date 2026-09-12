@@ -158,7 +158,7 @@ class ImportRequest
 
     /**
      * Última vez que se consultó el SOIA (manual o automático), para que el
-     * poller no vuelva a consultar antes de los 5 minutos.
+     * poller no vuelva a consultar antes de tiempo (ver PollSoiaCommand).
      */
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastSoiaCheckAt = null;

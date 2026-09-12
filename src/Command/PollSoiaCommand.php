@@ -15,19 +15,30 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 /**
  * Consulta el SOIA por los expedientes que ya deberían estar modulados.
  *
- * Pensado para correr por cron cada 5 minutos: es este comando el que
- * decide, expediente por expediente, si ya le toca consultar (30 minutos
- * después de la cita más próxima, y no antes de 5 minutos desde la última
- * consulta), así que no importa que el cron corra más seguido que esa regla.
+ * Pensado para correr por cron cada 2 minutos, revisando como máximo
+ * BATCH_SIZE expedientes por corrida: el servidor del SOIA es lento, y
+ * bombardearlo con todos los expedientes elegibles de un jalón (antes podían
+ * ser decenas en una sola corrida) es justo lo que lo pone más lento todavía.
+ * Repartir la carga en corridas pequeñas y frecuentes evita el pico sin
+ * dejar de consultar a todos con el tiempo (ver ORDER BY lastSoiaCheckAt en
+ * execute(), que atiende primero a quien lleva más tiempo sin revisarse).
  *
- * Se rinde tras 288 intentos por expediente (aprox. 24 a 48 horas de
- * reintentos, según el cron corra cada 5 o cada ~10 minutos en la práctica —
- * ver el comentario de RECHECK_INTERVAL): pasado ese punto ya no vale la pena
- * seguir golpeando el portal solo, y el ejecutivo puede forzar una consulta
- * manual en cualquier momento con el botón "Consultar SOIA" del expediente.
- * El presupuesto de intentos se reinicia cada vez que se fija o corrige la
- * fecha/hora de un despacho (ver ImportRequest::resetSoiaPolling()), para
- * que siempre cuente desde la cita vigente y no desde una que ya se corrigió.
+ * Es este comando el que decide, expediente por expediente, si ya le toca
+ * consultar (30 minutos después de la cita más próxima, y no antes de
+ * RECHECK_INTERVAL desde la última consulta), así que no importa que el cron
+ * corra más seguido que esa regla.
+ *
+ * Se rinde tras MAX_AUTO_ATTEMPTS intentos por expediente (aprox. 48 horas de
+ * reintentos a razón de un intento cada ~2 minutos): pasado ese punto ya no
+ * vale la pena seguir golpeando el portal solo, y el ejecutivo puede forzar
+ * una consulta manual en cualquier momento con el botón "Consultar SOIA" del
+ * expediente. Si en la práctica hay más de BATCH_SIZE expedientes elegibles
+ * a la vez, el reparto por corridas puede estirar esa ventana un poco más de
+ * 48 horas para los últimos en turno — es un costo aceptable a cambio de no
+ * saturar el SOIA. El presupuesto de intentos se reinicia cada vez que se
+ * fija o corrige la fecha/hora de un despacho (ver
+ * ImportRequest::resetSoiaPolling()), para que siempre cuente desde la cita
+ * vigente y no desde una que ya se corrigió.
  */
 #[AsCommand(
     name: 'app:soia:poll',
@@ -36,15 +47,18 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 class PollSoiaCommand extends Command
 {
     private const WAIT_AFTER_DESPACHO = '+30 minutes';
-    // Menor a los 5 minutos del cron a propósito: si el intervalo fuera
+    // Menor a los 2 minutos del cron a propósito: si el intervalo fuera
     // exactamente igual, una corrida que arranca unos segundos tarde (el
-    // propio tiempo que tarda en correr) empuja lastSoiaCheckAt justo pasado
-    // el borde de los 5 minutos, y la siguiente corrida (exactamente 5
-    // minutos después) cae un poco corta y se salta — en la práctica
-    // termina revisando cada ~10 minutos, no cada 5. Confirmado en
-    // var/log/soia_poll.log: patrón alternado "Revisados: 1"/"Revisados: 0".
-    private const RECHECK_INTERVAL = '+4 minutes';
-    private const MAX_AUTO_ATTEMPTS = 288;
+    // propio tiempo que tarda en correr, o un SOIA lento) empuja
+    // lastSoiaCheckAt justo pasado el borde de los 2 minutos, y la siguiente
+    // corrida cae un poco corta y se salta — en la práctica terminaría
+    // revisando cada ~4 minutos, no cada 2 (mismo problema que ya se vio con
+    // el cron de 5 minutos, ver var/log/soia_poll.log de esa época).
+    private const RECHECK_INTERVAL = '+100 seconds';
+    private const MAX_AUTO_ATTEMPTS = 1440;
+
+    /** Cuántos expedientes se consultan como máximo en una sola corrida, para no bombardear el SOIA de un jalón. */
+    private const BATCH_SIZE = 10;
 
     /** Pausa entre consultas de la misma corrida, para no golpear el portal de un jalón. */
     private const PAUSE_BETWEEN_CHECKS_SECONDS = 1;
@@ -61,13 +75,21 @@ class PollSoiaCommand extends Command
         $io = new SymfonyStyle($input, $output);
         $now = new \DateTimeImmutable();
 
+        // lastSoiaCheckAt ASC deja primero a quien nunca se ha revisado (NULL
+        // ordena antes que cualquier fecha) y luego a quien lleva más tiempo
+        // esperando su turno, para que el tope de BATCH_SIZE por corrida
+        // reparta parejo si hay más expedientes elegibles que cupo.
         $candidates = $this->entityManager->getRepository(ImportRequest::class)
-            ->findBy(['status' => ImportRequestWorkflow::SCHEDULED]);
+            ->findBy(['status' => ImportRequestWorkflow::SCHEDULED], ['lastSoiaCheckAt' => 'ASC']);
 
         $checked = 0;
         $modulated = 0;
 
         foreach ($candidates as $import) {
+            if ($checked >= self::BATCH_SIZE) {
+                break;
+            }
+
             $despachoAt = $this->earliestDespacho($import);
 
             if ($despachoAt === null) {
@@ -99,7 +121,7 @@ class PollSoiaCommand extends Command
                 $io->writeln(sprintf('[%s] Expediente %s en reconocimiento aduanero.', $now->format('c'), $import->getClientReference()));
             }
 
-            if ($checked < count($candidates)) {
+            if ($checked < self::BATCH_SIZE) {
                 sleep(self::PAUSE_BETWEEN_CHECKS_SECONDS);
             }
         }
