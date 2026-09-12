@@ -45,6 +45,28 @@
                   </tr>
                 {% endif %}
               </table>
+              {% if returnDetails is defined and returnDetails|length %}
+                <table role="presentation" width="100%" cellpadding="8" cellspacing="0" style="font-size:14px; color:#404040; margin-top:8px;">
+                  {% for d in returnDetails %}
+                    <tr>
+                      <td style="color:#909090;">Contenedor</td>
+                      <td><strong>{{ d.containerNum }}{{ d.containerType ? ' · ' ~ d.containerType : '' }}</strong></td>
+                    </tr>
+                    <tr>
+                      <td style="color:#909090;">Tipo de devolución</td>
+                      <td><strong>{{ d.returnType }}</strong></td>
+                    </tr>
+                    <tr>
+                      <td style="color:#909090;">Patio</td>
+                      <td><strong>{{ d.yardName }}</strong></td>
+                    </tr>
+                    <tr>
+                      <td style="color:#909090;">Fecha</td>
+                      <td><strong>{{ d.returnDate|date('d/m/Y') }}</strong></td>
+                    </tr>
+                  {% endfor %}
+                </table>
+              {% endif %}
               {% if documents|length %}
                 <p style="margin:20px 0 8px; font-size:13px; color:#909090;">Documentos:</p>
                 <ul style="margin:0; padding-left:20px; font-size:14px; color:#404040;">

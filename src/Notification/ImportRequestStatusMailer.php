@@ -147,11 +147,18 @@ final class ImportRequestStatusMailer
     /**
      * A diferencia de las demas, el documento no es unico: puede haber un
      * EIR por cada contenedor devuelto (ver ImportRequest::$emptyReturns).
+     *
+     * Un solo correo para todos los involucrados: cliente, ejecutivos y, si
+     * el expediente viene consignado a uno, el forwarder (ver
+     * RecipientResolver::forwarderEmails()) — trae el detalle tecnico de la
+     * devolucion (patio, tipo, fecha) ademas de la constancia con el EIR
+     * adjunto, para que le sirva a los tres por igual.
      */
     public function notifyEmptyReturned(ImportRequest $import): void
     {
         $documents = [];
         $attachments = [];
+        $returnDetails = [];
 
         foreach ($import->getEmptyReturns() as $return) {
             $route = $return->getEirRoute();
@@ -162,6 +169,14 @@ final class ImportRequestStatusMailer
             if ($route !== null) {
                 $attachments[] = ['route' => $route, 'name' => $label.'.'.pathinfo($route, PATHINFO_EXTENSION)];
             }
+
+            $returnDetails[] = [
+                'containerNum' => $return->getContainer()->getNum(),
+                'containerType' => $return->getContainer()->getType(),
+                'yardName' => $return->getYard()?->getName(),
+                'returnType' => $return->getType(),
+                'returnDate' => $return->getDate(),
+            ];
         }
 
         $this->send(
@@ -170,6 +185,8 @@ final class ImportRequestStatusMailer
             'Ya se devolvió el contenedor vacío de tu expediente.',
             $documents,
             $attachments,
+            ['returnDetails' => $returnDetails],
+            $this->recipients->forwarderEmails($import),
         );
     }
 
@@ -188,8 +205,9 @@ final class ImportRequestStatusMailer
      * @param list<array{label: string, attached: bool}> $documents
      * @param list<array{route: string, name: string}>    $attachments
      * @param array<string, mixed>                        $extraContext
+     * @param list<string>                                 $extraCc
      */
-    private function send(ImportRequest $import, string $subject, string $headline, array $documents, array $attachments, array $extraContext = []): void
+    private function send(ImportRequest $import, string $subject, string $headline, array $documents, array $attachments, array $extraContext = [], array $extraCc = []): void
     {
         $to = $this->recipients->traficoEmails($import);
 
@@ -197,7 +215,7 @@ final class ImportRequestStatusMailer
             return;
         }
 
-        $cc = $this->recipients->executiveEmails($import->getAduana());
+        $cc = array_values(array_unique([...$this->recipients->executiveEmails($import->getAduana()), ...$extraCc]));
 
         $email = (new TemplatedEmail())
             ->from($this->fromAddress)

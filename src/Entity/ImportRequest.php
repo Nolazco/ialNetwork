@@ -27,7 +27,7 @@ class ImportRequest
 
     // Nullable: la mayoria de las mercancias vienen consignadas al cliente
     // directo. Si no es nulo, el expediente esta consignado a ese forwarder
-    // en vez de al cliente (ver Forwarder y ForwarderMailer).
+    // en vez de al cliente (ver Forwarder e ImportRequestStatusMailer).
     #[ORM\ManyToOne(inversedBy: 'importRequests')]
     #[ORM\JoinColumn(nullable: true)]
     private ?Forwarder $forwarder = null;

@@ -19,7 +19,6 @@ use App\Entity\PrevioReport;
 use App\Entity\RequiredDocument;
 use App\Entity\User;
 use App\Notification\DeliveryMailer;
-use App\Notification\ForwarderMailer;
 use App\Notification\ImportRequestStatusMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
@@ -77,7 +76,6 @@ class DashboardCaseFiles extends AbstractController
         private readonly ContainerTypeCatalog $containerTypeCatalog,
         private readonly DeliveryMailer $deliveryMailer,
         private readonly ImportRequestStatusMailer $statusMailer,
-        private readonly ForwarderMailer $forwarderMailer,
         private readonly EmptyReturnCatalog $emptyReturnCatalog,
         #[Autowire('%kernel.environment%')]
         private readonly string $environment,
@@ -2320,8 +2318,10 @@ class DashboardCaseFiles extends AbstractController
         $newStatus = $this->transport->confirmEmptyReturn($return);
         $this->entityManager->flush();
 
-        $this->forwarderMailer->notifyEmptyReturn($return, $import);
-
+        // El forwarder (si el expediente viene consignado a uno) ya se
+        // entera de esto en copia del correo de "vacío devuelto" que manda
+        // notifyStatusReached() mas abajo — ver
+        // ImportRequestStatusMailer::notifyEmptyReturned().
         if ($newStatus) {
             $this->statusMailer->notifyStatusReached($import, $newStatus);
             $this->addFlash('success', sprintf('Vacío %s devuelto. El expediente pasó a "%s".', $return->getContainer()->getNum(), $newStatus));

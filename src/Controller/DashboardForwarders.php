@@ -22,8 +22,10 @@ use Symfony\Component\String\Slugger\SluggerInterface;
  * Catalogo interno de forwarders (agentes de carga): ni clientes ni
  * transportistas tienen nada que hacer aqui, y menos viendo o editando sus
  * cuentas bancarias — esa es informacion confidencial que jamas debe llegar
- * al propio forwarder ni a un cliente. Ver ForwarderMailer para la garantia
- * equivalente del lado de los correos automaticos.
+ * al propio forwarder ni a un cliente. Ver
+ * ImportRequestStatusMailer::notifyEmptyReturned() para la garantia
+ * equivalente del lado de los correos automaticos (el unico que hoy pone al
+ * forwarder en copia, y sin nada de costos).
  */
 #[IsGranted('ROLE_EXECUTIVE')]
 class DashboardForwarders extends AbstractController

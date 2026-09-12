@@ -13,7 +13,6 @@ use App\Entity\LocalTransfer;
 use App\Entity\User;
 use App\Entity\Vehicle;
 use App\Notification\DeliveryArrivalMailer;
-use App\Notification\ForwarderMailer;
 use App\Notification\ImportRequestStatusMailer;
 use App\Service\UploadPath;
 use App\Workflow\DeliveryFailureCatalog;
@@ -51,7 +50,6 @@ class DashboardDeliveries extends AbstractController
         private readonly ImportRequestWorkflow $workflow,
         private readonly EmptyReturnCatalog $returnCatalog,
         private readonly DeliveryFailureCatalog $failureCatalog,
-        private readonly ForwarderMailer $forwarderMailer,
         private readonly LocalTransferPlaceCatalog $placeCatalog,
         private readonly UploadPath $uploadPath,
         private readonly DeliveryArrivalMailer $deliveryArrivalMailer,
@@ -663,10 +661,10 @@ class DashboardDeliveries extends AbstractController
         $newStatus = $this->coordinator->confirmEmptyReturn($return);
         $this->entityManager->flush();
 
-        if ($owner->getForwarder() !== null) {
-            $this->forwarderMailer->notifyEmptyReturn($return, $owner);
-        }
-
+        // El forwarder (si el expediente viene consignado a uno) ya se
+        // entera de esto en copia del correo de "vacío devuelto" que manda
+        // notifyStatusReached() mas abajo — ver
+        // ImportRequestStatusMailer::notifyEmptyReturned().
         if ($newStatus) {
             $this->statusMailer->notifyStatusReached($owner, $newStatus);
             $this->addFlash('success', sprintf('Vacío %s devuelto. El expediente pasó a "%s".', $container->getNum(), $newStatus));

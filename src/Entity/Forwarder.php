@@ -13,8 +13,10 @@ use Doctrine\ORM\Mapping as ORM;
  * vez de al cliente directo. Solo interesa a la agencia para poder avisarle
  * (correos de contacto) y para llevar sus cuentas bancarias, nunca al reves:
  * el forwarder jamas debe enterarse de los costos que la agencia maneja con
- * el cliente. Ver ForwarderMailer y DashboardForwarders para donde se
- * garantiza esa frontera.
+ * el cliente. Ver DashboardForwarders para donde se garantiza esa frontera
+ * del lado del catalogo, y ImportRequestStatusMailer::notifyEmptyReturned()
+ * (unico correo automatico que hoy lo pone en copia) para el lado de los
+ * avisos.
  */
 #[ORM\Entity(repositoryClass: ForwarderRepository::class)]
 class Forwarder
