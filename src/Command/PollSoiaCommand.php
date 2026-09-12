@@ -112,7 +112,10 @@ class PollSoiaCommand extends Command
 
             ++$checked;
             $import->incrementSoiaPollAttempts();
-            $result = $this->confirmer->attemptConfirm($import);
+            // throttledWhatsApp=true: corre en background, asi que no hay
+            // problema en que las pausas entre destinatarios alarguen la
+            // corrida (ver WhatsAppSender::send()).
+            $result = $this->confirmer->attemptConfirm($import, throttledWhatsApp: true);
 
             if ($import->getStatus() === ImportRequestWorkflow::MODULATED) {
                 ++$modulated;

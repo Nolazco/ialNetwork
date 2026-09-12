@@ -29,14 +29,28 @@ final class WhatsAppSender
 
     /**
      * @param list<string> $destinatarios
+     * @param bool         $throttle Pausa 10-30s (aleatorio, no un intervalo
+     *                               fijo) entre cada destinatario, para que
+     *                               una ráfaga automática no parezca un
+     *                               patrón de bot ante la detección de spam
+     *                               de Meta. Solo tiene caso para envíos en
+     *                               background (ver PollSoiaCommand) — un
+     *                               botón que el ejecutivo espera en el
+     *                               navegador ("Consultar SOIA") se queda sin
+     *                               pausa a propósito, para no arriesgar un
+     *                               timeout de varios minutos.
      */
-    public function send(array $destinatarios, string $mensaje): void
+    public function send(array $destinatarios, string $mensaje, bool $throttle = false): void
     {
         if ($this->apiUrl === '') {
             return;
         }
 
-        foreach ($destinatarios as $destino) {
+        foreach ($destinatarios as $i => $destino) {
+            if ($throttle && $i > 0) {
+                sleep(random_int(10, 30));
+            }
+
             $this->sendOne($destino, $mensaje);
         }
     }

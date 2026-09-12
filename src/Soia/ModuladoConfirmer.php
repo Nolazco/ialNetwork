@@ -37,7 +37,13 @@ final class ModuladoConfirmer
     ) {
     }
 
-    public function attemptConfirm(ImportRequest $import): SoiaResult
+    /**
+     * @param bool $throttledWhatsApp Ver WhatsAppSender::send() — solo se
+     *                                pasa en true desde el poller automatico
+     *                                (PollSoiaCommand), nunca desde el boton
+     *                                manual "Consultar SOIA".
+     */
+    public function attemptConfirm(ImportRequest $import, bool $throttledWhatsApp = false): SoiaResult
     {
         // Si el expediente ya se rectifico, el pedimento vigente ante el SAT
         // es el de la ultima rectificacion, no el original (ver
@@ -56,7 +62,7 @@ final class ModuladoConfirmer
                 $this->entityManager->flush();
 
                 $this->mailer->notifyReconocimiento($import);
-                $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientReconocimientoMessage($import));
+                $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientReconocimientoMessage($import), $throttledWhatsApp);
             } else {
                 $this->entityManager->flush();
             }
@@ -71,8 +77,8 @@ final class ModuladoConfirmer
 
             // isResolved() ya garantiza que $result->estado viene lleno.
             $this->mailer->notify($import, $result->estado);
-            $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $this->executiveModuladoMessage($import, $result->estado));
-            $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientModuladoMessage($import, $result->estado));
+            $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $this->executiveModuladoMessage($import, $result->estado), $throttledWhatsApp);
+            $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientModuladoMessage($import, $result->estado), $throttledWhatsApp);
 
             return $result;
         }
