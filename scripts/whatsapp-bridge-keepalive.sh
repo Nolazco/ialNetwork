@@ -15,12 +15,18 @@ set -euo pipefail
 APP_DIR="/home/u461862926/whatsapp-bridge"
 NODE_BIN="/opt/alt/alt-nodejs20/root/usr/bin/node"
 
+# Ojo: el pgrep de abajo busca "$APP_DIR/server.js" literal en el comando, asi
+# que el propio nohup tiene que lanzarlo con esa misma ruta absoluta -- si se
+# lanzara como "server.js" a secas (tras un cd), este mismo chequeo dejaria de
+# reconocerlo como vivo en la siguiente corrida y el cron duplicaria el
+# proceso cada 5 minutos (el duplicado truena solo con EADDRINUSE, pero
+# ensucia el log sin necesidad).
 if ! pgrep -f "$APP_DIR/server.js" > /dev/null; then
     echo "[$(date -Iseconds)] No esta corriendo, reiniciando..."
     cd "$APP_DIR"
     set -a
     source "$APP_DIR/.env"
     set +a
-    nohup "$NODE_BIN" server.js >> "$APP_DIR/server.log" 2>&1 &
+    nohup "$NODE_BIN" "$APP_DIR/server.js" >> "$APP_DIR/server.log" 2>&1 &
     disown
 fi
