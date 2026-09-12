@@ -39,7 +39,10 @@ final class ModuladoConfirmer
 
     public function attemptConfirm(ImportRequest $import): SoiaResult
     {
-        $result = $this->client->consultar((string) $import->getImportNumber(), $this->aduanaCatalog->soiaCode($import->getAduana()));
+        // Si el expediente ya se rectifico, el pedimento vigente ante el SAT
+        // es el de la ultima rectificacion, no el original (ver
+        // ImportRequest::getEffectiveImportNumber()).
+        $result = $this->client->consultar((string) $import->getEffectiveImportNumber(), $this->aduanaCatalog->soiaCode($import->getAduana()));
         $import->setLastSoiaCheckAt(new \DateTimeImmutable());
 
         // El semaforo fiscal selecciono el pedimento para revision: no es un
@@ -87,7 +90,7 @@ final class ModuladoConfirmer
     {
         return sprintf(
             "✅ Modulado: %s — %s (%s)\nAduana: %s\nEstado SOIA: %s",
-            $import->getAgencyReference(),
+            $import->getEffectiveAgencyReference(),
             $import->getIdCompany()->getName(),
             $import->getClientReference(),
             AduanaCatalog::LABELS[$import->getAduana()] ?? $import->getAduana(),
@@ -126,9 +129,9 @@ final class ModuladoConfirmer
             "🔗 Archivo Digital:\n%s",
             $import->getAduana(),
             AduanaCatalog::LABELS[$import->getAduana()] ?? $import->getAduana(),
-            $import->getImportNumber(),
+            $import->getEffectiveImportNumber(),
             $this->patente,
-            $import->getAgencyReference(),
+            $import->getEffectiveAgencyReference(),
             $import->getCr()?->getName() ?? 'Por asignar',
             $company->getName(),
             $company->getRfc(),

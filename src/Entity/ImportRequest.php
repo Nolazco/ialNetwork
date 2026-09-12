@@ -228,6 +228,7 @@ class ImportRequest
      * @var Collection<int, Rectification>
      */
     #[ORM\OneToMany(targetEntity: Rectification::class, mappedBy: 'reference')]
+    #[ORM\OrderBy(['createdAt' => 'ASC'])]
     private Collection $rectifications;
 
     #[ORM\Column(length: 255)]
@@ -847,6 +848,30 @@ class ImportRequest
         }
 
         return $this;
+    }
+
+    /**
+     * Numero de pedimento vigente para consultar el SOIA: el de la ultima
+     * rectificacion si el expediente ya se rectifico (ver Rectification), o
+     * el original si nunca. Una vez rectificado, el pedimento original ya no
+     * es el que se modula ante el SAT — lo consulta ModuladoConfirmer.
+     */
+    public function getEffectiveImportNumber(): ?string
+    {
+        return $this->rectifications->isEmpty()
+            ? $this->importNumber
+            : $this->rectifications->last()->getImportNumber();
+    }
+
+    /**
+     * Igual que getEffectiveImportNumber() pero para la referencia de la
+     * agencia (Z2608244 vs RZ2608244, RRZ2608244...).
+     */
+    public function getEffectiveAgencyReference(): ?string
+    {
+        return $this->rectifications->isEmpty()
+            ? $this->agencyReference
+            : $this->rectifications->last()->getAgencyReference();
     }
 
     public function getGoods(): ?string
