@@ -1083,7 +1083,7 @@
                     <td>{{ e.yard.name }}</td>
                     <td>{{ e.type }}</td>
                     <td>{{ e.date|date('d/m/Y') }}</td>
-                    <td>{{ e.transport.companyName }}</td>
+                    <td>{{ returnHaulerNames[e.id] ?? 'No registrado' }}</td>
                     <td>
                       {{ e.eir }}
                       {% if e.eirRoute %}
@@ -1127,14 +1127,41 @@
                     </td>
                     {% if is_granted('ROLE_EXECUTIVE') %}
                       <td>
-                        <form method="POST" enctype="multipart/form-data" class="d-inline-flex gap-1 align-items-center"
+                        <form method="POST" enctype="multipart/form-data" class="d-flex flex-wrap gap-1 align-items-end"
                               action="{{ path('case_file_empty_return_eir_upload', { id: import.id, return: e.id }) }}">
                           <input type="hidden" name="_token" value="{{ csrf_token('case_file_empty_return_eir_upload') }}">
-                          <input type="file" class="form-control form-control-sm" name="eirFile" style="max-width:180px" required>
+                          <input type="file" class="form-control form-control-sm" name="eirFile" style="max-width:160px">
                           <button type="submit" class="btn btn-sm btn-outline-primary text-nowrap">
                             {{ e.eirRoute ? 'Reemplazar' : 'Adjuntar' }}
                           </button>
                         </form>
+                        <details class="mt-1">
+                          <summary class="small text-body-secondary" role="button">El transportista no puede registrarla él mismo</summary>
+                          <form method="POST" enctype="multipart/form-data" class="d-flex flex-wrap gap-1 align-items-end mt-2"
+                                action="{{ path('case_file_empty_return_eir_upload', { id: import.id, return: e.id }) }}">
+                            <input type="hidden" name="_token" value="{{ csrf_token('case_file_empty_return_eir_upload') }}">
+                            <div>
+                              <label class="form-label small mb-0">Tipo</label>
+                              <select class="form-select form-select-sm" name="type" style="max-width:130px">
+                                <option value="">Seleccione</option>
+                                {% for t in returnTypes %}
+                                  <option value="{{ t }}">{{ t }}</option>
+                                {% endfor %}
+                              </select>
+                            </div>
+                            <div>
+                              <label class="form-label small mb-0">Fecha real</label>
+                              <input type="date" class="form-control form-control-sm" name="date">
+                            </div>
+                            <div>
+                              <label class="form-label small mb-0">EIR (opcional)</label>
+                              <input type="file" class="form-control form-control-sm" name="eirFile" style="max-width:160px">
+                            </div>
+                            <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">
+                              <i class="bi bi-check-lg"></i> Confirmar devolución
+                            </button>
+                          </form>
+                        </details>
                       </td>
                     {% endif %}
                   </tr>

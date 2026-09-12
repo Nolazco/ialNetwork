@@ -19,6 +19,7 @@ use App\Entity\PrevioReport;
 use App\Entity\RequiredDocument;
 use App\Entity\User;
 use App\Notification\DeliveryMailer;
+use App\Notification\ForwarderMailer;
 use App\Notification\ImportRequestStatusMailer;
 use App\Security\CompanyAccess;
 use App\Service\UploadPath;
@@ -27,6 +28,7 @@ use App\Workflow\AduanaCatalog;
 use App\Workflow\AllowedFileExtensions;
 use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\EmailListParser;
+use App\Workflow\EmptyReturnCatalog;
 use App\Workflow\ImportRequestWorkflow;
 use App\Workflow\OperationCatalog;
 use App\Workflow\RequiredDocumentType;
@@ -75,6 +77,8 @@ class DashboardCaseFiles extends AbstractController
         private readonly ContainerTypeCatalog $containerTypeCatalog,
         private readonly DeliveryMailer $deliveryMailer,
         private readonly ImportRequestStatusMailer $statusMailer,
+        private readonly ForwarderMailer $forwarderMailer,
+        private readonly EmptyReturnCatalog $emptyReturnCatalog,
         #[Autowire('%kernel.environment%')]
         private readonly string $environment,
     ) {
@@ -250,8 +254,21 @@ class DashboardCaseFiles extends AbstractController
             'requiresEmptyReturn' => $this->workflow->requiresEmptyReturn($import),
             'containersPendingReturn' => $this->transport->containersPendingReturn($import),
             'containersPendingSchedule' => $this->transport->containersPendingSchedule($import),
+            'returnTypes' => EmptyReturnCatalog::TYPES,
             'scheduledReturns' => array_filter($import->getEmptyReturns()->toArray(), static fn (EmptyReturn $return): bool => !$return->isExecuted()),
             'executedReturns' => array_filter($import->getEmptyReturns()->toArray(), static fn (EmptyReturn $return): bool => $return->isExecuted()),
+            // EmptyReturn::$transport queda null cuando el despacho fue con un
+            // transporte "no registrado" (ver uploadEmptyReturnEir()) — el
+            // nombre para mostrar sale del despacho, igual que en cualquier
+            // otro lado de la app (ver Delivery::getHaulerDisplayName()).
+            'returnHaulerNames' => array_reduce(
+                $import->getEmptyReturns()->toArray(),
+                fn (array $names, EmptyReturn $return): array => $names + [
+                    $return->getId() => $return->getTransport()?->getCompanyName()
+                        ?? $this->transport->deliveryFor($return->getContainer())?->getHaulerDisplayName(),
+                ],
+                []
+            ),
             'previoReports' => $this->entityManager->getRepository(PrevioReport::class)
                 ->findBy(['reference' => $import], ['date' => 'DESC', 'id' => 'DESC']),
             'consolidatorInstructions' => $this->entityManager->getRepository(ConsolidatorInstruction::class)
@@ -2210,10 +2227,19 @@ class DashboardCaseFiles extends AbstractController
     }
 
     /**
-     * El EIR normalmente lo sube el transportista al registrar la
-     * devolucion (ver DashboardDeliveries::registerEmptyReturn()), pero el
-     * patio a veces lo emite despues: esto deja que el ejecutivo lo adjunte
-     * o reemplace en cualquier momento, ya programada la devolucion.
+     * El EIR normalmente lo sube el transportista al registrar la devolucion
+     * (ver DashboardDeliveries::registerEmptyReturn()), pero esa pantalla
+     * exige una cuenta de transportista vinculada al despacho (ver
+     * DashboardDeliveries::ownsReturn()) — un transporte "no registrado" (ver
+     * Delivery::$unregisteredHaulerName) nunca puede tener esa cuenta, asi
+     * que se quedaria sin forma de cerrar la devolucion. Por eso esta accion
+     * hace dos cosas segun lo que llegue en el formulario:
+     *   - Solo el archivo: adjunta o reemplaza el EIR escaneado (uso normal,
+     *     cuando el patio lo emite despues de que el transportista ya
+     *     registro la devolucion el mismo).
+     *   - Archivo + tipo + fecha: el ejecutivo completa la devolucion el
+     *     mismo (transporte no registrado, o el transportista registrado que
+     *     no uso su cuenta) — replica lo que hace registerEmptyReturn().
      */
     #[IsGranted('ROLE_EXECUTIVE')]
     #[Route('/dashboard/pedimentos/expediente/{id}/vacios/{return}/eir/adjuntar', name: 'case_file_empty_return_eir_upload', requirements: ['id' => '\d+', 'return' => '\d+'], methods: ['POST'])]
@@ -2232,42 +2258,76 @@ class DashboardCaseFiles extends AbstractController
         }
 
         $file = $r->files->get('eirFile');
+        $type = trim((string) $r->request->get('type'));
+        $date = \DateTimeImmutable::createFromFormat('Y-m-d', (string) $r->request->get('date'));
 
-        if (!$file || !$file->isValid()) {
+        // Completar la devolucion (tipo + fecha) es opcional: sin ellos, esta
+        // accion solo adjunta el archivo, como siempre.
+        $confirming = !$return->isExecuted() && $type !== '' && $date !== false;
+
+        if ($confirming && !$this->emptyReturnCatalog->isValid($type)) {
+            $this->addFlash('error', 'Selecciona un tipo de devolución válido.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        if ($file && $file->isValid()) {
+            $route = 'uploads/eir/'.$import->getId();
+            $folder = $this->uploadPath->resolve($route);
+
+            if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+                $this->addFlash('error', 'No se pudo preparar la carpeta del EIR.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $name = $slugger->slug($return->getContainer()->getNum()).'-'.uniqid().'.'.$file->guessExtension();
+
+            try {
+                $file->move($folder, $name);
+            } catch (FileException) {
+                $this->addFlash('error', 'No se pudo guardar el EIR.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $oldPath = $return->getEirRoute() ? $this->uploadPath->resolve($return->getEirRoute()) : null;
+
+            if ($oldPath && is_file($oldPath)) {
+                unlink($oldPath);
+            }
+
+            $return->setEirRoute($route.'/'.$name);
+        } elseif (!$confirming) {
             $this->addFlash('error', 'Selecciona el EIR escaneado.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        $route = 'uploads/eir/'.$import->getId();
-        $folder = $this->uploadPath->resolve($route);
-
-        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
-            $this->addFlash('error', 'No se pudo preparar la carpeta del EIR.');
+        if (!$confirming) {
+            $this->entityManager->flush();
+            $this->addFlash('success', 'EIR adjuntado.');
 
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
-        $name = $slugger->slug($return->getContainer()->getNum()).'-'.uniqid().'.'.$file->guessExtension();
+        $delivery = $this->transport->deliveryFor($return->getContainer());
+        $return->setTransport($delivery?->getReturnTransport() ?? $delivery?->getTransport());
+        $return->setType($type);
+        $return->setEir(sprintf('EIR %s', $return->getContainer()->getNum()));
+        $return->setDate($date->setTime(0, 0));
 
-        try {
-            $file->move($folder, $name);
-        } catch (FileException) {
-            $this->addFlash('error', 'No se pudo guardar el EIR.');
-
-            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
-        }
-
-        $oldPath = $return->getEirRoute() ? $this->uploadPath->resolve($return->getEirRoute()) : null;
-
-        if ($oldPath && is_file($oldPath)) {
-            unlink($oldPath);
-        }
-
-        $return->setEirRoute($route.'/'.$name);
+        $newStatus = $this->transport->confirmEmptyReturn($return);
         $this->entityManager->flush();
 
-        $this->addFlash('success', 'EIR adjuntado.');
+        $this->forwarderMailer->notifyEmptyReturn($return, $import);
+
+        if ($newStatus) {
+            $this->statusMailer->notifyStatusReached($import, $newStatus);
+            $this->addFlash('success', sprintf('Vacío %s devuelto. El expediente pasó a "%s".', $return->getContainer()->getNum(), $newStatus));
+        } else {
+            $this->addFlash('success', sprintf('Vacío %s devuelto.', $return->getContainer()->getNum()));
+        }
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
