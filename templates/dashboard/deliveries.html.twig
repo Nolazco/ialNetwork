@@ -32,7 +32,11 @@
       </div>
     {% else %}
       <div class="table-responsive">
-      <table class="table table-striped align-middle">
+      {# Solo filtro, sin orden por columna a proposito: esta tabla trae
+         filas de formulario ocultas (data-table-ignore mas abajo) entre los
+         despachos, y reordenar esas filas las dejaria pegadas a un despacho
+         que no es el suyo. #}
+      <table class="table table-striped align-middle js-sortable-table">
         <thead>
           <tr>
             <th scope="col">Expediente</th>
@@ -197,7 +201,7 @@
               </td>
             </tr>
             {% if isHauler and d.transport and vehiclesByHauler[d.transport.id] is defined and not d.departed and not d.failed %}
-              <tr id="assign-vehicle-{{ d.id }}" class="d-none">
+              <tr id="assign-vehicle-{{ d.id }}" class="d-none" data-table-ignore>
                 <td colspan="8">
                   <form method="POST" action="{{ path('delivery_assign_vehicle', { id: d.id }) }}" class="row g-2 align-items-end">
                     <input type="hidden" name="_token" value="{{ csrf_token('delivery_assign_vehicle') }}">
@@ -241,7 +245,7 @@
               </tr>
             {% endif %}
             {% if not d.departed and not d.failed %}
-              <tr id="report-failure-{{ d.id }}" class="d-none">
+              <tr id="report-failure-{{ d.id }}" class="d-none" data-table-ignore>
                 <td colspan="8">
                   <form method="POST" action="{{ path('delivery_failure', { id: d.id }) }}" class="row g-2 align-items-end">
                     <input type="hidden" name="_token" value="{{ csrf_token('delivery_failure') }}">
@@ -269,7 +273,7 @@
               </tr>
             {% endif %}
             {% if d.departed and not d.delivered and not d.failed %}
-              <tr id="handoff-{{ d.id }}" class="d-none">
+              <tr id="handoff-{{ d.id }}" class="d-none" data-table-ignore>
                 <td colspan="8">
                   <form method="POST" action="{{ path('delivery_handoff', { id: d.id }) }}" class="row g-2 align-items-end">
                     <input type="hidden" name="_token" value="{{ csrf_token('delivery_handoff') }}">

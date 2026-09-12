@@ -51,7 +51,7 @@
         {% if pending is empty %}
           <p class="mb-0 text-body-secondary">No hay solicitudes pendientes.</p>
         {% else %}
-          <table class="table table-sm align-middle mb-0">
+          <table class="table table-sm align-middle mb-0 js-sortable-table">
             <thead>
               <tr>
                 <th scope="col">Cliente</th>
@@ -95,12 +95,12 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <h5 class="card-title mb-3">Resueltas</h5>
-          <table class="table table-sm align-middle mb-0">
+          <table class="table table-sm align-middle mb-0 js-sortable-table">
             <thead>
               <tr>
-                <th scope="col">Cliente</th>
-                <th scope="col">Empresa</th>
-                <th scope="col">Estatus</th>
+                <th scope="col" class="js-sortable">Cliente</th>
+                <th scope="col" class="js-sortable">Empresa</th>
+                <th scope="col" class="js-sortable">Estatus</th>
                 {% if is_granted('ROLE_ADMIN') %}
                   <th scope="col" class="text-end">Opciones</th>
                 {% endif %}

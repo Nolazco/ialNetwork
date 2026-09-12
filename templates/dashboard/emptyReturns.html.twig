@@ -23,13 +23,13 @@
       <div class="card shadow-sm mb-4">
         <div class="card-body">
           <h5 class="card-title mb-3">Ya devueltos</h5>
-          <table class="table table-sm align-middle mb-0">
+          <table class="table table-sm align-middle mb-0 js-sortable-table">
             <thead>
               <tr>
                 <th scope="col">Contenedor</th>
-                <th scope="col">Patio</th>
-                <th scope="col">Tipo</th>
-                <th scope="col">Fecha</th>
+                <th scope="col" class="js-sortable">Patio</th>
+                <th scope="col" class="js-sortable">Tipo</th>
+                <th scope="col" class="js-sortable">Fecha</th>
                 <th scope="col">EIR</th>
               </tr>
             </thead>
@@ -39,7 +39,7 @@
                   <td>{{ e.container.num }} <span class="text-body-secondary">&middot; {{ e.container.type }}</span></td>
                   <td>{{ e.yard.name }}</td>
                   <td>{{ e.type }}</td>
-                  <td>{{ e.date|date('d/m/Y') }}</td>
+                  <td data-sort="{{ e.date|date('Y-m-d') }}">{{ e.date|date('d/m/Y') }}</td>
                   <td>
                     {{ e.eir }}
                     {% if e.eirRoute %}

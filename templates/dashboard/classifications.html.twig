@@ -27,13 +27,16 @@
     </form>
 
     {% if requests %}
-      <table class="table table-striped align-middle">
+      {# data-no-filter: ya hay un buscador propio arriba (por mercancia,
+         quimico, CAS o fraccion, contra el servidor) -- el generico solo
+         duplicaria la caja de busqueda sin agregar nada. #}
+      <table class="table table-striped align-middle js-sortable-table" data-no-filter>
         <thead>
           <tr>
-            <th scope="col">Fecha</th>
-            <th scope="col">Empresa</th>
+            <th scope="col" class="js-sortable">Fecha</th>
+            <th scope="col" class="js-sortable">Empresa</th>
             <th scope="col">Mercancía</th>
-            <th scope="col">Solicitante</th>
+            <th scope="col" class="js-sortable">Solicitante</th>
             <th scope="col">Fracción arancelaria</th>
             <th scope="col">Archivos</th>
           </tr>
@@ -41,7 +44,7 @@
         <tbody>
           {% for r in requests %}
             <tr>
-              <td>{{ r.createdAt|date('d/m/Y H:i') }}</td>
+              <td data-sort="{{ r.createdAt|date('Y-m-d H:i') }}">{{ r.createdAt|date('d/m/Y H:i') }}</td>
               <td>{{ r.company.name }}</td>
               <td>
                 {{ r.merchandiseName }}

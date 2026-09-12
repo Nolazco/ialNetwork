@@ -5,12 +5,12 @@
     <h2 class="mb-4">Forwarders</h2>
     {% if forwarders %}
       <a href="/dashboard/forwarders/nuevo" class="btn btn-primary">Nuevo forwarder</a>
-      <table class="table table-striped">
+      <table class="table table-striped js-sortable-table">
         <thead>
           <tr>
-            <th scope="col">Nombre</th>
+            <th scope="col" class="js-sortable">Nombre</th>
             <th scope="col">Correos de contacto</th>
-            <th scope="col">Cuentas bancarias</th>
+            <th scope="col" class="js-sortable">Cuentas bancarias</th>
             <th scope="col">Opciones</th>
           </tr>
         </thead>

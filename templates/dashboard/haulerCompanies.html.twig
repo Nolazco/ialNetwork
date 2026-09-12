@@ -19,7 +19,10 @@
     {% if haulers %}
       <div class="card shadow-sm mb-4">
         <div class="card-body">
-          <table class="table table-striped align-middle mb-0">
+          {# Solo filtro, sin orden por columna: la fila de edicion oculta de
+             abajo (data-table-ignore) no debe reacomodarse al ordenar, ver el
+             mismo criterio en deliveries.html.twig. #}
+          <table class="table table-striped align-middle mb-0 js-sortable-table">
             <thead>
               <tr>
                 <th scope="col">Razón social</th>
@@ -43,7 +46,7 @@
                     </button>
                   </td>
                 </tr>
-                <tr id="edit-company-{{ h.id }}" class="d-none">
+                <tr id="edit-company-{{ h.id }}" class="d-none" data-table-ignore>
                   <td colspan="4">
                     <form method="POST" action="{{ path('hauler_companies_edit', { id: h.id }) }}" class="row g-2 align-items-end">
                       <input type="hidden" name="_token" value="{{ csrf_token('hauler_companies_edit') }}">

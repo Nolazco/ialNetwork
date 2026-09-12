@@ -21,7 +21,9 @@
             <h5 class="card-title mb-3">Unidades</h5>
 
             {% if vehicles %}
-              <table class="table table-striped align-middle mb-4">
+              {# Solo filtro, sin orden: la fila de edicion oculta de abajo
+                 (data-table-ignore) no debe reacomodarse al ordenar. #}
+              <table class="table table-striped align-middle mb-4 js-sortable-table">
                 <thead>
                   <tr>
                     <th scope="col">Placas</th>
@@ -48,7 +50,7 @@
                         </form>
                       </td>
                     </tr>
-                    <tr id="edit-vehicle-{{ v.id }}" class="d-none">
+                    <tr id="edit-vehicle-{{ v.id }}" class="d-none" data-table-ignore>
                       <td colspan="4">
                         <form method="POST" action="{{ path('hauler_fleet_edit_vehicle', { id: v.id }) }}" class="row g-2 align-items-end">
                           <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_edit_vehicle') }}">
@@ -109,7 +111,9 @@
             <h5 class="card-title mb-3">Choferes</h5>
 
             {% if drivers %}
-              <table class="table table-striped align-middle mb-4">
+              {# Solo filtro, sin orden: la fila de edicion oculta de abajo
+                 (data-table-ignore) no debe reacomodarse al ordenar. #}
+              <table class="table table-striped align-middle mb-4 js-sortable-table">
                 <thead>
                   <tr>
                     <th scope="col">Nombre</th>
@@ -136,7 +140,7 @@
                         </form>
                       </td>
                     </tr>
-                    <tr id="edit-driver-{{ d.id }}" class="d-none">
+                    <tr id="edit-driver-{{ d.id }}" class="d-none" data-table-ignore>
                       <td colspan="4">
                         <form method="POST" action="{{ path('hauler_fleet_edit_driver', { id: d.id }) }}" class="row g-2 align-items-end">
                           <input type="hidden" name="_token" value="{{ csrf_token('hauler_fleet_edit_driver') }}">

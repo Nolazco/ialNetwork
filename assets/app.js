@@ -88,6 +88,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // compara por default; si hace falta un criterio distinto (ej. ETA: el
 // texto "04/09/2026" no ordena bien como texto, pero un ISO "2026-09-04" si),
 // el <td> puede traer data-sort con ese valor.
+//
+// La misma clase .js-sortable-table tambien activa el filtro de texto libre
+// (ver mas abajo): una tabla puede traer solo orden, solo filtro (sin ningun
+// th.js-sortable) o ambos.
 document.addEventListener('DOMContentLoaded', () => {
     // Icono de reposo (aun sin ordenar por esa columna): flechas en ambos
     // sentidos, para que se note que la columna es clickeable antes de que
@@ -101,6 +105,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!cuerpo || encabezados.length === 0) {
             return;
         }
+
+        // La fila de "sin resultados" que inyecta el filtro no es una fila de
+        // datos: no tiene una celda por columna, asi que no debe entrar al
+        // ordenamiento (tronaria al leer fila.cells[indice] en columnas
+        // distintas de la primera). Lo mismo para [data-table-ignore] (ver
+        // templates/dashboard/deliveries.html.twig): son formularios ocultos
+        // que se despliegan bajo la fila del despacho, no datos de otra fila
+        // -- reordenarlas las dejaria pegadas a un despacho que no es el suyo.
+        const filasOrdenables = () => Array.from(cuerpo.rows)
+            .filter((fila) => !fila.classList.contains('js-table-filter-empty') && !fila.hasAttribute('data-table-ignore'));
 
         encabezados.forEach((th) => {
             const indice = Array.from(th.parentElement.children).indexOf(th);
@@ -129,7 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     return (celda.dataset.sort ?? celda.textContent.trim()).toLowerCase();
                 };
 
-                Array.from(cuerpo.rows)
+                filasOrdenables()
                     .sort((a, b) => {
                         const va = valorDe(a);
                         const vb = valorDe(b);
@@ -142,6 +156,79 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                     .forEach((fila) => cuerpo.appendChild(fila));
             });
+        });
+    });
+});
+
+// Filtro de texto libre para las mismas tablas .js-sortable-table: un cuadro
+// de busqueda que oculta las filas que no contengan el texto escrito, en
+// cualquier columna. Se inyecta solo -- no hace falta tocar cada plantilla
+// para agregarlo -- justo antes de la tabla (o de su .table-responsive, para
+// no quedar atrapado dentro del contenedor con scroll horizontal).
+document.addEventListener('DOMContentLoaded', () => {
+    // Quita acentos para que "aduana" encuentre "Aduana" y "México" sin que
+    // el usuario tenga que teclear la tilde.
+    const normalizar = (texto) => texto
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{Diacritic}/gu, '');
+
+    document.querySelectorAll('.js-sortable-table').forEach((tabla) => {
+        const cuerpo = tabla.tBodies[0];
+
+        // data-no-filter: la pantalla ya trae su propio buscador a la medida
+        // (ej. classifications.html.twig busca en el servidor por mercancia,
+        // quimico, CAS o fraccion) -- agregar el generico encima solo
+        // confundiria con dos cuadros de busqueda que no buscan lo mismo. El
+        // orden por columna (mas arriba) no se ve afectado por este atributo.
+        if (!cuerpo || cuerpo.rows.length === 0 || tabla.hasAttribute('data-no-filter')) {
+            return;
+        }
+
+        const contenedor = tabla.closest('.table-responsive') ?? tabla;
+
+        const envoltura = document.createElement('div');
+        envoltura.className = 'input-group input-group-sm mb-2 js-table-filter-wrapper';
+        envoltura.style.maxWidth = '320px';
+        envoltura.innerHTML = '<span class="input-group-text bg-transparent border-end-0">'
+            + '<i class="bi bi-search"></i></span>'
+            + '<input type="search" class="form-control border-start-0 js-table-filter-input" '
+            + 'placeholder="Buscar en la tabla…" aria-label="Buscar en la tabla">';
+
+        contenedor.parentNode.insertBefore(envoltura, contenedor);
+
+        // [data-table-ignore] son filas que no son un registro propio (ej. el
+        // formulario oculto de "traspasar"/"no se pudo cargar" en despachos,
+        // ver deliveries.html.twig): el filtro no las cuenta ni las
+        // muestra/oculta, para no revelar un formulario a medio llenar solo
+        // porque su texto (una opcion de un <select>, un placeholder) hizo
+        // match con la busqueda.
+        const filas = Array.from(cuerpo.rows).filter((fila) => !fila.hasAttribute('data-table-ignore'));
+        const numColumnas = tabla.tHead?.rows[0]?.cells.length ?? 1;
+
+        const filaSinResultados = document.createElement('tr');
+        filaSinResultados.className = 'js-table-filter-empty d-none';
+        filaSinResultados.innerHTML = `<td colspan="${numColumnas}" class="text-center text-body-secondary py-3">`
+            + 'Sin resultados para esa búsqueda.</td>';
+        cuerpo.appendChild(filaSinResultados);
+
+        const input = envoltura.querySelector('.js-table-filter-input');
+
+        input.addEventListener('input', () => {
+            const termino = normalizar(input.value.trim());
+            let visibles = 0;
+
+            filas.forEach((fila) => {
+                const coincide = termino === '' || normalizar(fila.textContent).includes(termino);
+
+                fila.classList.toggle('d-none', !coincide);
+
+                if (coincide) {
+                    visibles++;
+                }
+            });
+
+            filaSinResultados.classList.toggle('d-none', termino === '' || visibles > 0);
         });
     });
 });

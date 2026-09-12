@@ -18,12 +18,12 @@
         <h5 class="card-title mb-3">Clasificaciones</h5>
 
         {% if classifications %}
-          <table class="table table-striped align-middle mb-0">
+          <table class="table table-striped align-middle mb-0 js-sortable-table">
             <thead>
               <tr>
-                <th scope="col">Fecha</th>
-                <th scope="col">Empresa</th>
-                <th scope="col">Mercancía</th>
+                <th scope="col" class="js-sortable">Fecha</th>
+                <th scope="col" class="js-sortable">Empresa</th>
+                <th scope="col" class="js-sortable">Mercancía</th>
                 <th scope="col">Solicitante</th>
                 <th scope="col">Archivos</th>
               </tr>
@@ -31,7 +31,7 @@
             <tbody>
               {% for c in classifications %}
                 <tr>
-                  <td>{{ c.createdAt|date('d/m/Y H:i') }}</td>
+                  <td data-sort="{{ c.createdAt|date('Y-m-d H:i') }}">{{ c.createdAt|date('d/m/Y H:i') }}</td>
                   <td>{{ c.companyName }}</td>
                   <td>{{ c.merchandiseName }}</td>
                   <td>{{ c.requesterName }} ({{ c.requesterEmail }})</td>
@@ -56,20 +56,20 @@
         <h5 class="card-title mb-3">Reportes de previo</h5>
 
         {% if previos %}
-          <table class="table table-striped align-middle mb-0">
+          <table class="table table-striped align-middle mb-0 js-sortable-table">
             <thead>
               <tr>
-                <th scope="col">Fecha</th>
-                <th scope="col">Referencia</th>
+                <th scope="col" class="js-sortable">Fecha</th>
+                <th scope="col" class="js-sortable">Referencia</th>
                 <th scope="col">Cliente</th>
-                <th scope="col">Tipo</th>
+                <th scope="col" class="js-sortable">Tipo</th>
                 <th scope="col">Descargas</th>
               </tr>
             </thead>
             <tbody>
               {% for p in previos %}
                 <tr>
-                  <td>{{ p.createdAt|date('d/m/Y H:i') }}</td>
+                  <td data-sort="{{ p.createdAt|date('Y-m-d H:i') }}">{{ p.createdAt|date('d/m/Y H:i') }}</td>
                   <td>{{ p.referencia }}</td>
                   <td>{{ p.cliente }} ({{ p.correo }})</td>
                   <td>{{ p.type }}</td>
