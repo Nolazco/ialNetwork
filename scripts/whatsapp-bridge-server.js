@@ -32,7 +32,13 @@ function formatJid(destino) {
 
     let soloDigitos = limpio.replace(/[^0-9]/g, '');
 
-    if (soloDigitos.startsWith('52') && !soloDigitos.startsWith('521') && soloDigitos.length === 12) {
+    // Los numeros se capturan en la app a 10 digitos, sin codigo de pais (ver
+    // PhoneListParser y Company::whatsapp) -- sin este caso el JID queda sin
+    // "52" y WhatsApp nunca entrega el mensaje, aunque el puente responda
+    // success:true (sendMessage no valida que el JID exista de verdad).
+    if (soloDigitos.length === 10) {
+        soloDigitos = '521' + soloDigitos;
+    } else if (soloDigitos.startsWith('52') && !soloDigitos.startsWith('521') && soloDigitos.length === 12) {
         soloDigitos = '521' + soloDigitos.substring(2);
     }
 
