@@ -250,6 +250,14 @@ final class ImportRequestWorkflow
             }
 
             if ($this->missingRequirements($request, $candidate) === []) {
+                // Sin esto, un paso opcional completado por esta via (en vez
+                // de por advance()) se veia despues como "no aplicó" en el
+                // roadmap: completedStatuses()/skippedStatuses() solo miran
+                // optionalStepsTaken, no si el estatus actual coincide.
+                if ($this->isOptional($candidate)) {
+                    $request->markOptionalStepTaken($candidate);
+                }
+
                 $request->setStatus($candidate);
 
                 return $candidate;

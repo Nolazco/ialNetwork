@@ -44,7 +44,14 @@
       <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-2">
           <h5 class="card-title mb-0">Avance</h5>
-          <span class="badge text-bg-primary fs-6">{{ import.status }}</span>
+          <div class="d-flex align-items-center gap-2">
+            {% if import.rectifications|length %}
+              <a href="#rectificaciones" class="badge text-bg-warning text-decoration-none">
+                {{ import.rectifications|length }} {{ import.rectifications|length > 1 ? 'rectificaciones' : 'rectificación' }}
+              </a>
+            {% endif %}
+            <span class="badge text-bg-primary fs-6">{{ import.status }}</span>
+          </div>
         </div>
 
         <div class="progress mb-3" role="progressbar" aria-valuenow="{{ progress }}" aria-valuemin="0" aria-valuemax="100">
@@ -522,6 +529,84 @@
               <i class="bi bi-plus-lg"></i> Agregar
             </button>
           </form>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ---------- Rectificaciones de pedimento ---------- #}
+    <div class="card shadow-sm mt-4" id="rectificaciones">
+      <div class="card-body">
+        <h5 class="card-title mb-3">Rectificaciones de pedimento</h5>
+        <p class="text-body-secondary">
+          Un pedimento ya pagado se puede corregir ante el SAT en cualquier momento (incluso mucho después)
+          y más de una vez. Cada rectificación trae su propia referencia y número de pedimento.
+        </p>
+
+        {% if is_granted('ROLE_EXECUTIVE') %}
+          <form method="POST" enctype="multipart/form-data" action="{{ path('case_file_rectification', { id: import.id }) }}" class="row g-2 align-items-end mb-4">
+            <input type="hidden" name="_token" value="{{ csrf_token('case_file_rectification') }}">
+
+            <div class="col-md-3">
+              <label for="rectAgencyReference" class="form-label">Referencia</label>
+              <input type="text" class="form-control" id="rectAgencyReference" name="agencyReference" placeholder="Ej. RZ2608244" required>
+            </div>
+
+            <div class="col-md-3">
+              <label for="rectImportNumber" class="form-label">Número de pedimento</label>
+              <input type="text" class="form-control" id="rectImportNumber" name="importNumber" placeholder="Ej. 26 16 1861 6008745" required>
+            </div>
+
+            <div class="col-md-3">
+              <label for="rectFullFile" class="form-label">Pedimento completo</label>
+              <input type="file" class="form-control" id="rectFullFile" name="fullPedimento" required>
+            </div>
+
+            <div class="col-md-3">
+              <label for="rectSimplifiedFile" class="form-label">Pedimento simplificado</label>
+              <input type="file" class="form-control" id="rectSimplifiedFile" name="simplifiedPedimento" required>
+            </div>
+
+            <div class="col-12">
+              <button type="submit" class="btn btn-primary">
+                <i class="bi bi-plus-lg"></i> Registrar rectificación
+              </button>
+            </div>
+          </form>
+        {% endif %}
+
+        {% if import.rectifications|length %}
+          <table class="table table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th scope="col">Fecha</th>
+                <th scope="col">Referencia</th>
+                <th scope="col">Número de pedimento</th>
+                <th scope="col">Pedimento completo</th>
+                <th scope="col">Pedimento simplificado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for rect in import.rectifications %}
+                <tr>
+                  <td>{{ rect.createdAt|date('d/m/Y') }}</td>
+                  <td>{{ rect.agencyReference }}</td>
+                  <td>{{ rect.importNumber }}</td>
+                  <td>
+                    <a href="{{ path('case_file_rectification_full_download', { id: import.id, rectification: rect.id }) }}" target="_blank" rel="noopener">
+                      <i class="bi bi-file-earmark-text"></i> Ver
+                    </a>
+                  </td>
+                  <td>
+                    <a href="{{ path('case_file_rectification_simplified_download', { id: import.id, rectification: rect.id }) }}" target="_blank" rel="noopener">
+                      <i class="bi bi-file-earmark-text"></i> Ver
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="text-body-secondary mb-0">Sin rectificaciones registradas.</p>
         {% endif %}
       </div>
     </div>

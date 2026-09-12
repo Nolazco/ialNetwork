@@ -16,6 +16,7 @@ use App\Entity\ImportRequest;
 use App\Entity\InternInvoice;
 use App\Entity\Operation;
 use App\Entity\PrevioReport;
+use App\Entity\Rectification;
 use App\Entity\RequiredDocument;
 use App\Entity\User;
 use App\Notification\DeliveryMailer;
@@ -1719,6 +1720,111 @@ class DashboardCaseFiles extends AbstractController
         $this->addFlash('success', 'Modulación simulada (bypass de pruebas, sin consultar el SOIA real). El expediente pasó a "Modulado".');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Registra una rectificación del pedimento ya pagado ante el SAT (ver
+     * Rectification). A diferencia de "Inspección fuera de puerto" no es un
+     * paso del roadmap: puede pasar en cualquier momento despues del primer
+     * pago, incluso mucho despues (meses o años) y varias veces seguidas
+     * (RZ..., RRZ..., RRRZ...), asi que se modela como una lista aparte, no
+     * como un estatus mas de la secuencia.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/rectificaciones', name: 'case_file_rectification', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function addRectification(#[MapEntity(id: 'id')] ImportRequest $import, Request $r, SluggerInterface $slugger): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_rectification', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $agencyReference = trim((string) $r->request->get('agencyReference'));
+        $importNumber = trim((string) $r->request->get('importNumber'));
+        $fullFile = $r->files->get('fullPedimento');
+        $simplifiedFile = $r->files->get('simplifiedPedimento');
+
+        if ($agencyReference === '' || $importNumber === '' || !$fullFile || !$simplifiedFile) {
+            $this->addFlash('error', 'La referencia, el número de pedimento y los dos documentos (completo y simplificado) son obligatorios.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $route = 'uploads/rectificaciones/'.$import->getId();
+        $folder = $this->uploadPath->resolve($route);
+
+        if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+            $this->addFlash('error', 'No se pudo preparar la carpeta de la rectificación.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        try {
+            $fullName = $slugger->slug('pedimento-completo').'-'.uniqid().'.'.$fullFile->guessExtension();
+            $fullFile->move($folder, $fullName);
+
+            $simplifiedName = $slugger->slug('pedimento-simplificado').'-'.uniqid().'.'.$simplifiedFile->guessExtension();
+            $simplifiedFile->move($folder, $simplifiedName);
+        } catch (FileException) {
+            $this->addFlash('error', 'No se pudieron guardar los documentos de la rectificación.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $rectification = new Rectification();
+        $rectification->setAgencyReference($agencyReference);
+        $rectification->setImportNumber($importNumber);
+        $rectification->setFullPedimentoRoute($route.'/'.$fullName);
+        $rectification->setSimplifiedPedimentoRoute($route.'/'.$simplifiedName);
+        $rectification->setCreatedAt(new \DateTimeImmutable());
+        $rectification->setCreatedBy($this->getUser());
+        $import->addRectification($rectification);
+
+        $this->entityManager->persist($rectification);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', sprintf('Rectificación %s registrada.', $agencyReference));
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    #[Route('/dashboard/pedimentos/expediente/{id}/rectificaciones/{rectification}/completo', name: 'case_file_rectification_full_download', requirements: ['id' => '\d+', 'rectification' => '\d+'], methods: ['GET'])]
+    public function downloadRectificationFull(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'rectification')] Rectification $rectification): BinaryFileResponse
+    {
+        if (!$this->canView($import) || $rectification->getReference() !== $import) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $rectification->getFullPedimentoRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
+    }
+
+    #[Route('/dashboard/pedimentos/expediente/{id}/rectificaciones/{rectification}/simplificado', name: 'case_file_rectification_simplified_download', requirements: ['id' => '\d+', 'rectification' => '\d+'], methods: ['GET'])]
+    public function downloadRectificationSimplified(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'rectification')] Rectification $rectification): BinaryFileResponse
+    {
+        if (!$this->canView($import) || $rectification->getReference() !== $import) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $rectification->getSimplifiedPedimentoRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
     }
 
     /**

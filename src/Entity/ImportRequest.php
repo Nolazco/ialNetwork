@@ -220,6 +220,16 @@ class ImportRequest
     #[ORM\OneToMany(targetEntity: ConsolidatorInstruction::class, mappedBy: 'reference')]
     private Collection $consolidatorInstructions;
 
+    /**
+     * Un pedimento ya pagado se puede rectificar ante el SAT en cualquier
+     * momento (incluso mucho despues, ver Rectification), y mas de una vez —
+     * por eso es una lista y no un campo fijo del expediente.
+     *
+     * @var Collection<int, Rectification>
+     */
+    #[ORM\OneToMany(targetEntity: Rectification::class, mappedBy: 'reference')]
+    private Collection $rectifications;
+
     #[ORM\Column(length: 255)]
     private ?string $goods = null;
 
@@ -273,6 +283,7 @@ class ImportRequest
         $this->operations = new ArrayCollection();
         $this->deliveries = new ArrayCollection();
         $this->consolidatorInstructions = new ArrayCollection();
+        $this->rectifications = new ArrayCollection();
     }
 
     /**
@@ -815,6 +826,24 @@ class ImportRequest
             if ($operation->getReference() === $this) {
                 $operation->setReference(null);
             }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Rectification>
+     */
+    public function getRectifications(): Collection
+    {
+        return $this->rectifications;
+    }
+
+    public function addRectification(Rectification $rectification): static
+    {
+        if (!$this->rectifications->contains($rectification)) {
+            $this->rectifications->add($rectification);
+            $rectification->setReference($this);
         }
 
         return $this;
