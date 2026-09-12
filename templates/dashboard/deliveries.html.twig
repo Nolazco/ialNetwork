@@ -40,12 +40,12 @@
         <thead>
           <tr>
             <th scope="col">Expediente</th>
-            <th scope="col">Operación</th>
+            <th scope="col" class="js-filterable">Operación</th>
             <th scope="col">Recinto</th>
             <th scope="col">Transportista</th>
             <th scope="col">Cita</th>
             <th scope="col">Carga</th>
-            <th scope="col">Avance</th>
+            <th scope="col" class="js-filterable">Avance</th>
             <th scope="col" class="text-end">Opciones</th>
           </tr>
         </thead>
@@ -60,8 +60,8 @@
                   </div>
                 {% endfor %}
               </td>
-              <td>
-                {% set first = d.references|first %}
+              {% set first = d.references|first %}
+              <td data-filter="{{ first ? directions[first.direction]|default(first.direction) : '' }}">
                 {{ first ? directions[first.direction]|default(first.direction) : '' }}
                 {% for r in d.references %}
                   <div class="small text-body-secondary">{{ r.goods }}</div>
@@ -97,7 +97,7 @@
                   <div class="small text-body-secondary">Folio XCF: {{ d.xcfFolio }}</div>
                 {% endif %}
               </td>
-              <td>
+              <td data-filter="{{ d.stage }}">
                 <span class="badge {{ d.stage == 'Fallido' ? 'text-bg-danger' : (d.stage == 'Entregado' ? 'text-bg-success' : (d.stage == 'Traspasado' ? 'text-bg-info' : (d.stage == 'En tránsito' ? 'text-bg-primary' : 'text-bg-secondary'))) }}">
                   {{ d.stage }}
                 </span>

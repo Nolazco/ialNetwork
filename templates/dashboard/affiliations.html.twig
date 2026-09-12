@@ -99,8 +99,8 @@
             <thead>
               <tr>
                 <th scope="col" class="js-sortable">Cliente</th>
-                <th scope="col" class="js-sortable">Empresa</th>
-                <th scope="col" class="js-sortable">Estatus</th>
+                <th scope="col" class="js-sortable js-filterable">Empresa</th>
+                <th scope="col" class="js-sortable js-filterable">Estatus</th>
                 {% if is_granted('ROLE_ADMIN') %}
                   <th scope="col" class="text-end">Opciones</th>
                 {% endif %}

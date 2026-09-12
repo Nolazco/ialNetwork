@@ -160,11 +160,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Filtro de texto libre para las mismas tablas .js-sortable-table: un cuadro
-// de busqueda que oculta las filas que no contengan el texto escrito, en
-// cualquier columna. Se inyecta solo -- no hace falta tocar cada plantilla
-// para agregarlo -- justo antes de la tabla (o de su .table-responsive, para
-// no quedar atrapado dentro del contenedor con scroll horizontal).
+// Filtro de las mismas tablas .js-sortable-table: un cuadro de busqueda de
+// texto libre (en cualquier columna) MAS un <select> por cada
+// th.js-filterable (valores unicos de esa columna, ej. Estatus, Rol,
+// Operación) -- una fila solo se muestra si pasa la busqueda de texto Y
+// coincide con cada filtro de columna activo (AND, no OR). Todo se inyecta
+// solo -- no hace falta tocar cada plantilla para agregar la barra en si,
+// solo marcar que columnas son filtrables -- justo antes de la tabla (o de
+// su .table-responsive, para no quedar atrapado dentro del contenedor con
+// scroll horizontal).
 document.addEventListener('DOMContentLoaded', () => {
     // Quita acentos para que "aduana" encuentre "Aduana" y "México" sin que
     // el usuario tenga que teclear la tilde.
@@ -175,27 +179,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.querySelectorAll('.js-sortable-table').forEach((tabla) => {
         const cuerpo = tabla.tBodies[0];
+        const columnasFiltrables = Array.from(tabla.querySelectorAll('thead th.js-filterable'));
 
-        // data-no-filter: la pantalla ya trae su propio buscador a la medida
-        // (ej. classifications.html.twig busca en el servidor por mercancia,
-        // quimico, CAS o fraccion) -- agregar el generico encima solo
-        // confundiria con dos cuadros de busqueda que no buscan lo mismo. El
-        // orden por columna (mas arriba) no se ve afectado por este atributo.
-        if (!cuerpo || cuerpo.rows.length === 0 || tabla.hasAttribute('data-no-filter')) {
+        // data-no-filter: la pantalla ya trae su propio buscador de texto a
+        // la medida (ej. classifications.html.twig busca en el servidor por
+        // mercancia, quimico, CAS o fraccion) -- agregar el generico encima
+        // solo confundiria con dos cuadros que no buscan lo mismo. Los
+        // filtros por columna (si los hay) no se ven afectados: son un
+        // control distinto, no una caja de texto duplicada.
+        const conBuscador = !tabla.hasAttribute('data-no-filter');
+
+        if (!cuerpo || cuerpo.rows.length === 0 || (!conBuscador && columnasFiltrables.length === 0)) {
             return;
         }
-
-        const contenedor = tabla.closest('.table-responsive') ?? tabla;
-
-        const envoltura = document.createElement('div');
-        envoltura.className = 'input-group input-group-sm mb-2 js-table-filter-wrapper';
-        envoltura.style.maxWidth = '320px';
-        envoltura.innerHTML = '<span class="input-group-text bg-transparent border-end-0">'
-            + '<i class="bi bi-search"></i></span>'
-            + '<input type="search" class="form-control border-start-0 js-table-filter-input" '
-            + 'placeholder="Buscar en la tabla…" aria-label="Buscar en la tabla">';
-
-        contenedor.parentNode.insertBefore(envoltura, contenedor);
 
         // [data-table-ignore] son filas que no son un registro propio (ej. el
         // formulario oculto de "traspasar"/"no se pudo cargar" en despachos,
@@ -206,20 +202,72 @@ document.addEventListener('DOMContentLoaded', () => {
         const filas = Array.from(cuerpo.rows).filter((fila) => !fila.hasAttribute('data-table-ignore'));
         const numColumnas = tabla.tHead?.rows[0]?.cells.length ?? 1;
 
+        const barra = document.createElement('div');
+        barra.className = 'd-flex flex-wrap align-items-center gap-2 mb-2 js-table-filter-bar';
+
+        let input = null;
+
+        if (conBuscador) {
+            const envoltura = document.createElement('div');
+            envoltura.className = 'input-group input-group-sm js-table-filter-wrapper';
+            envoltura.style.maxWidth = '320px';
+            envoltura.innerHTML = '<span class="input-group-text bg-transparent border-end-0">'
+                + '<i class="bi bi-search"></i></span>'
+                + '<input type="search" class="form-control border-start-0 js-table-filter-input" '
+                + 'placeholder="Buscar en la tabla…" aria-label="Buscar en la tabla">';
+
+            barra.appendChild(envoltura);
+            input = envoltura.querySelector('.js-table-filter-input');
+        }
+
+        // Un <select> por columna filtrable, con las opciones sacadas de los
+        // valores que de verdad aparecen en esa columna (no una lista fija a
+        // mano, que se desactualizaria en cuanto cambien los datos). El valor
+        // a comparar es data-filter en el <td> si esta presente (para
+        // columnas cuyo texto visible trae mas cosas que el valor puro, ej.
+        // un badge con una fecha al lado) o si no el texto de la celda.
+        const columnas = columnasFiltrables.map((th) => {
+            const indice = Array.from(th.parentElement.children).indexOf(th);
+            const nombre = th.textContent.trim();
+
+            const valorDe = (fila) => {
+                const celda = fila.cells[indice];
+
+                return ((celda?.dataset.filter ?? celda?.textContent) || '').trim();
+            };
+
+            const valores = Array.from(new Set(filas.map(valorDe).filter((v) => v !== '')))
+                .sort((a, b) => a.localeCompare(b, 'es'));
+
+            const select = document.createElement('select');
+            select.className = 'form-select form-select-sm w-auto js-table-column-filter';
+            select.setAttribute('aria-label', `Filtrar por ${nombre}`);
+            select.innerHTML = `<option value="">${nombre}: todos</option>`
+                + valores.map((v) => `<option value="${v}">${v}</option>`).join('');
+
+            barra.appendChild(select);
+
+            return { select, valorDe };
+        });
+
+        const contenedor = tabla.closest('.table-responsive') ?? tabla;
+        contenedor.parentNode.insertBefore(barra, contenedor);
+
         const filaSinResultados = document.createElement('tr');
         filaSinResultados.className = 'js-table-filter-empty d-none';
         filaSinResultados.innerHTML = `<td colspan="${numColumnas}" class="text-center text-body-secondary py-3">`
             + 'Sin resultados para esa búsqueda.</td>';
         cuerpo.appendChild(filaSinResultados);
 
-        const input = envoltura.querySelector('.js-table-filter-input');
-
-        input.addEventListener('input', () => {
-            const termino = normalizar(input.value.trim());
+        const aplicarFiltros = () => {
+            const termino = input ? normalizar(input.value.trim()) : '';
+            const hayFiltroActivo = termino !== '' || columnas.some(({ select }) => select.value !== '');
             let visibles = 0;
 
             filas.forEach((fila) => {
-                const coincide = termino === '' || normalizar(fila.textContent).includes(termino);
+                const pasaTexto = termino === '' || normalizar(fila.textContent).includes(termino);
+                const pasaColumnas = columnas.every(({ select, valorDe }) => select.value === '' || valorDe(fila) === select.value);
+                const coincide = pasaTexto && pasaColumnas;
 
                 fila.classList.toggle('d-none', !coincide);
 
@@ -228,8 +276,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
-            filaSinResultados.classList.toggle('d-none', termino === '' || visibles > 0);
-        });
+            filaSinResultados.classList.toggle('d-none', !hayFiltroActivo || visibles > 0);
+        };
+
+        if (input) {
+            input.addEventListener('input', aplicarFiltros);
+        }
+
+        columnas.forEach(({ select }) => select.addEventListener('change', aplicarFiltros));
     });
 });
 
