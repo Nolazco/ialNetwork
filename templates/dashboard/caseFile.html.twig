@@ -249,11 +249,39 @@
 
               <dt class="col-sm-5">Requiere custodia</dt>
               <dd class="col-sm-7">
-                {% if import.custodia %}
-                  Sí — {{ import.custodia.name }}
-                {% else %}
-                  No
-                {% endif %}
+                <form method="POST" action="{{ path('case_file_custodia', { id: import.id }) }}" class="d-flex flex-column gap-2">
+                  <input type="hidden" name="_token" value="{{ csrf_token('case_file_custodia') }}">
+                  <select class="form-select form-select-sm" name="requiresCustody" id="requiresCustody" style="max-width:200px">
+                    <option value="no" {{ import.custodia is null ? 'selected' : '' }}>No</option>
+                    <option value="si" {{ import.custodia ? 'selected' : '' }}>Sí</option>
+                  </select>
+                  <div id="custodia-wrapper" class="{{ import.custodia ? '' : 'd-none' }}">
+                    <div class="d-flex justify-content-between align-items-center">
+                      <label for="custodiaId" class="form-label small mb-1">Custodia</label>
+                      <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-custodia">
+                        <i class="bi bi-plus-lg"></i> Nueva custodia
+                      </button>
+                    </div>
+                    <select class="form-select form-select-sm" name="custodiaId" id="custodiaId" style="max-width:320px">
+                      <option value="" {{ import.custodia ? '' : 'selected disabled' }}>Seleccione una custodia</option>
+                      {% for c in custodias %}
+                        <option value="{{ c.id }}" {{ import.custodia and import.custodia.id == c.id ? 'selected' : '' }}>{{ c.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <div id="new-custodia-fields" class="d-none border rounded p-2 mt-2">
+                      <div class="mb-2">
+                        <label for="newCustodiaName" class="form-label small mb-1">Nombre</label>
+                        <input type="text" class="form-control form-control-sm" id="newCustodiaName" name="newCustodiaName" placeholder="Nombre de la custodia">
+                      </div>
+                      <div class="mb-0">
+                        <label for="newCustodiaEmails" class="form-label small mb-1">Correos de contacto</label>
+                        <input type="text" class="form-control form-control-sm" id="newCustodiaEmails" name="newCustodiaEmails" placeholder="correo1@custodia.com; correo2@custodia.com">
+                        <div class="form-text small">Puedes capturar varios, separados por punto y coma.</div>
+                      </div>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-sm btn-outline-primary align-self-start">Guardar</button>
+                </form>
               </dd>
 
               <dt class="col-sm-5">Entregar en</dt>
@@ -1645,6 +1673,52 @@
           if (!isOther) {
             custom.value = "";
           }
+        });
+      }
+
+      // "Requiere custodia": mismo patron de alta/edicion que en la solicitud
+      // nueva (ver newimport.html.twig) — si/no, y dentro de "si", elegir del
+      // catalogo o capturar una nueva.
+      const requiresCustodySelect = document.getElementById("requiresCustody");
+      const custodiaWrapper = document.getElementById("custodia-wrapper");
+      const custodiaSelect = document.getElementById("custodiaId");
+      const toggleCustodiaBtn = document.getElementById("toggle-new-custodia");
+      const newCustodiaFields = document.getElementById("new-custodia-fields");
+
+      if (requiresCustodySelect) {
+        let creatingCustodia = false;
+
+        function toggleCustodiaVisibility() {
+          const showCustodia = requiresCustodySelect.value === "si";
+          custodiaWrapper.classList.toggle("d-none", !showCustodia);
+
+          if (!showCustodia) {
+            creatingCustodia = false;
+            custodiaSelect.classList.remove("d-none");
+            newCustodiaFields.classList.add("d-none");
+            newCustodiaFields.querySelectorAll("input").forEach(function (input) {
+              input.value = "";
+            });
+            toggleCustodiaBtn.innerHTML = '<i class="bi bi-plus-lg"></i> Nueva custodia';
+          }
+        }
+
+        requiresCustodySelect.addEventListener("change", toggleCustodiaVisibility);
+
+        toggleCustodiaBtn.addEventListener("click", function () {
+          creatingCustodia = !creatingCustodia;
+
+          custodiaSelect.classList.toggle("d-none", creatingCustodia);
+          custodiaSelect.value = "";
+
+          newCustodiaFields.classList.toggle("d-none", !creatingCustodia);
+          newCustodiaFields.querySelectorAll("input").forEach(function (input) {
+            input.value = "";
+          });
+
+          toggleCustodiaBtn.innerHTML = creatingCustodia
+            ? '<i class="bi bi-list"></i> Elegir del catálogo'
+            : '<i class="bi bi-plus-lg"></i> Nueva custodia';
         });
       }
 

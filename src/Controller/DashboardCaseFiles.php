@@ -8,6 +8,7 @@ use App\Entity\Container;
 use App\Entity\ConsolidatorInstruction;
 use App\Entity\ConsolidatorQuote;
 use App\Entity\ContainerYard;
+use App\Entity\Custodia;
 use App\Entity\DeliveryPoint;
 use App\Entity\EmptyReturn;
 use App\Entity\EmptyReturnYard;
@@ -284,6 +285,7 @@ class DashboardCaseFiles extends AbstractController
             'requiredDocuments' => $singleSlotDocuments,
             'advanceRequests' => $advanceRequests,
             'deliveryPoints' => $this->entityManager->getRepository(DeliveryPoint::class)->findByCompany($import->getIdCompany()),
+            'custodias' => $this->entityManager->getRepository(Custodia::class)->findBy([], ['name' => 'ASC']),
             'nextRectificationReference' => str_repeat('R', $import->getRectifications()->count() + 1).$import->getAgencyReference(),
         ]);
     }
@@ -541,6 +543,66 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Destino de entrega actualizado.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Si la mercancía requiere custodia armada o no — se pregunta al dar de
+     * alta la solicitud (ver DashboardImports::newImport()), pero puede
+     * cambiar después: un "no" inicial no es definitivo, y quien vea el
+     * expediente (cliente o agencia) puede corregirlo, igual que la ETA o el
+     * destino de entrega.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/custodia', name: 'case_file_custodia', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function updateCustodia(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->canView($import)) {
+            throw $this->createAccessDeniedException('Ese expediente no pertenece a ninguna de tus empresas.');
+        }
+
+        if (!$this->isCsrfTokenValid('case_file_custodia', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $requiresCustody = $r->request->get('requiresCustody', 'no');
+        $custodia = null;
+
+        if ($requiresCustody === 'si') {
+            $custodiaId = $r->request->get('custodiaId');
+
+            if ($custodiaId) {
+                $custodia = $this->entityManager->getRepository(Custodia::class)->find($custodiaId);
+
+                if (!$custodia) {
+                    $this->addFlash('error', 'Selecciona una custodia válida.');
+
+                    return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+                }
+            } else {
+                $custodiaName = trim((string) $r->request->get('newCustodiaName'));
+                $custodiaEmails = EmailListParser::parse((string) $r->request->get('newCustodiaEmails'));
+
+                if ($custodiaName === '' || $custodiaEmails === []) {
+                    $this->addFlash('error', 'Selecciona una custodia del catálogo o captura una nueva completa, con al menos un correo válido.');
+
+                    return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+                }
+
+                $custodia = new Custodia();
+                $custodia->setName($custodiaName);
+                $custodia->setContactEmails($custodiaEmails);
+
+                $this->entityManager->persist($custodia);
+            }
+        }
+
+        $import->setCustodia($custodia);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Custodia actualizada.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
