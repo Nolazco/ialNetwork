@@ -89,16 +89,19 @@ class DashboardCompanies extends AbstractController{
 
     $entityManager->persist($company);
 
-    // 2. Asociar con usuario actual
-    //$usuario = $security->getUser();
-
-    // La empresa la esta dando de alta el propio cliente, asi que su afiliacion
-    // no necesita autorizacion: no hay nada de nadie mas que proteger.
-    $asociacion = new Associated();
-    $asociacion->setIdClient($user);
-    $asociacion->setIdCompany($company);
-    $asociacion->setStatus(Associated::APPROVED);
-    $entityManager->persist($asociacion);
+    // 2. Asociar con usuario actual -- solo si de verdad es el cliente
+    // dandose de alta el mismo (su afiliacion no necesita autorizacion: no
+    // hay nada de nadie mas que proteger). Cuando es un ejecutivo quien da de
+    // alta la empresa como favor, no se crea ninguna afiliacion: el
+    // ejecutivo no es cliente de esa empresa, y crearla igual dejaba
+    // ejecutivos "afiliados" a empresas ajenas sin que nadie lo pidiera.
+    if ($this->isGranted('ROLE_CLIENT')) {
+      $asociacion = new Associated();
+      $asociacion->setIdClient($user);
+      $asociacion->setIdCompany($company);
+      $asociacion->setStatus(Associated::APPROVED);
+      $entityManager->persist($asociacion);
+    }
 
     // 3. Manejar documentos
     $files = $r->files->all();

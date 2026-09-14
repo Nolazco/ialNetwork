@@ -357,8 +357,15 @@ class DashboardImports extends AbstractController {
   	$import->setTravelsWithConsolidator($r->request->get('travelsWithConsolidator') === '1');
   	// Quien dio de alta la solicitud -- a partir de aqui, los avisos del
   	// expediente le llegan solo a el, no a toda la empresa (ver
-  	// RecipientResolver::clientEmails()/clientWhatsapp()).
-  	$import->setCreatedBy($this->getUser());
+  	// RecipientResolver::clientEmails()/clientWhatsapp()). Solo si de verdad
+  	// es el cliente: un ejecutivo a veces da de alta la solicitud como favor
+  	// (el cliente se la dicta por telefono, etc.) y en ese caso el expediente
+  	// debe quedar sin cliente asignado -- no se le van a mandar los avisos al
+  	// ejecutivo que la capturo -- hasta que alguien lo asigne a mano (ver
+  	// DashboardCaseFiles::assignClient()).
+  	if ($this->isGranted('ROLE_CLIENT')) {
+  		$import->setCreatedBy($this->getUser());
+  	}
 
   	$entityManager->persist($import);
 

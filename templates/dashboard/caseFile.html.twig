@@ -247,6 +247,35 @@
               <dt class="col-sm-5">Consignado a</dt>
               <dd class="col-sm-7">{{ import.forwarder ? 'Forwarder: ' ~ import.forwarder.name : 'Cliente' }}</dd>
 
+              {% set clienteValido = import.createdBy and 'ROLE_CLIENT' in import.createdBy.roles %}
+              <dt class="col-sm-5">Cliente que registró</dt>
+              <dd class="col-sm-7">
+                {% if clienteValido %}
+                  {{ import.createdBy.name }} {{ import.createdBy.lastName }} ({{ import.createdBy.email }})
+                {% elseif is_granted('ROLE_EXECUTIVE') %}
+                  {% if import.createdBy %}
+                    <div class="small text-body-secondary mb-1">
+                      Actualmente: {{ import.createdBy.name }} {{ import.createdBy.lastName }} ({{ import.createdBy.email }}) — sin rol de cliente.
+                    </div>
+                  {% endif %}
+                  <form method="POST" action="{{ path('case_file_assign_client', { id: import.id }) }}" class="d-flex flex-column gap-2">
+                    <input type="hidden" name="_token" value="{{ csrf_token('case_file_assign_client') }}">
+                    <select class="form-select form-select-sm" name="clientId" style="max-width:320px">
+                      <option value="" selected disabled>Seleccione un cliente</option>
+                      {% for c in companyClients %}
+                        <option value="{{ c.id }}">{{ c.name }} {{ c.lastName }} ({{ c.email }})</option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-primary align-self-start">Asignar</button>
+                  </form>
+                  {% if companyClients is empty %}
+                    <div class="form-text mb-0">Esta empresa no tiene clientes afiliados y aprobados en el portal.</div>
+                  {% endif %}
+                {% else %}
+                  <span class="text-body-secondary">Sin asignar</span>
+                {% endif %}
+              </dd>
+
               <dt class="col-sm-5">Requiere custodia</dt>
               <dd class="col-sm-7">
                 <form method="POST" action="{{ path('case_file_custodia', { id: import.id }) }}" class="d-flex flex-column gap-2">

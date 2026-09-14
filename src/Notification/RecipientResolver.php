@@ -21,14 +21,12 @@ final class RecipientResolver
     }
 
     /**
-     * Ya no importa quien tenga cuenta aprobada en el portal — antes se
-     * avisaba a todos los usuarios afiliados y aprobados de la empresa,
-     * ahora la empresa decide quien se entera poniendolo en su lista de
-     * trafico (discriminacion pedida explicitamente por el cliente: quiere
-     * que solo trafico se entere de esto, no cualquiera con cuenta).
-     *
-     * Sigue existiendo (y usandose como respaldo, ver clientEmails()) para
-     * expedientes que no tienen quien los dio de alta registrado.
+     * Correos de trafico que la propia empresa configuro (ver
+     * Company::$trafico) — gente que necesita estar al tanto de la operacion
+     * sin necesariamente intervenir en ella (contadores, representantes),
+     * asi que no siempre tienen ni necesitan cuenta en el portal. Van
+     * SIEMPRE en copia de los avisos del expediente, ademas de quien lo dio
+     * de alta (ver clientEmails()) — no son alternativos entre si.
      *
      * @return list<string>
      */
@@ -39,20 +37,25 @@ final class RecipientResolver
 
     /**
      * A quien de la empresa le llega el aviso de este expediente en
-     * particular: solo al cliente que lo dio de alta (ver
-     * ImportRequest::$createdBy), no a toda la empresa — es su propia
-     * solicitud, no la de sus compañeros. Los expedientes de antes de este
-     * campo (o algun caso raro sin correo capturado) no tienen a quien
-     * avisarle asi, y caen de vuelta a la lista de trafico de la empresa
-     * para no dejar de avisarle a nadie.
+     * particular: el cliente que lo dio de alta (ver
+     * ImportRequest::$createdBy) -- es su propia solicitud, no la de sus
+     * compañeros -- MAS la lista de trafico de la empresa (ver
+     * traficoEmails()), que son avisos de la empresa en general, no de una
+     * persona. Los expedientes sin creador registrado (los de antes de ese
+     * campo) solo llevan trafico, igual que antes de este cambio.
      *
      * @return list<string>
      */
     public function clientEmails(ImportRequest $import): array
     {
-        $email = $import->getCreatedBy()?->getEmail();
+        $emails = $this->traficoEmails($import);
+        $creatorEmail = $import->getCreatedBy()?->getEmail();
 
-        return $email ? [$email] : $this->traficoEmails($import);
+        if ($creatorEmail) {
+            $emails[] = $creatorEmail;
+        }
+
+        return array_values(array_unique($emails));
     }
 
     /**

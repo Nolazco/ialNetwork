@@ -3,6 +3,7 @@
 namespace App\Controller;
 
 use App\Entity\Delivery;
+use App\Entity\Associated;
 use App\Entity\Biller;
 use App\Entity\Container;
 use App\Entity\ConsolidatorInstruction;
@@ -286,6 +287,13 @@ class DashboardCaseFiles extends AbstractController
             'advanceRequests' => $advanceRequests,
             'deliveryPoints' => $this->entityManager->getRepository(DeliveryPoint::class)->findByCompany($import->getIdCompany()),
             'custodias' => $this->entityManager->getRepository(Custodia::class)->findBy([], ['name' => 'ASC']),
+            'companyClients' => array_map(
+                static fn (Associated $a): User => $a->getIdClient(),
+                $this->entityManager->getRepository(Associated::class)->findBy([
+                    'idCompany' => $import->getIdCompany(),
+                    'status' => Associated::APPROVED,
+                ]),
+            ),
             'nextRectificationReference' => str_repeat('R', $import->getRectifications()->count() + 1).$import->getAgencyReference(),
         ]);
     }
@@ -603,6 +611,48 @@ class DashboardCaseFiles extends AbstractController
         $this->entityManager->flush();
 
         $this->addFlash('success', 'Custodia actualizada.');
+
+        return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+    }
+
+    /**
+     * Quien dio de alta la solicitud, para que le lleguen los avisos del
+     * expediente (ver ImportRequest::$createdBy y
+     * RecipientResolver::clientEmails()/clientWhatsapp()). A veces un
+     * ejecutivo da de alta la solicitud como favor al cliente (se la dicta
+     * por telefono, etc.) — en ese caso el expediente queda sin cliente
+     * asignado (DashboardImports::newImport() ya no guarda al ejecutivo como
+     * creador) y hay que asignarlo a mano aqui. Solo el ejecutivo puede
+     * hacerlo: no es una correccion que le toque al cliente.
+     */
+    #[IsGranted('ROLE_EXECUTIVE')]
+    #[Route('/dashboard/pedimentos/expediente/{id}/cliente', name: 'case_file_assign_client', requirements: ['id' => '\d+'], methods: ['POST'])]
+    public function assignClient(#[MapEntity(id: 'id')] ImportRequest $import, Request $r): Response
+    {
+        if (!$this->isCsrfTokenValid('case_file_assign_client', $r->request->get('_token'))) {
+            $this->addFlash('error', 'Token de seguridad inválido, intenta de nuevo.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $client = $this->entityManager->getRepository(User::class)->find($r->request->get('clientId'));
+
+        $afiliacion = $client ? $this->entityManager->getRepository(Associated::class)->findOneBy([
+            'idClient' => $client,
+            'idCompany' => $import->getIdCompany(),
+            'status' => Associated::APPROVED,
+        ]) : null;
+
+        if (!$client || !in_array('ROLE_CLIENT', $client->getRoles(), true) || !$afiliacion) {
+            $this->addFlash('error', 'Selecciona un cliente afiliado y aprobado en esta empresa.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
+        $import->setCreatedBy($client);
+        $this->entityManager->flush();
+
+        $this->addFlash('success', 'Cliente asignado.');
 
         return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
     }
