@@ -355,6 +355,10 @@ class DashboardImports extends AbstractController {
   	$import->setAduana($aduana);
   	$import->setStatus(ImportRequestWorkflow::PENDING);
   	$import->setTravelsWithConsolidator($r->request->get('travelsWithConsolidator') === '1');
+  	// Quien dio de alta la solicitud -- a partir de aqui, los avisos del
+  	// expediente le llegan solo a el, no a toda la empresa (ver
+  	// RecipientResolver::clientEmails()/clientWhatsapp()).
+  	$import->setCreatedBy($this->getUser());
 
   	$entityManager->persist($import);
 

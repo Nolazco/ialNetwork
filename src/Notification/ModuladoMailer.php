@@ -71,7 +71,7 @@ final class ModuladoMailer
     private function send(ImportRequest $import, string $subject, string $template, array $extraContext): void
     {
         $to = $this->dedupe(array_merge(
-            $this->recipients->traficoEmails($import),
+            $this->recipients->clientEmails($import),
             $this->notificationRecipients->emailsFor(self::TO_KEY),
         ));
         $cc = $this->dedupe(array_merge(

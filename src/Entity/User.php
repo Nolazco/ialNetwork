@@ -56,6 +56,16 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     private array $aduanas = [];
 
     /**
+     * Numero de WhatsApp propio del cliente (ver "Mi perfil"), a donde le
+     * llegan los avisos de los expedientes que el mismo dio de alta (ver
+     * RecipientResolver::clientWhatsapp()) — ya no es un numero compartido
+     * por toda la empresa (ver Company::$whatsapp, que ahora solo es
+     * respaldo). Nullable: nada obliga a capturarlo.
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $whatsapp = null;
+
+    /**
      * @var Collection<int, Associated>
      */
     #[ORM\OneToMany(targetEntity: Associated::class, mappedBy: 'idClient')]
@@ -191,6 +201,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     public function setAduanas(array $aduanas): static
     {
         $this->aduanas = $aduanas;
+
+        return $this;
+    }
+
+    public function getWhatsapp(): ?string
+    {
+        return $this->whatsapp;
+    }
+
+    public function setWhatsapp(?string $whatsapp): static
+    {
+        $this->whatsapp = $whatsapp;
 
         return $this;
     }

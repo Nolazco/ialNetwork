@@ -209,7 +209,7 @@ final class ImportRequestStatusMailer
      */
     private function send(ImportRequest $import, string $subject, string $headline, array $documents, array $attachments, array $extraContext = [], array $extraCc = []): void
     {
-        $to = $this->recipients->traficoEmails($import);
+        $to = $this->recipients->clientEmails($import);
 
         if ($to === []) {
             return;

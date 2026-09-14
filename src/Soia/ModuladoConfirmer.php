@@ -4,6 +4,7 @@ namespace App\Soia;
 
 use App\Entity\ImportRequest;
 use App\Notification\ModuladoMailer;
+use App\Notification\RecipientResolver;
 use App\Notification\WhatsAppSender;
 use App\Repository\NotificationRecipientsRepository;
 use App\Workflow\AduanaCatalog;
@@ -31,6 +32,7 @@ final class ModuladoConfirmer
         private readonly AduanaCatalog $aduanaCatalog,
         private readonly WhatsAppSender $whatsApp,
         private readonly NotificationRecipientsRepository $notificationRecipients,
+        private readonly RecipientResolver $recipients,
         private readonly UrlGeneratorInterface $urlGenerator,
         #[Autowire(env: 'SOIA_PATENTE')]
         private readonly string $patente,
@@ -68,7 +70,7 @@ final class ModuladoConfirmer
                 // pero se pidio unificarlo con el que ya recibia el cliente.
                 $mensaje = $this->reconocimientoMessage($import);
                 $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $mensaje, $throttledWhatsApp);
-                $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $mensaje, $throttledWhatsApp);
+                $this->whatsApp->send($this->recipients->clientWhatsapp($import), $mensaje, $throttledWhatsApp);
             } else {
                 $this->entityManager->flush();
             }
@@ -88,7 +90,7 @@ final class ModuladoConfirmer
             // reconocimiento, mas arriba).
             $mensaje = $this->moduladoMessage($import, $result->estado);
             $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $mensaje, $throttledWhatsApp);
-            $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $mensaje, $throttledWhatsApp);
+            $this->whatsApp->send($this->recipients->clientWhatsapp($import), $mensaje, $throttledWhatsApp);
 
             return $result;
         }

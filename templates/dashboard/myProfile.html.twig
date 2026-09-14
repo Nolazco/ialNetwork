@@ -1,0 +1,31 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Mi perfil{% endblock %}
+
+{% block body %}
+  <div class="content">
+    <h2 class="mb-4">Mi perfil</h2>
+
+    <div class="card shadow-sm" style="max-width: 480px;">
+      <div class="card-body">
+        <dl class="row mb-4">
+          <dt class="col-sm-4">Nombre</dt>
+          <dd class="col-sm-8">{{ profileUser.name }} {{ profileUser.lastName }}</dd>
+
+          <dt class="col-sm-4">Correo</dt>
+          <dd class="col-sm-8">{{ profileUser.email }}</dd>
+        </dl>
+
+        <form method="POST" action="{{ path('my_profile_update') }}">
+          <input type="hidden" name="_token" value="{{ csrf_token('my_profile_update') }}">
+          <label for="whatsapp" class="form-label">Número de WhatsApp</label>
+          <input type="text" class="form-control" name="whatsapp" id="whatsapp" value="{{ profileUser.whatsapp }}" placeholder="Ej. 3141737914">
+          <div class="form-text">
+            A este número te llegan los avisos de WhatsApp de los expedientes que tú mismo des de alta.
+          </div>
+          <button type="submit" class="btn btn-primary mt-3">Guardar</button>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}

@@ -15,8 +15,9 @@ use Symfony\Component\Mailer\MailerInterface;
  * enteraba de la entrega salvo que preguntara directamente al ejecutivo.
  *
  * Un mismo despacho puede cubrir varios expedientes (ver Delivery::$references),
- * así que se manda un correo por expediente: cada uno puede ser de una empresa
- * distinta, y RecipientResolver resuelve los destinatarios por empresa.
+ * así que se manda un correo por expediente: cada uno puede ser de un cliente
+ * distinto, y RecipientResolver resuelve los destinatarios por quien dio de
+ * alta cada expediente (ver RecipientResolver::clientEmails()).
  */
 final class DeliveryArrivalMailer
 {
@@ -35,7 +36,7 @@ final class DeliveryArrivalMailer
         $hasProof = $proofPath && is_file($proofPath);
 
         foreach ($delivery->getReferences() as $import) {
-            $to = $this->recipients->traficoEmails($import);
+            $to = $this->recipients->clientEmails($import);
 
             if ($to === []) {
                 continue;

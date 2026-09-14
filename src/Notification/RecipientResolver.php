@@ -27,11 +27,48 @@ final class RecipientResolver
      * trafico (discriminacion pedida explicitamente por el cliente: quiere
      * que solo trafico se entere de esto, no cualquiera con cuenta).
      *
+     * Sigue existiendo (y usandose como respaldo, ver clientEmails()) para
+     * expedientes que no tienen quien los dio de alta registrado.
+     *
      * @return list<string>
      */
     public function traficoEmails(ImportRequest $import): array
     {
         return $import->getIdCompany()->getTrafico();
+    }
+
+    /**
+     * A quien de la empresa le llega el aviso de este expediente en
+     * particular: solo al cliente que lo dio de alta (ver
+     * ImportRequest::$createdBy), no a toda la empresa — es su propia
+     * solicitud, no la de sus compañeros. Los expedientes de antes de este
+     * campo (o algun caso raro sin correo capturado) no tienen a quien
+     * avisarle asi, y caen de vuelta a la lista de trafico de la empresa
+     * para no dejar de avisarle a nadie.
+     *
+     * @return list<string>
+     */
+    public function clientEmails(ImportRequest $import): array
+    {
+        $email = $import->getCreatedBy()?->getEmail();
+
+        return $email ? [$email] : $this->traficoEmails($import);
+    }
+
+    /**
+     * Mismo criterio que clientEmails() pero para WhatsApp: el numero propio
+     * del cliente que dio de alta el expediente (ver User::$whatsapp,
+     * capturado en "Mi perfil"), o el numero de la empresa (Company::$whatsapp)
+     * como respaldo si no se conoce quien lo dio de alta o no ha capturado el
+     * suyo.
+     *
+     * @return list<string>
+     */
+    public function clientWhatsapp(ImportRequest $import): array
+    {
+        $whatsapp = $import->getCreatedBy()?->getWhatsapp();
+
+        return $whatsapp ? [$whatsapp] : $import->getIdCompany()->getWhatsapp();
     }
 
     /**

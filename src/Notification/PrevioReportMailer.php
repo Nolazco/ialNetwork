@@ -42,7 +42,7 @@ final class PrevioReportMailer
     public function resolveTo(ImportRequest $import): array
     {
         return $this->dedupe(array_merge(
-            $this->recipients->traficoEmails($import),
+            $this->recipients->clientEmails($import),
             $this->notificationRecipients->emailsFor(self::TO_KEY),
         ));
     }

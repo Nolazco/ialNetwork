@@ -25,6 +25,18 @@ class ImportRequest
     #[ORM\JoinColumn(nullable: false)]
     private ?Provider $idProvider = null;
 
+    /**
+     * El cliente que dio de alta esta solicitud (ver
+     * DashboardImports::newImport()) — a el (no a toda la empresa) le llegan
+     * los avisos del expediente (ver RecipientResolver::clientEmails()/
+     * clientWhatsapp()). Nullable porque los expedientes de antes de este
+     * campo no lo tienen: esos casos caen de vuelta a la lista de la empresa
+     * (Company::$trafico/$whatsapp) para no dejar de avisarle a nadie.
+     */
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
+    private ?User $createdBy = null;
+
     // Nullable: la mayoria de las mercancias vienen consignadas al cliente
     // directo. Si no es nulo, el expediente esta consignado a ese forwarder
     // en vez de al cliente (ver Forwarder e ImportRequestStatusMailer).
@@ -362,6 +374,18 @@ class ImportRequest
     public function setIdProvider(?Provider $idProvider): static
     {
         $this->idProvider = $idProvider;
+
+        return $this;
+    }
+
+    public function getCreatedBy(): ?User
+    {
+        return $this->createdBy;
+    }
+
+    public function setCreatedBy(?User $createdBy): static
+    {
+        $this->createdBy = $createdBy;
 
         return $this;
     }

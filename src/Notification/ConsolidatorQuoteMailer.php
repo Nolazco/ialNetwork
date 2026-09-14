@@ -50,7 +50,7 @@ final class ConsolidatorQuoteMailer
         $cc = $test ? [] : $this->dedupe(array_merge(
             $this->notificationRecipients->emailsFor(ConsolidatorMailer::CC_KEY),
             array_filter([$quote->getCreatedBy()?->getEmail()]),
-            $this->recipients->traficoEmails($import),
+            $this->recipients->clientEmails($import),
         ));
 
         $email = (new TemplatedEmail())
