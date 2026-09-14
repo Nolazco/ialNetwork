@@ -62,7 +62,13 @@ final class ModuladoConfirmer
                 $this->entityManager->flush();
 
                 $this->mailer->notifyReconocimiento($import);
-                $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientReconocimientoMessage($import), $throttledWhatsApp);
+
+                // Mismo mensaje para ejecutivos y cliente: antes los
+                // ejecutivos recibian una version corta con jerga tecnica,
+                // pero se pidio unificarlo con el que ya recibia el cliente.
+                $mensaje = $this->reconocimientoMessage($import);
+                $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $mensaje, $throttledWhatsApp);
+                $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $mensaje, $throttledWhatsApp);
             } else {
                 $this->entityManager->flush();
             }
@@ -77,8 +83,12 @@ final class ModuladoConfirmer
 
             // isResolved() ya garantiza que $result->estado viene lleno.
             $this->mailer->notify($import, $result->estado);
-            $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $this->executiveModuladoMessage($import, $result->estado), $throttledWhatsApp);
-            $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $this->clientModuladoMessage($import, $result->estado), $throttledWhatsApp);
+
+            // Mismo mensaje para ejecutivos y cliente (ver nota en la rama de
+            // reconocimiento, mas arriba).
+            $mensaje = $this->moduladoMessage($import, $result->estado);
+            $this->whatsApp->send($this->notificationRecipients->phonesFor(self::WHATSAPP_EXECUTIVES_KEY), $mensaje, $throttledWhatsApp);
+            $this->whatsApp->send($import->getIdCompany()->getWhatsapp(), $mensaje, $throttledWhatsApp);
 
             return $result;
         }
@@ -89,36 +99,22 @@ final class ModuladoConfirmer
     }
 
     /**
-     * Aviso de WhatsApp para ejecutivos: con detalle tecnico (estado crudo
-     * del SOIA), pensado para quien le da seguimiento al expediente.
+     * Aviso de WhatsApp de modulado: mismo formato para ejecutivos y cliente
+     * (con el mismo detalle que ya usaba la agencia en su sistema anterior,
+     * VCA) -- antes los ejecutivos recibian una version corta con jerga
+     * tecnica ("Estado SOIA: ..."), pero se unifico a pedido.
      */
-    private function executiveModuladoMessage(ImportRequest $import, string $soiaEstado): string
+    private function moduladoMessage(ImportRequest $import, string $soiaEstado): string
     {
-        return sprintf(
-            "✅ Modulado: %s — %s (%s)\nAduana: %s\nEstado SOIA: %s",
-            $import->getEffectiveAgencyReference(),
-            $import->getIdCompany()->getName(),
-            $import->getClientReference(),
-            AduanaCatalog::LABELS[$import->getAduana()] ?? $import->getAduana(),
-            $soiaEstado,
-        );
+        return $this->estadoMessage($import, '🟢', $soiaEstado, $import->getModuladoAt());
     }
 
-    /**
-     * Aviso de WhatsApp para el cliente final: sin jerga tecnica, con el
-     * mismo formato que ya usaba la agencia en su sistema anterior (VCA).
-     */
-    private function clientModuladoMessage(ImportRequest $import, string $soiaEstado): string
+    private function reconocimientoMessage(ImportRequest $import): string
     {
-        return $this->clientMessage($import, '🟢', $soiaEstado, $import->getModuladoAt());
+        return $this->estadoMessage($import, '🔴', 'RECONOCIMIENTO ADUANERO', $import->getReconocimientoAt());
     }
 
-    private function clientReconocimientoMessage(ImportRequest $import): string
-    {
-        return $this->clientMessage($import, '🔴', 'RECONOCIMIENTO ADUANERO', $import->getReconocimientoAt());
-    }
-
-    private function clientMessage(ImportRequest $import, string $semaforo, string $estado, ?\DateTimeImmutable $fecha): string
+    private function estadoMessage(ImportRequest $import, string $semaforo, string $estado, ?\DateTimeImmutable $fecha): string
     {
         $company = $import->getIdCompany();
 
