@@ -221,6 +221,12 @@ class ImportRequest
     private Collection $consolidatorInstructions;
 
     /**
+     * @var Collection<int, ConsolidatorQuote>
+     */
+    #[ORM\OneToMany(targetEntity: ConsolidatorQuote::class, mappedBy: 'reference')]
+    private Collection $consolidatorQuotes;
+
+    /**
      * Un pedimento ya pagado se puede rectificar ante el SAT en cualquier
      * momento (incluso mucho despues, ver Rectification), y mas de una vez —
      * por eso es una lista y no un campo fijo del expediente.
@@ -284,6 +290,7 @@ class ImportRequest
         $this->operations = new ArrayCollection();
         $this->deliveries = new ArrayCollection();
         $this->consolidatorInstructions = new ArrayCollection();
+        $this->consolidatorQuotes = new ArrayCollection();
         $this->rectifications = new ArrayCollection();
     }
 
@@ -320,6 +327,14 @@ class ImportRequest
     public function getConsolidatorInstructions(): Collection
     {
         return $this->consolidatorInstructions;
+    }
+
+    /**
+     * @return Collection<int, ConsolidatorQuote>
+     */
+    public function getConsolidatorQuotes(): Collection
+    {
+        return $this->consolidatorQuotes;
     }
 
     public function getId(): ?int

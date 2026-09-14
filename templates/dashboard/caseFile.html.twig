@@ -1468,12 +1468,41 @@
     {% if is_granted('ROLE_EXECUTIVE') %}
       <div class="card shadow-sm mt-4">
         <div class="card-body">
-          <div class="d-flex justify-content-between align-items-center mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
             <h5 class="card-title mb-0">Consolidador de carga (XCF)</h5>
-            <a href="{{ path('consolidator_instruction_new', { id: import.id }) }}" class="btn btn-outline-primary btn-sm">
-              <i class="bi bi-plus-lg"></i> Enviar instrucciones a XCF
-            </a>
+            <div class="d-flex gap-2">
+              <a href="{{ path('consolidator_quote_new', { id: import.id }) }}" class="btn btn-outline-secondary btn-sm">
+                <i class="bi bi-currency-dollar"></i> Enviar cotización a XCF
+              </a>
+              <a href="{{ path('consolidator_instruction_new', { id: import.id }) }}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-plus-lg"></i> Enviar instrucciones a XCF
+              </a>
+            </div>
           </div>
+
+          {% if consolidatorQuotes %}
+            <h6 class="mt-3">Cotizaciones pedidas</h6>
+            <table class="table table-sm table-striped align-middle mb-3">
+              <thead>
+                <tr>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Destinatario</th>
+                  <th scope="col">Mercancía</th>
+                  <th scope="col">La mercancía es</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for quote in consolidatorQuotes %}
+                  <tr>
+                    <td>{{ quote.createdAt|date('d/m/Y H:i') }}</td>
+                    <td>{{ quote.deliveryPoint.name ?? (quote.reference.idCompany.name ~ ' (domicilio fiscal)') }}</td>
+                    <td>{{ quote.quantity }} {{ quote.unidad }} · {{ quote.weightKg }} KG · {{ quote.cubicaje }} M3</td>
+                    <td>{{ merchandiseTypes[quote.merchandiseType]|default(quote.merchandiseType) }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% endif %}
 
           {% if consolidatorInstructions %}
             <table class="table table-striped align-middle mb-0">
@@ -1482,6 +1511,7 @@
                   <th scope="col">Fecha</th>
                   <th scope="col">Destinatario</th>
                   <th scope="col">Mercancía</th>
+                  <th scope="col">La mercancía es</th>
                   <th scope="col">Transporte</th>
                   <th scope="col">Entrega estimada</th>
                   <th scope="col">BL XCF</th>
@@ -1494,6 +1524,7 @@
                     <td>{{ instruction.createdAt|date('d/m/Y H:i') }}</td>
                     <td>{{ instruction.deliveryPoint.name ?? (instruction.reference.idCompany.name ~ ' (domicilio fiscal)') }}</td>
                     <td>{{ instruction.quantity }} {{ instruction.unidad }} · {{ instruction.weightKg }} KG</td>
+                    <td>{{ instruction.merchandiseType ? merchandiseTypes[instruction.merchandiseType]|default(instruction.merchandiseType) : '—' }}</td>
                     <td>{{ instruction.transport.companyName }}</td>
                     <td>
                       {% if instruction.deliveryDate %}

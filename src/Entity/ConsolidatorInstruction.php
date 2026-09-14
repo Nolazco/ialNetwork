@@ -64,6 +64,14 @@ class ConsolidatorInstruction
     private ?string $unidad = null;
 
     /**
+     * Codigo del catalogo de XCF (ver MerchandiseTypeCatalog): 01-05. Nullable
+     * porque las instrucciones ya mandadas antes de este campo no lo
+     * capturaron — a partir de aqui el formulario lo pide siempre.
+     */
+    #[ORM\Column(length: 2, nullable: true)]
+    private ?string $merchandiseType = null;
+
+    /**
      * Día en que se entregaría la mercancía en XCF. Nullable a propósito: se
      * puede avisar la instrucción sin tener todavía la cita — es solo un
      * estimado para que XCF se organice, no un compromiso en firme.
@@ -210,6 +218,18 @@ class ConsolidatorInstruction
     public function setUnidad(string $unidad): static
     {
         $this->unidad = $unidad;
+
+        return $this;
+    }
+
+    public function getMerchandiseType(): ?string
+    {
+        return $this->merchandiseType;
+    }
+
+    public function setMerchandiseType(?string $merchandiseType): static
+    {
+        $this->merchandiseType = $merchandiseType;
 
         return $this;
     }

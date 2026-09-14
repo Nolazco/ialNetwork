@@ -14,6 +14,7 @@ use App\Security\CompanyAccess;
 use App\Service\ConsolidatorInstructionSheetGenerator;
 use App\Service\UploadPath;
 use App\Workflow\AllowedFileExtensions;
+use App\Workflow\MerchandiseTypeCatalog;
 use App\Workflow\RequiredDocumentType;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bridge\Doctrine\Attribute\MapEntity;
@@ -64,6 +65,7 @@ class DashboardConsolidatorInstructions extends AbstractController
             'deliveryPoints' => $this->entityManager->getRepository(DeliveryPoint::class)->findByCompany($import->getIdCompany()),
             'merchandiseProfiles' => $this->entityManager->getRepository(MerchandiseProfile::class)->findBy(['company' => $import->getIdCompany()], ['descripcion' => 'ASC']),
             'haulers' => $this->entityManager->getRepository(FreightHauler::class)->findBy([], ['companyName' => 'ASC']),
+            'merchandiseTypes' => MerchandiseTypeCatalog::LABELS,
             'testRecipient' => ConsolidatorMailer::TEST_RECIPIENT,
         ]);
     }
@@ -131,6 +133,14 @@ class DashboardConsolidatorInstructions extends AbstractController
             return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
         }
 
+        $merchandiseType = (string) $r->request->get('merchandiseType');
+
+        if (!(new MerchandiseTypeCatalog())->isValid($merchandiseType)) {
+            $this->addFlash('error', 'Selecciona qué tipo de mercancía es.');
+
+            return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+        }
+
         // Algunos clientes (hoy Sinbiotik) generan su propio documento de
         // instrucciones desde su portal, con su propio folio de BL — en ese
         // caso no hay nada que generar aqui, solo adjuntar lo que ya traen.
@@ -173,6 +183,7 @@ class DashboardConsolidatorInstructions extends AbstractController
         $instruction->setClaveSat($claveSat);
         $instruction->setClaveUnidad($claveUnidad);
         $instruction->setUnidad($unidad);
+        $instruction->setMerchandiseType($merchandiseType);
         $instruction->setEstibable($merchandiseProfile?->isEstibable() ?? ($r->request->get('estibable') === '1'));
         $instruction->setQuantity($quantity);
         $instruction->setWeightKg($weightKg);

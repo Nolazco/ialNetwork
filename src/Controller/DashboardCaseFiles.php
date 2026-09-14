@@ -6,6 +6,7 @@ use App\Entity\Delivery;
 use App\Entity\Biller;
 use App\Entity\Container;
 use App\Entity\ConsolidatorInstruction;
+use App\Entity\ConsolidatorQuote;
 use App\Entity\ContainerYard;
 use App\Entity\DeliveryPoint;
 use App\Entity\EmptyReturn;
@@ -30,6 +31,7 @@ use App\Workflow\ContainerTypeCatalog;
 use App\Workflow\EmailListParser;
 use App\Workflow\EmptyReturnCatalog;
 use App\Workflow\ImportRequestWorkflow;
+use App\Workflow\MerchandiseTypeCatalog;
 use App\Workflow\OperationCatalog;
 use App\Workflow\RequiredDocumentType;
 use App\Workflow\TransportCoordinator;
@@ -272,6 +274,9 @@ class DashboardCaseFiles extends AbstractController
                 ->findBy(['reference' => $import], ['date' => 'DESC', 'id' => 'DESC']),
             'consolidatorInstructions' => $this->entityManager->getRepository(ConsolidatorInstruction::class)
                 ->findBy(['reference' => $import], ['createdAt' => 'DESC']),
+            'consolidatorQuotes' => $this->entityManager->getRepository(ConsolidatorQuote::class)
+                ->findBy(['reference' => $import], ['createdAt' => 'DESC']),
+            'merchandiseTypes' => MerchandiseTypeCatalog::LABELS,
             'expenses' => $import->getInternInvoices(),
             'allowedExpenseTypes' => self::EXPENSE_EXTENSIONS,
             'allowedDocumentTypes' => self::EXPENSE_EXTENSIONS,

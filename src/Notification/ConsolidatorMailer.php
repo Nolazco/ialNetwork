@@ -6,6 +6,7 @@ use App\Entity\ConsolidatorInstruction;
 use App\Entity\RequiredDocument;
 use App\Repository\NotificationRecipientsRepository;
 use App\Service\UploadPath;
+use App\Workflow\MerchandiseTypeCatalog;
 use App\Workflow\RequiredDocumentType;
 use Symfony\Bridge\Twig\Mime\TemplatedEmail;
 use Symfony\Component\DependencyInjection\Attribute\Autowire;
@@ -68,7 +69,7 @@ final class ConsolidatorMailer
                 $import->getImportNumber(),
             ))
             ->htmlTemplate('emails/consolidator_instruction.html.twig')
-            ->context(['instruction' => $instruction, 'import' => $import])
+            ->context(['instruction' => $instruction, 'import' => $import, 'merchandiseTypes' => MerchandiseTypeCatalog::LABELS])
             ->to(...$to);
 
         if ($cc !== []) {

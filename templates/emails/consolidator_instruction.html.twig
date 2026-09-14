@@ -38,6 +38,12 @@
                   <td style="color:#909090;">Peso</td>
                   <td><strong>{{ instruction.weightKg }} KG</strong></td>
                 </tr>
+                {% if instruction.merchandiseType %}
+                  <tr>
+                    <td style="color:#909090;">La mercancía es</td>
+                    <td><strong>{{ merchandiseTypes[instruction.merchandiseType]|default(instruction.merchandiseType) }}</strong></td>
+                  </tr>
+                {% endif %}
                 <tr>
                   <td style="color:#909090;">Destinatario</td>
                   <td><strong>{{ instruction.deliveryPoint.name ?? (import.idCompany.name ~ ' (domicilio fiscal)') }}</strong></td>

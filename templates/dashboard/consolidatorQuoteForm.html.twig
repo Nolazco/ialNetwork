@@ -1,0 +1,200 @@
+{% extends '/dashboard/baseDashboard.html.twig' %}
+
+{% block title %}Cotización XCF · {{ import.clientReference }}{% endblock %}
+
+{% block body %}
+  <div class="content">
+
+    <div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-2">
+      <div>
+        <h2 class="mb-1">Cotización al consolidador de carga (XCF)</h2>
+        <p class="text-body-secondary mb-0">
+          {{ import.clientReference }} &middot; {{ import.idCompany.name }}
+        </p>
+      </div>
+      <a href="{{ path('case_file', { id: import.id }) }}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left"></i> Volver al expediente
+      </a>
+    </div>
+
+    {% if not import.tariffFraction %}
+      <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        Falta la fracción arancelaria — captúrala en «Alta del pedimento» antes de pedir la cotización.
+      </div>
+    {% endif %}
+
+    <form method="POST" action="{{ path('consolidator_quote_create', { id: import.id }) }}">
+      <input type="hidden" name="_token" value="{{ csrf_token('consolidator_quote_create') }}">
+
+      {# ---------- Destinatario ---------- #}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Domicilio de entrega</h5>
+            <button type="button" class="btn btn-link btn-sm p-0" id="toggle-new-delivery-point">
+              <i class="bi bi-plus-lg"></i> Nuevo destinatario
+            </button>
+          </div>
+
+          <select class="form-select" name="deliveryPointId" id="deliveryPointId" required>
+            <option value="" selected disabled>Seleccione un destinatario</option>
+            <option value="fiscal">Domicilio fiscal ({{ import.idCompany.name }})</option>
+            {% for p in deliveryPoints %}
+              <option value="{{ p.id }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
+
+          <div id="new-delivery-point-fields" class="d-none border rounded p-3 mt-3">
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Nombre</label>
+                <input type="text" class="form-control" name="newDeliveryPointName">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">RFC</label>
+                <input type="text" class="form-control" name="newDeliveryPointRfc">
+              </div>
+              <div class="col-md-8">
+                <label class="form-label">Calle</label>
+                <input type="text" class="form-control" name="newDeliveryPointStreet">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Núm ext</label>
+                <input type="text" class="form-control" name="newDeliveryPointExtNumber">
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Núm int</label>
+                <input type="text" class="form-control" name="newDeliveryPointIntNumber">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Colonia</label>
+                <input type="text" class="form-control" name="newDeliveryPointNeighborhood">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Localidad</label>
+                <input type="text" class="form-control" name="newDeliveryPointLocality">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Municipio</label>
+                <input type="text" class="form-control" name="newDeliveryPointMunicipality">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Estado</label>
+                <input type="text" class="form-control" name="newDeliveryPointState">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">País</label>
+                <input type="text" class="form-control" name="newDeliveryPointCountry" value="MEXICO">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Código postal</label>
+                <input type="text" class="form-control" name="newDeliveryPointZipCode">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Contacto</label>
+                <input type="text" class="form-control" name="newDeliveryPointContactName">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Teléfono</label>
+                <input type="text" class="form-control" name="newDeliveryPointContactPhone">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Correo</label>
+                <input type="email" class="form-control" name="newDeliveryPointContactEmail">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {# ---------- Mercancía ---------- #}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Mercancía</h5>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Descripción</label>
+              <input type="text" class="form-control" name="descripcion" value="{{ import.goods }}" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Clave SAT</label>
+              <input type="text" class="form-control" name="claveSat" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Unidad</label>
+              <input type="text" class="form-control" name="unidad" placeholder="Ej. CUÑETES" required>
+            </div>
+            <div class="col-md-3">
+              <label for="quantity" class="form-label">Bultos</label>
+              <input type="number" min="1" class="form-control" name="quantity" id="quantity" required>
+            </div>
+            <div class="col-md-3">
+              <label for="weightKg" class="form-label">Peso (KG)</label>
+              <input type="number" min="0" step="0.01" class="form-control" name="weightKg" id="weightKg" required>
+            </div>
+            <div class="col-md-3">
+              <label for="cubicaje" class="form-label">Cubicaje (M3)</label>
+              <input type="number" min="0" step="0.01" class="form-control" name="cubicaje" id="cubicaje" required>
+            </div>
+            <div class="col-md-3">
+              <label for="merchandiseType" class="form-label">La mercancía es</label>
+              <select class="form-select" name="merchandiseType" id="merchandiseType" required>
+                <option value="" selected disabled>Seleccione</option>
+                {% for code, label in merchandiseTypes %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" {{ import.tariffFraction ? '' : 'disabled' }}>
+        <i class="bi bi-envelope"></i> Enviar cotización a XCF
+      </button>
+
+      {% if app.environment != 'prod' %}
+        {# Botón de pruebas: manda solo a ConsolidatorQuoteMailer::TEST_RECIPIENT,
+           sin guardar nada ni tocar los correos de /admin. Quitar este botón
+           (y ConsolidatorQuoteMailer::TEST_RECIPIENT / DashboardConsolidatorQuotes::create
+           testMode) antes de producción. #}
+        <button type="submit" name="testMode" value="1" class="btn btn-outline-secondary" {{ import.tariffFraction ? '' : 'disabled' }}>
+          <i class="bi bi-flask"></i> Prueba XCF (solo a {{ testRecipient }})
+        </button>
+      {% endif %}
+    </form>
+
+  </div>
+{% endblock %}
+
+{% block javascripts %}
+  {{ parent() }}
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const deliveryPointSelect = document.getElementById("deliveryPointId");
+      const toggleDeliveryPointBtn = document.getElementById("toggle-new-delivery-point");
+      const newDeliveryPointFields = document.getElementById("new-delivery-point-fields");
+      let creatingDeliveryPoint = false;
+
+      toggleDeliveryPointBtn.addEventListener("click", function () {
+        creatingDeliveryPoint = !creatingDeliveryPoint;
+
+        deliveryPointSelect.classList.toggle("d-none", creatingDeliveryPoint);
+        deliveryPointSelect.required = !creatingDeliveryPoint;
+        deliveryPointSelect.value = "";
+
+        newDeliveryPointFields.classList.toggle("d-none", !creatingDeliveryPoint);
+        newDeliveryPointFields.querySelectorAll("input").forEach(function (input) {
+          if (input.name !== "newDeliveryPointCountry") {
+            input.value = "";
+          }
+        });
+
+        toggleDeliveryPointBtn.innerHTML = creatingDeliveryPoint
+          ? '<i class="bi bi-list"></i> Elegir del catálogo'
+          : '<i class="bi bi-plus-lg"></i> Nuevo destinatario';
+      });
+    });
+  </script>
+{% endblock %}

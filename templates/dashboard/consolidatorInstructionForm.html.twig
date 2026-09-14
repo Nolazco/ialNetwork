@@ -173,6 +173,15 @@
               <label for="weightKg" class="form-label">Peso (KG)</label>
               <input type="number" min="0" step="0.01" class="form-control" name="weightKg" id="weightKg" required>
             </div>
+            <div class="col-md-6">
+              <label for="merchandiseType" class="form-label">La mercancía es</label>
+              <select class="form-select" name="merchandiseType" id="merchandiseType" required>
+                <option value="" selected disabled>Seleccione</option>
+                {% for code, label in merchandiseTypes %}
+                  <option value="{{ code }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+            </div>
           </div>
         </div>
       </div>
