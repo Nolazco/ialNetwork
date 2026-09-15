@@ -70,6 +70,13 @@ class DashboardCaseFiles extends AbstractController
      */
     public const EXPENSE_EXTENSIONS = AllowedFileExtensions::LIST;
 
+    /**
+     * El pase PIS va incrustado como <img> en el correo de aviso al
+     * transporte (ver DeliveryMailer), asi que tiene que ser una imagen de
+     * verdad y no cualquier archivo como la maniobra.
+     */
+    private const PASE_PIS_EXTENSIONS = ['jpg', 'jpeg', 'png'];
+
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
         private readonly ImportRequestWorkflow $workflow,
@@ -197,14 +204,22 @@ class DashboardCaseFiles extends AbstractController
         // Otros expedientes con los que se podria compartir una misma unidad
         // (mismo cliente o no, sin restriccion): cualquiera que hoy admita
         // aviso al transporte, salvo este mismo — pero solo del mismo tipo de
-        // carga: un camion de contenedor no lleva bultos sueltos, y viceversa.
+        // carga (un camion de contenedor no lleva bultos sueltos, y
+        // viceversa), la misma aduana (una unidad hace un solo despacho, en
+        // un solo puerto) y la misma direccion (una importacion sale del
+        // puerto, una exportacion entra — un mismo viaje no puede ser ambas).
         // Se precalculan sus propios contenedores sin asignar para que el
         // formulario los muestre/oculte por JS sin ir de vuelta al servidor.
         $shareableImports = [];
         $shareableContainers = [];
 
         foreach ($this->entityManager->getRepository(ImportRequest::class)->findBy([], ['clientReference' => 'ASC']) as $candidate) {
-            if ($candidate === $import || $candidate->getType() !== $import->getType() || !$this->workflow->canAssignTransport($candidate)) {
+            if ($candidate === $import
+                || $candidate->getType() !== $import->getType()
+                || $candidate->getAduana() !== $import->getAduana()
+                || $candidate->getDirection() !== $import->getDirection()
+                || !$this->workflow->canAssignTransport($candidate)
+            ) {
                 continue;
             }
 
@@ -1091,6 +1106,10 @@ class DashboardCaseFiles extends AbstractController
         // renombrada con el contenedor (o "MANIOBRA CS ..." si es carga
         // suelta) — ver DeliveryMailer. Mismo criterio que editTransport().
         $maniobraFile = $r->files->get('maniobra');
+        // El pase PIS tambien es opcional aqui: a veces todavia no se agenda
+        // la cita en el portal del recinto cuando se avisa al transporte por
+        // primera vez, y se sube despues editando el despacho.
+        $pasePisFile = $r->files->get('pasePis');
 
         if ($claveSat === '' || $descripcion === '' || $embalaje === '' || $bultos < 1 || $weightKg <= 0 || $cubicaje <= 0) {
             $this->addFlash('error', 'Clave SAT, mercancía, embalaje, bultos, peso y cubicaje son obligatorios.');
@@ -1245,6 +1264,35 @@ class DashboardCaseFiles extends AbstractController
             }
 
             $delivery->setManiobraRoute($route.'/'.$name);
+        }
+
+        if ($pasePisFile && $pasePisFile->isValid()) {
+            if (!in_array(strtolower((string) $pasePisFile->guessExtension()), self::PASE_PIS_EXTENSIONS, true)) {
+                $this->addFlash('error', 'El pase PIS debe ser una imagen (jpg, jpeg o png).');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $route = 'uploads/despachos/'.$delivery->getId();
+            $folder = $this->uploadPath->resolve($route);
+
+            if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+                $this->addFlash('error', 'No se pudo preparar la carpeta del pase PIS.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $name = 'pase-pis-'.uniqid().'.'.$pasePisFile->guessExtension();
+
+            try {
+                $pasePisFile->move($folder, $name);
+            } catch (FileException) {
+                $this->addFlash('error', 'No se pudo guardar el pase PIS.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $delivery->setPasePisRoute($route.'/'.$name);
         }
 
         $this->entityManager->flush();
@@ -1439,6 +1487,45 @@ class DashboardCaseFiles extends AbstractController
             }
 
             $delivery->setManiobraRoute($route.'/'.$name);
+        }
+
+        // El pase PIS tambien es opcional aqui: si no se adjunta uno nuevo,
+        // se queda el que ya tenia.
+        $pasePisFile = $r->files->get('pasePis');
+
+        if ($pasePisFile && $pasePisFile->isValid()) {
+            if (!in_array(strtolower((string) $pasePisFile->guessExtension()), self::PASE_PIS_EXTENSIONS, true)) {
+                $this->addFlash('error', 'El pase PIS debe ser una imagen (jpg, jpeg o png).');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $route = 'uploads/despachos/'.$delivery->getId();
+            $folder = $this->uploadPath->resolve($route);
+
+            if (!is_dir($folder) && !mkdir($folder, 0777, true) && !is_dir($folder)) {
+                $this->addFlash('error', 'No se pudo preparar la carpeta del pase PIS.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $name = 'pase-pis-'.uniqid().'.'.$pasePisFile->guessExtension();
+
+            try {
+                $pasePisFile->move($folder, $name);
+            } catch (FileException) {
+                $this->addFlash('error', 'No se pudo guardar el pase PIS.');
+
+                return $this->redirectToRoute('case_file', ['id' => $import->getId()]);
+            }
+
+            $oldPath = $delivery->getPasePisRoute() ? $this->uploadPath->resolve($delivery->getPasePisRoute()) : null;
+
+            if ($oldPath && is_file($oldPath)) {
+                unlink($oldPath);
+            }
+
+            $delivery->setPasePisRoute($route.'/'.$name);
         }
 
         $this->entityManager->flush();
@@ -2221,6 +2308,38 @@ class DashboardCaseFiles extends AbstractController
         }
 
         $path = $this->uploadPath->resolve((string) $delivery->getProofRoute());
+
+        if (!is_file($path)) {
+            throw $this->createNotFoundException();
+        }
+
+        $response = new BinaryFileResponse($path);
+        $response->setContentDisposition(ResponseHeaderBag::DISPOSITION_INLINE, basename($path));
+
+        return $response;
+    }
+
+    /**
+     * Descarga el pase PIS de un despacho. Mismo criterio de acceso que la
+     * maniobra: cliente/ejecutivo, o el transportista dueño de ese despacho
+     * en concreto.
+     */
+    #[Route('/dashboard/pedimentos/expediente/{id}/despachos/{delivery}/pase-pis', name: 'case_file_delivery_pase_pis_download', requirements: ['id' => '\d+', 'delivery' => '\d+'], methods: ['GET'])]
+    public function downloadDeliveryPasePis(#[MapEntity(id: 'id')] ImportRequest $import, #[MapEntity(id: 'delivery')] Delivery $delivery): BinaryFileResponse
+    {
+        if (!$delivery->getReferences()->contains($import)) {
+            throw $this->createNotFoundException();
+        }
+
+        /** @var User $user */
+        $user = $this->getUser();
+        $ownsDelivery = in_array($delivery->getTransport(), $this->haulersFor($user), true);
+
+        if (!$this->canView($import) && !$ownsDelivery) {
+            throw $this->createAccessDeniedException('Ese despacho no pertenece a ninguna de tus empresas.');
+        }
+
+        $path = $this->uploadPath->resolve((string) $delivery->getPasePisRoute());
 
         if (!is_file($path)) {
             throw $this->createNotFoundException();

@@ -122,6 +122,16 @@ class Delivery
     private ?string $maniobraRoute = null;
 
     /**
+     * Captura de pantalla del "pase PIS" (la cita/autorizacion del portal del
+     * recinto: codigo de cita, tractocamiones permitidos, transportista
+     * asignado, etc.) — va incluida en el cuerpo del aviso de transporte, no
+     * solo adjunta, porque el transportista la necesita visible para
+     * presentarse en la caseta (ver DeliveryMailer).
+     */
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $pasePisRoute = null;
+
+    /**
      * Folio que XCF genera al recibir las instrucciones (ver
      * ConsolidatorMailer) — el transportista lo debe presentar ahi. Solo
      * aplica si el expediente viaja con el consolidador de carga (ver
@@ -404,6 +414,18 @@ class Delivery
     public function setManiobraRoute(?string $maniobraRoute): static
     {
         $this->maniobraRoute = $maniobraRoute;
+
+        return $this;
+    }
+
+    public function getPasePisRoute(): ?string
+    {
+        return $this->pasePisRoute;
+    }
+
+    public function setPasePisRoute(?string $pasePisRoute): static
+    {
+        $this->pasePisRoute = $pasePisRoute;
 
         return $this;
     }

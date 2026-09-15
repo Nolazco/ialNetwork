@@ -71,6 +71,24 @@ final class DeliveryMailer
             $attachments[] = ['route' => $maniobraRoute, 'name' => $this->maniobraFilename($delivery, pathinfo($maniobraRoute, PATHINFO_EXTENSION))];
         }
 
+        // El pase PIS tambien se adjunta (para guardarlo/reenviarlo facil),
+        // pero ademas va incrustado como imagen al fondo del correo: el
+        // transportista lo tiene que ver de un vistazo al abrir el correo en
+        // el celular en la caseta, no andar abriendo un adjunto aparte.
+        $pasePisRoute = $delivery->getPasePisRoute();
+        $pasePisImage = null;
+
+        if ($pasePisRoute) {
+            $attachments[] = ['route' => $pasePisRoute, 'name' => $this->pasePisFilename($delivery, pathinfo($pasePisRoute, PATHINFO_EXTENSION))];
+
+            $pasePisPath = $this->uploadPath->resolve($pasePisRoute);
+
+            if (is_file($pasePisPath)) {
+                $mimeType = mime_content_type($pasePisPath) ?: 'image/png';
+                $pasePisImage = sprintf('data:%s;base64,%s', $mimeType, base64_encode((string) file_get_contents($pasePisPath)));
+            }
+        }
+
         foreach ($delivery->getReferences() as $reference) {
             foreach ($reference->getCustodia()?->getContactEmails() ?? [] as $custodiaEmail) {
                 $custodiaEmails[$custodiaEmail] = true;
@@ -131,7 +149,7 @@ final class DeliveryMailer
             ->from($this->fromAddress)
             ->subject($this->subjectFor($delivery))
             ->htmlTemplate('emails/delivery_notice.html.twig')
-            ->context(['delivery' => $delivery, 'references' => $references])
+            ->context(['delivery' => $delivery, 'references' => $references, 'pasePisImage' => $pasePisImage])
             ->to(...$to);
 
         if ($custodiaEmails !== []) {
@@ -195,6 +213,20 @@ final class DeliveryMailer
         $yard = $primary?->getCr()?->getName() ?? 'recinto pendiente';
 
         return strtoupper(sprintf('MANIOBRA CS %s - %s', $company, $yard)).'.'.$extension;
+    }
+
+    /**
+     * El pase PIS es de la cita en el recinto, no de un contenedor en
+     * particular (aunque el despacho traiga varios) — siempre se nombra por
+     * empresa y recinto, nunca por contenedor.
+     */
+    private function pasePisFilename(Delivery $delivery, string $extension): string
+    {
+        $primary = $delivery->getReferences()->first() ?: null;
+        $company = $primary?->getIdCompany()->getName() ?? '';
+        $yard = $primary?->getCr()?->getName() ?? 'recinto pendiente';
+
+        return strtoupper(sprintf('PASE PIS %s - %s', $company, $yard)).'.'.$extension;
     }
 
     /**

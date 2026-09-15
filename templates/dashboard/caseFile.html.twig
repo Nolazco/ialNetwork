@@ -810,6 +810,13 @@
                           </a>
                         </div>
                       {% endif %}
+                      {% if d.pasePisRoute %}
+                        <div class="small">
+                          <a href="{{ path('case_file_delivery_pase_pis_download', { id: import.id, delivery: d.id }) }}" target="_blank" rel="noopener">
+                            <i class="bi bi-file-earmark-image"></i> Pase PIS
+                          </a>
+                        </div>
+                      {% endif %}
                     {% endif %}
                     {% if is_granted('ROLE_EXECUTIVE') and not d.failed and import.type == 'container' %}
                       {# Solo aplica a contenedor: la devolución de vacíos no existe en carga suelta. #}
@@ -977,6 +984,13 @@
                           </label>
                           <input type="file" class="form-control form-control-sm" name="maniobra">
                         </div>
+                        <div class="col-md-4">
+                          <label class="form-label small">
+                            Subir pase PIS
+                            {% if d.pasePisRoute %}<span class="text-body-secondary">(ya adjunto, opcional reemplazar)</span>{% endif %}
+                          </label>
+                          <input type="file" class="form-control form-control-sm" name="pasePis" accept="image/png,image/jpeg">
+                        </div>
                         <div class="col-md-2">
                           <button type="submit" class="btn btn-sm btn-primary">
                             <i class="bi bi-save"></i> Actualizar
@@ -1096,6 +1110,14 @@
                   <span class="text-body-secondary">(opcional)</span>
                 </label>
                 <input type="file" class="form-control" name="maniobra" id="maniobra">
+              </div>
+
+              <div class="col-md-4">
+                <label for="pasePis" class="form-label">
+                  Subir pase PIS
+                  <span class="text-body-secondary">(opcional)</span>
+                </label>
+                <input type="file" class="form-control" name="pasePis" id="pasePis" accept="image/png,image/jpeg">
               </div>
 
               <div class="col-md-4">
