@@ -130,7 +130,14 @@
                   <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
                 </div>
                 <div class="modal-body" style="overflow-wrap: break-word; word-wrap: break-word;">
-                  {{ r.confirmedJustification|raw }}
+                  {# A veces alguien pega una captura de pantalla entera en el
+                     editor en vez de copiar el texto: sin este contenedor
+                     (ver .justification-content en app.css), una imagen mas
+                     ancha que el modal lo estira a lo ancho en vez de
+                     encogerse a su tamaño. #}
+                  <div class="justification-content">
+                    {{ r.confirmedJustification|raw }}
+                  </div>
                 </div>
               </div>
             </div>

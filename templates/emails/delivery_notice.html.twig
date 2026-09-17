@@ -94,11 +94,10 @@
                   Se adjunta la maniobra.
                 </p>
               {% endif %}
-              {% if pasePisImage %}
-                <p style="margin:24px 0 8px; font-size:14px; color:#212529;">
-                  <strong>Pase PIS:</strong>
+              {% if delivery.pasePisRoute %}
+                <p style="margin:8px 0 0; font-size:13px; color:#909090;">
+                  Se adjunta el pase PIS.
                 </p>
-                <img src="{{ pasePisImage }}" alt="Pase PIS" style="max-width:100%; height:auto; border:1px solid #dee2e6; border-radius:4px;">
               {% endif %}
             </td>
           </tr>

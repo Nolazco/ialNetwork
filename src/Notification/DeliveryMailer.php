@@ -71,22 +71,14 @@ final class DeliveryMailer
             $attachments[] = ['route' => $maniobraRoute, 'name' => $this->maniobraFilename($delivery, pathinfo($maniobraRoute, PATHINFO_EXTENSION))];
         }
 
-        // El pase PIS tambien se adjunta (para guardarlo/reenviarlo facil),
-        // pero ademas va incrustado como imagen al fondo del correo: el
-        // transportista lo tiene que ver de un vistazo al abrir el correo en
-        // el celular en la caseta, no andar abriendo un adjunto aparte.
+        // El pase PIS se adjunta para guardarlo/reenviarlo facil. Se probo
+        // incrustarlo como imagen al fondo del correo, pero se guarda con
+        // sus dimensiones reales (una captura de pantalla puede ser enorme)
+        // y desbordaba el panel de lectura del correo.
         $pasePisRoute = $delivery->getPasePisRoute();
-        $pasePisImage = null;
 
         if ($pasePisRoute) {
             $attachments[] = ['route' => $pasePisRoute, 'name' => $this->pasePisFilename($delivery, pathinfo($pasePisRoute, PATHINFO_EXTENSION))];
-
-            $pasePisPath = $this->uploadPath->resolve($pasePisRoute);
-
-            if (is_file($pasePisPath)) {
-                $mimeType = mime_content_type($pasePisPath) ?: 'image/png';
-                $pasePisImage = sprintf('data:%s;base64,%s', $mimeType, base64_encode((string) file_get_contents($pasePisPath)));
-            }
         }
 
         foreach ($delivery->getReferences() as $reference) {
@@ -149,7 +141,7 @@ final class DeliveryMailer
             ->from($this->fromAddress)
             ->subject($this->subjectFor($delivery))
             ->htmlTemplate('emails/delivery_notice.html.twig')
-            ->context(['delivery' => $delivery, 'references' => $references, 'pasePisImage' => $pasePisImage])
+            ->context(['delivery' => $delivery, 'references' => $references])
             ->to(...$to);
 
         if ($custodiaEmails !== []) {

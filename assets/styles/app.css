@@ -226,3 +226,14 @@
 .file-drop-list:empty {
 	display: none;
 }
+
+/* Justificación del clasificador (ver classifications.html.twig): a veces
+   alguien pega una captura de pantalla entera en el editor en vez de copiar
+   el texto. Quill ya encoge la imagen mientras se edita (su propio CSS solo
+   aplica dentro de .ql-editor), pero al mostrarla despues de guardada, sin
+   esto, una imagen mas ancha que el modal lo estira a lo ancho en vez de
+   encogerse a su tamaño. */
+.justification-content img {
+	max-width: 100%;
+	height: auto;
+}
