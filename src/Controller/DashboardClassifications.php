@@ -158,7 +158,7 @@ class DashboardClassifications extends AbstractController
         $fraction = trim((string) $r->request->get('confirmedTariffFraction'));
 
         if (!$this->isValidTariffFraction($fraction)) {
-            $this->addFlash('error', 'La fracción arancelaria va a 10 dígitos, con el formato XXXX.XX.XX.XX (ej. 8471.30.01.99).');
+            $this->addFlash('error', 'La fracción arancelaria va a 10 dígitos, con el formato XXXX.XX.XX.XX (ej. 8471.30.01.99). Si aplica más de una, sepáralas con " / ".');
 
             return $this->redirectToRoute('classifications');
         }
@@ -481,10 +481,15 @@ class DashboardClassifications extends AbstractController
      * La fracción arancelaria mexicana va a 10 dígitos: 8 de la fracción
      * internacional/nacional (XXXX.XX.XX) más 2 del NICO (identificación
      * comercial), ej. 8471.30.01.99.
+     *
+     * Algunas mercancías clasifican en mas de una fraccion segun como se
+     * comercialicen (ej. a granel vs. ya envasada) — el clasificador captura
+     * las que apliquen separadas por " / ", asi que se acepta una o varias,
+     * no solo una fija.
      */
     private function isValidTariffFraction(string $fraction): bool
     {
-        return preg_match('/^\d{4}\.\d{2}\.\d{2}\.\d{2}$/', $fraction) === 1;
+        return preg_match('/^\d{4}\.\d{2}\.\d{2}\.\d{2}(\s*\/\s*\d{4}\.\d{2}\.\d{2}\.\d{2})*$/', $fraction) === 1;
     }
 
     private function nullableTrim(mixed $value): ?string

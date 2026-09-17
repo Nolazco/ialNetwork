@@ -154,8 +154,11 @@
                 <div class="mb-3">
                   <label class="form-label">Fracción arancelaria</label>
                   <input type="text" name="confirmedTariffFraction" id="confirmFractionInput" class="form-control"
-                         placeholder="8471.30.01.99" title="Fracción a 10 dígitos: XXXX.XX.XX.XX"
-                         pattern="\d{4}\.\d{2}\.\d{2}\.\d{2}" required>
+                         placeholder="8471.30.01.99" title="Fracción a 10 dígitos: XXXX.XX.XX.XX — si la mercancía puede clasificar en más de una según cómo se comercialice, sepáralas con &quot; / &quot;"
+                         pattern="\d{4}\.\d{2}\.\d{2}\.\d{2}(\s*/\s*\d{4}\.\d{2}\.\d{2}\.\d{2})*" required>
+                  <div class="form-text">
+                    Si la mercancía puede ir en más de una fracción según cómo se comercialice, sepáralas con " / " (ej. 3003.90.99.00 / 3004.90.99.99).
+                  </div>
                 </div>
                 <div class="mb-3">
                   <label class="form-label">Justificación del clasificador (opcional)</label>
