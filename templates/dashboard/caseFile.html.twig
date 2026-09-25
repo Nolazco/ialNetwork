@@ -1011,6 +1011,11 @@
               <i class="bi bi-check2-all"></i> Todos los contenedores tienen camión asignado.
             </p>
           {% else %}
+            {# Carga suelta con XCF ya captura clave SAT/unidad/cantidad/peso al
+               mandar las instrucciones al consolidador — se precargan aqui
+               para no hacer que se vuelvan a capturar a mano (ver
+               ConsolidatorInstruction). #}
+            {% set latestConsolidatorInstruction = consolidatorInstructions is not empty ? consolidatorInstructions|first : null %}
             <form method="POST" enctype="multipart/form-data" action="{{ path('case_file_transport', { id: import.id }) }}" class="row g-2 align-items-end">
               <input type="hidden" name="_token" value="{{ csrf_token('case_file_transport') }}">
 
@@ -1069,7 +1074,7 @@
 
               <div class="col-md-3">
                 <label for="claveSat" class="form-label">Clave SAT</label>
-                <input type="text" class="form-control" name="claveSat" id="claveSat" required>
+                <input type="text" class="form-control" name="claveSat" id="claveSat" value="{{ latestConsolidatorInstruction ? latestConsolidatorInstruction.claveSat : '' }}" required>
               </div>
 
               <div class="col-md-4">
@@ -1079,17 +1084,17 @@
 
               <div class="col-md-3">
                 <label for="embalaje" class="form-label">Embalaje</label>
-                <input type="text" class="form-control" name="embalaje" id="embalaje" placeholder="Ej. Tarimas">
+                <input type="text" class="form-control" name="embalaje" id="embalaje" value="{{ latestConsolidatorInstruction ? latestConsolidatorInstruction.unidad : '' }}" placeholder="Ej. Tarimas">
               </div>
 
               <div class="col-md-2">
                 <label for="bultos" class="form-label">Bultos</label>
-                <input type="number" min="1" class="form-control" name="bultos" id="bultos" required>
+                <input type="number" min="1" class="form-control" name="bultos" id="bultos" value="{{ latestConsolidatorInstruction ? latestConsolidatorInstruction.quantity : '' }}" required>
               </div>
 
               <div class="col-md-2">
                 <label for="pesoTransporte" class="form-label">Peso (KG)</label>
-                <input type="number" min="0" step="0.01" class="form-control" name="weightKg" id="pesoTransporte" required>
+                <input type="number" min="0" step="0.01" class="form-control" name="weightKg" id="pesoTransporte" value="{{ latestConsolidatorInstruction ? latestConsolidatorInstruction.weightKg : '' }}" required>
               </div>
 
               <div class="col-md-2">
